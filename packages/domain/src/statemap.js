@@ -33,11 +33,15 @@ const stamp = v => (v == null ? null : new Date(v).toISOString())
 
 /* Settings that live on the profile rather than in a table of their own. Everything here is
  * small, read as a unit and never written by anyone but its owner, so a row per key would be
- * cost with no benefit. `active` — the workout in progress — belongs here too: syncing it is
- * what lets someone start a session on their phone and finish it on a laptop. */
+ * cost with no benefit.
+ *
+ * `active` — the workout in progress — is deliberately NOT in this list. openGym keeps it
+ * device-local and that is the right call: syncing it means two devices can both believe they
+ * are mid-session, and the loser's half-logged sets are the ones that vanish. A session is
+ * finished on the phone it was started on. */
 export const SETTING_KEYS = [
   'unit', 'restSec', 'sound', 'keepAwake', 'lang', 'theme', 'accent', 'body', 'targetW',
-  'gifSize', 'reminder', 'effort', 'showRir', 'exWeights', 'active'
+  'gifSize', 'reminder', 'effort', 'showRir', 'exWeights'
 ]
 
 /* ---------------------------------------------------------------- sets ---- */

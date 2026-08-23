@@ -17,11 +17,14 @@ export async function setupDb() {
   return db()
 }
 
-/** Wipe user data between tests, leaving the exercise library and the schema alone. */
+/** Wipe user data between tests, leaving the exercise library and the schema alone.
+ *
+ * DELETE, not `truncate users cascade`. TRUNCATE CASCADE truncates every table with a foreign
+ * key to users — `exercises` included — and that table holds the 1,324-row shared library, which
+ * has no owner and is not test data. DELETE follows `on delete cascade` instead, so a user's own
+ * exercises go and the library stays. */
 export async function truncateUsers() {
-  const s = db()
-  await s`truncate users cascade`
-  await s`delete from exercises where owner_id is not null`
+  await db()`delete from users`
 }
 
 export async function teardownDb() { await close(); ready = false }
