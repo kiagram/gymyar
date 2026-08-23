@@ -17,7 +17,12 @@ const fallback = {
     for (let i = 0; i < args.length; i++) v = v.replaceAll('{' + i + '}', args[i])
     return v
   },
-  dateLocale: () => 'en-GB'
+  dateLocale: () => 'en-GB',
+  // Which weekday a week starts on, as a `getDay()` index. Monday is the default because it is
+  // what every language this app shipped with was hardcoded to; a locale that starts its week
+  // elsewhere — Saturday in Iran, Sunday in much of Asia and the Americas — says so here rather
+  // than each grid working it out again.
+  weekStartsOn: () => 1
 }
 
 let impl = fallback
@@ -29,3 +34,4 @@ export function setI18n(next) {
 
 export const t = (s, ...args) => impl.t(s, ...args)
 export const dateLocale = () => impl.dateLocale()
+export const weekStartsOn = () => impl.weekStartsOn()

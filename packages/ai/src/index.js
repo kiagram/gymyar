@@ -19,57 +19,140 @@
  * `normaliseBrief` throws away invented goals and equipment, and `parseLog` is the only thing
  * allowed to name an exercise. A model that returns nonsense costs a fallback, not a bad plan.
  */
-import { normaliseBrief, parseLog as parseLogLocal } from '@gymbuddy/domain'
+import { normaliseBrief, parseLog as parseLogLocal, say } from '@gymbuddy/domain'
 import { anthropicProvider } from './anthropic.js'
+import { openAICompatProvider, deepseekProvider, ollamaProvider } from './openai-compat.js'
 import { interpretBriefLocally, explainChangeLocally } from './fallback.js'
 
-export { anthropicProvider }
+export { anthropicProvider, openAICompatProvider, deepseekProvider, ollamaProvider }
 
 /** No key, no network, no problem. Everything still works, in fewer words. */
 export const nullProvider = { name: 'none', available: false, async complete() { return null } }
 
-export function providerFromEnv(env = process.env) {
-  const key = env.ANTHROPIC_API_KEY
-  if (!key) return nullProvider
-  return anthropicProvider({
-    apiKey: key,
-    baseUrl: env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
-    model: env.GYMBUDDY_AI_MODEL || 'claude-sonnet-4-5'
-  })
-}
+/* Model ids are configuration, not code — they change faster than this file will. These are
+ * conservative defaults that work with an unconfigured key; set the env vars to the exact ids
+ * you mean, and see .env.example for the pair this product is meant to run on. */
+const DEEPSEEK_DEFAULT = 'deepseek-chat'
+const ANTHROPIC_DEFAULT = 'claude-sonnet-4-5'
 
 /**
- * Build the AI surface over a provider.
+ * What the environment asks for: a fast model, a better one, and whatever is on your own hardware.
+ *
+ * `local` is a failover rather than a preference — it answers when the hosted one is unreachable,
+ * which covers an outage, a lapsed key and a route that stopped working, all of which look the
+ * same from here. With nothing hosted configured it stops being a failover and becomes the model.
+ */
+export function providersFromEnv(env = process.env) {
+  const ollama = model => model
+    ? ollamaProvider({ baseUrl: env.OLLAMA_BASE_URL || undefined, model })
+    : null
+  const localFast = ollama(env.OLLAMA_MODEL_FAST || env.OLLAMA_MODEL)
+  const localDeep = ollama(env.OLLAMA_MODEL_DEEP || env.OLLAMA_MODEL_FAST || env.OLLAMA_MODEL)
+
+  if (env.DEEPSEEK_API_KEY) {
+    const ds = model => deepseekProvider({
+      apiKey: env.DEEPSEEK_API_KEY, baseUrl: env.DEEPSEEK_BASE_URL || undefined, model
+    })
+    return {
+      fast: ds(env.GYMBUDDY_MODEL_FAST || DEEPSEEK_DEFAULT),
+      deep: ds(env.GYMBUDDY_MODEL_DEEP || env.GYMBUDDY_MODEL_FAST || DEEPSEEK_DEFAULT),
+      local: localFast
+    }
+  }
+
+  if (env.ANTHROPIC_API_KEY) {
+    const claude = model => anthropicProvider({
+      apiKey: env.ANTHROPIC_API_KEY,
+      baseUrl: env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
+      model
+    })
+    const named = env.GYMBUDDY_AI_MODEL || ANTHROPIC_DEFAULT
+    return {
+      fast: claude(env.GYMBUDDY_MODEL_FAST || named),
+      deep: claude(env.GYMBUDDY_MODEL_DEEP || named),
+      local: localFast
+    }
+  }
+
+  if (localFast) return { fast: localFast, deep: localDeep, local: null }
+  return { fast: nullProvider, deep: nullProvider, local: null }
+}
+
+/** The primary model, for callers that only want to know whether there is one at all. */
+export const providerFromEnv = (env = process.env) => providersFromEnv(env).fast
+
+/* Which model answers which task.
+ *
+ * Two of the three jobs are cheap to get wrong: a brief is clamped by `normaliseBrief`, and a
+ * rewritten log goes back through the parser, which is the only thing allowed to name an
+ * exercise. Both are structured output nobody reads as prose, so the cheap model does them.
+ *
+ * The note attached to a proposed change is the one piece of model output a person reads
+ * verbatim, in their own language, and judges the product by. That is what the better model is
+ * for, and it is a few hundred tokens a time — the tier that costs more is the one used least.
+ */
+const TIER = { brief: 'fast', 'parse-log': 'fast', explain: 'deep' }
+
+/**
+ * Build the AI surface over one or more providers.
  *
  * Each method returns `{ ...result, source }` where source is 'model' or 'local', so the API can
  * tell a caller which one answered and the UI can be honest about it. Users forgive a template;
  * they do not forgive being told a template was intelligence.
+ *
+ * `provider` on its own still means "use this for everything", which is what the tests and any
+ * single-model deployment want. `fast`/`deep` split it by task, and `local` is the failover.
  */
-export function createAI({ provider = providerFromEnv(), timeoutMs = 20000 } = {}) {
+export function createAI({
+  provider = null, fast = null, deep = null, local = null, timeoutMs = 20000
+} = {}) {
+  const env = provider || fast || deep || local ? null : providersFromEnv()
+  const tiers = {
+    fast: fast || provider || env?.fast || nullProvider,
+    deep: deep || provider || env?.deep || env?.fast || nullProvider
+  }
+  const localProvider = local || env?.local || null
+  const anyAvailable = !!(tiers.fast.available || tiers.deep.available || localProvider?.available)
+
+  /* Three levels, in order: the model you pay for, the one on your own hardware, the template.
+   * A hosted model that is unreachable — an outage, a lapsed key, a route that stopped working —
+   * looks identical from here to one that answered badly, and both should cost the same thing. */
   const ask = async (task, fallback) => {
-    if (!provider.available) return { ...(await fallback()), source: 'local' }
-    try {
-      const result = await withTimeout(provider.complete(task), timeoutMs)
-      if (result == null) return { ...(await fallback()), source: 'local' }
-      return result
-    } catch (e) {
-      // A model being slow, rate-limited or down must never take a feature with it.
-      return { ...(await fallback()), source: 'local', modelError: e.message }
+    const primary = tiers[TIER[task.kind] || 'fast']
+    const chain = [primary, localProvider]
+      .filter((p, i, all) => p?.available && all.indexOf(p) === i)
+    let modelError = null
+
+    for (const p of chain) {
+      try {
+        const result = await withTimeout(p.complete(task), p.timeoutMs ?? timeoutMs)
+        if (result != null) return result
+      } catch (e) {
+        // A model being slow, rate-limited or down must never take a feature with it.
+        modelError = e.message
+      }
     }
+    return { ...(await fallback()), source: 'local', ...(modelError ? { modelError } : {}) }
   }
 
   return {
-    provider: provider.name,
-    available: !!provider.available,
+    provider: tiers.fast.name,
+    available: anyAvailable,
+    // Named so an operator can see which model actually answers what, without reading the env.
+    models: {
+      fast: tiers.fast.available ? tiers.fast.model ?? tiers.fast.name : null,
+      deep: tiers.deep.available ? tiers.deep.model ?? tiers.deep.name : null,
+      local: localProvider?.available ? localProvider.model ?? localProvider.name : null
+    },
 
     /** Free text about goals and circumstances → a brief the planner will accept. */
-    async interpretBrief(text, { hint = {} } = {}) {
+    async interpretBrief(text, { hint = {}, lang = 'en' } = {}) {
       const result = await ask({
         kind: 'brief',
-        system: BRIEF_SYSTEM,
+        system: inLanguage(BRIEF_SYSTEM, lang),
         input: String(text || '').slice(0, 2000),
         schema: BRIEF_SCHEMA
-      }, async () => interpretBriefLocally(text, hint))
+      }, async () => interpretBriefLocally(text, hint, lang))
 
       // The model's answer goes through the same validation as a hand-filled form. An invented
       // goal or a made-up piece of equipment is dropped here, before it can reach the planner.
@@ -85,31 +168,39 @@ export function createAI({ provider = providerFromEnv(), timeoutMs = 20000 } = {
     },
 
     /** A proposed change → the sentence explaining it. */
-    async explainChange(change, { clientName = null, tone = 'coach' } = {}) {
+    async explainChange(change, { clientName = null, tone = 'coach', lang = 'en' } = {}) {
       const result = await ask({
         kind: 'explain',
-        system: EXPLAIN_SYSTEM,
+        system: inLanguage(EXPLAIN_SYSTEM, lang),
+        // Rendered to English for the model: it is being asked to rewrite these reasons in the
+        // target language, and an unrendered `{ msg, args }` object would tell it nothing.
         input: JSON.stringify({
-          headline: change.headline,
-          note: change.note,
+          headline: say(change.headline),
+          note: say(change.note),
           routine: change.after?.name,
           changes: (change.changes || []).map(c => ({
-            exercise: c.exerciseId, field: c.field, from: c.from, to: c.to, why: c.why
+            exercise: c.exerciseId, field: c.field, from: c.from, to: c.to, why: say(c.why)
           })),
           clientName, tone
         }),
         schema: EXPLAIN_SCHEMA
-      }, async () => explainChangeLocally(change, { clientName }))
+      }, async () => explainChangeLocally(change, { clientName, lang }))
 
       const note = String(result.note ?? '').trim().slice(0, 600)
       // An empty or absurd answer is not better than the template it replaced.
       if (!note || note.length < 12) {
         return {
-          ...explainChangeLocally(change, { clientName }), source: 'local',
+          ...explainChangeLocally(change, { clientName, lang }), source: 'local',
           ...(result.modelError ? { modelError: result.modelError } : {})
         }
       }
-      return { note, source: result.source ?? 'model' }
+      // modelError travels with a good answer too. The note above is the template's, and an
+      // operator asking why the model never writes it is owed the reason on this path as much
+      // as on the one where the answer was rejected outright.
+      return {
+        note, source: result.source ?? 'model',
+        ...(result.modelError ? { modelError: result.modelError } : {})
+      }
     },
 
     /**
@@ -121,7 +212,7 @@ export function createAI({ provider = providerFromEnv(), timeoutMs = 20000 } = {
      */
     async parseLog(text, { custom = [], unit = 'kg' } = {}) {
       const local = parseLogLocal(text, { custom, unit })
-      if (!local.unresolved.length || !provider.available) return { ...local, source: 'local' }
+      if (!local.unresolved.length || !anyAvailable) return { ...local, source: 'local' }
 
       const result = await ask({
         kind: 'parse-log',
@@ -143,6 +234,25 @@ export function createAI({ provider = providerFromEnv(), timeoutMs = 20000 } = {
       }
     }
   }
+}
+
+/**
+ * The same system prompt, told which language to answer in.
+ *
+ * Appended rather than baked into each prompt because only the output language changes — the
+ * instructions themselves are the same job. English is left exactly as it was.
+ *
+ * This gets a model answering in Persian. It does not make the prompt *good* Persian coaching:
+ * the register in EXPLAIN_SYSTEM ("slightly bored by the drama of it") is an English idea of a
+ * coach, and a Persian one reads warmer and more formal. Rewriting that is a job for someone who
+ * coaches in Persian, not a translation of what is here.
+ */
+const LANGUAGE_NAME = { fa: 'Persian (Farsi)' }
+function inLanguage(system, lang) {
+  const name = LANGUAGE_NAME[lang]
+  return name ? `${system}
+
+Write everything you output in ${name}.` : system
 }
 
 function withTimeout(promise, ms) {

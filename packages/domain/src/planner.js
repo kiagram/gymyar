@@ -23,6 +23,7 @@ import { uid } from './format.js'
 import { modeOf, effortOf } from './history.js'
 import { sessionsFor, stallCount, DELOAD_AFTER, policyFor } from './progression.js'
 import { loadOfWorkouts, MUSCLE_NAME } from './muscles.js'
+import { msg, exArg, muscleList } from './messages.js'
 
 /* ------------------------------------------------------------------ brief ---- */
 
@@ -380,15 +381,15 @@ export function reviewTraining(S = {}, { days = 28, today = null } = {}) {
     if (ratio < 0.5) {
       findings.push({
         kind: 'attendance', severity: 'high',
-        title: `${done} of ${expected} planned sessions`,
-        detail: 'Less than half the plan is being run. Before changing anything in the programme, the plan itself is probably asking for more days than the week has.',
+        title: msg('{0} of {1} planned sessions', done, expected),
+        detail: msg('Less than half the plan is being run. Before changing anything in the programme, the plan itself is probably asking for more days than the week has.'),
         suggest: 'reduce-days'
       })
     } else if (ratio < 0.8) {
       findings.push({
         kind: 'attendance', severity: 'medium',
-        title: `${done} of ${expected} planned sessions`,
-        detail: 'Turning up most weeks but not all. Worth asking which session keeps getting dropped — that one is usually in the wrong place.',
+        title: msg('{0} of {1} planned sessions', done, expected),
+        detail: msg('Turning up most weeks but not all. Worth asking which session keeps getting dropped — that one is usually in the wrong place.'),
         suggest: null
       })
     }
@@ -398,8 +399,8 @@ export function reviewTraining(S = {}, { days = 28, today = null } = {}) {
   if (idleDays != null && idleDays >= 14) {
     findings.push({
       kind: 'lapsed', severity: 'high',
-      title: `Nothing logged for ${idleDays} days`,
-      detail: 'Coming back after this long, the first week should be deliberately easy — the old working weights are not the right place to restart.',
+      title: msg('Nothing logged for {0} days', idleDays),
+      detail: msg('Coming back after this long, the first week should be deliberately easy — the old working weights are not the right place to restart.'),
       suggest: 'restart-light'
     })
   }
@@ -417,16 +418,18 @@ export function reviewTraining(S = {}, { days = 28, today = null } = {}) {
         findings.push({
           kind: 'stalled', severity: 'high',
           exerciseId: cfg.id, routineId: routine.id,
-          title: `${EXIDX[cfg.id]?.n || cfg.id} has stalled`,
-          detail: `${stalls} sessions in a row short of the target. The policy will deload it on its own; the question is whether the target was ever the right one.`,
+          title: msg('{0} has stalled', exArg(cfg.id)),
+          detail: msg('{0} sessions in a row short of the target. The policy will deload it on its own; the question is whether the target was ever the right one.', stalls),
           suggest: 'deload'
         })
       } else if (stalls === limit - 1) {
         findings.push({
           kind: 'stalling', severity: 'medium',
           exerciseId: cfg.id, routineId: routine.id,
-          title: `${EXIDX[cfg.id]?.n || cfg.id} is close to stalling`,
-          detail: `${stalls} missed session${stalls === 1 ? '' : 's'}. One more and it deloads.`,
+          title: msg('{0} is close to stalling', exArg(cfg.id)),
+          detail: stalls === 1
+            ? msg('{0} missed session. One more and it deloads.', stalls)
+            : msg('{0} missed sessions. One more and it deloads.', stalls),
           suggest: null
         })
       }
@@ -455,8 +458,8 @@ export function reviewTraining(S = {}, { days = 28, today = null } = {}) {
         findings.push({
           kind: 'easy', severity: 'low',
           exerciseId: exId,
-          title: `${EXIDX[exId]?.n || exId} is going up too slowly`,
-          detail: `Even the hardest set is averaging ${avg.toFixed(1)} reps in reserve across ${values.length} sessions. The load is climbing slower than the person is.`,
+          title: msg('{0} is going up too slowly', exArg(exId)),
+          detail: msg('Even the hardest set is averaging {0} reps in reserve across {1} sessions. The load is climbing slower than the person is.', avg.toFixed(1), values.length),
           suggest: 'bigger-jumps'
         })
       }
@@ -472,8 +475,10 @@ export function reviewTraining(S = {}, { days = 28, today = null } = {}) {
       findings.push({
         kind: 'untrained', severity: 'medium',
         muscles: untrained,
-        title: `${untrained.length} muscle groups untrained in ${days} days`,
-        detail: `Nothing logged for ${untrained.slice(0, 4).map(m => MUSCLE_NAME[m].toLowerCase()).join(', ')}${untrained.length > 4 ? ' and others' : ''}.`,
+        title: msg('{0} muscle groups untrained in {1} days', untrained.length, days),
+        detail: untrained.length > 4
+          ? msg('Nothing logged for {0} and others.', muscleList(untrained))
+          : msg('Nothing logged for {0}.', muscleList(untrained)),
         suggest: 'add-accessory'
       })
     }
@@ -485,8 +490,8 @@ export function reviewTraining(S = {}, { days = 28, today = null } = {}) {
     if (shapes.every(n => n > 0)) {
       findings.push({
         kind: 'stale', severity: 'low',
-        title: `Same programme for ${days} days`,
-        detail: 'Nothing wrong with that while it is still working — worth a look only once something above says it is not.',
+        title: msg('Same programme for {0} days', days),
+        detail: msg('Nothing wrong with that while it is still working — worth a look only once something above says it is not.'),
         suggest: null
       })
     }
@@ -536,7 +541,7 @@ export function proposeAdaptation(S = {}, review = null, { unit = 'kg' } = {}) {
       cfg.reps = Math.max(3, (cfg.reps || 5) - 1)
       changes.push({
         exerciseId: cfg.id, field: 'reps', from, to: cfg.reps,
-        why: 'Cut the rep target so the current load is reachable again, rather than deloading and climbing back through the same wall.'
+        why: msg('Cut the rep target so the current load is reachable again, rather than deloading and climbing back through the same wall.')
       })
     }
   } else if (actionable.suggest === 'bigger-jumps') {
@@ -546,7 +551,7 @@ export function proposeAdaptation(S = {}, review = null, { unit = 'kg' } = {}) {
       cfg.sets = Math.min(6, (cfg.sets || 3) + 1)
       changes.push({
         exerciseId: cfg.id, field: 'sets', from, to: cfg.sets,
-        why: 'Added a set: the sessions are ending with too much left, and more work is the cheaper answer than a bigger weight jump.'
+        why: msg('Added a set: the sessions are ending with too much left, and more work is the cheaper answer than a bigger weight jump.')
       })
     }
   } else if (actionable.suggest === 'reduce-days') {
@@ -554,15 +559,15 @@ export function proposeAdaptation(S = {}, review = null, { unit = 'kg' } = {}) {
     // silently editing exercises nobody is getting to.
     return {
       routineId: routine.id, before, after: before, changes: [],
-      headline: 'Fewer days, not different exercises',
-      note: `Only ${r.sessions} of ${r.expected} planned sessions happened. Cutting the week down to what actually gets run beats redesigning sessions nobody reaches.`
+      headline: msg('Fewer days, not different exercises'),
+      note: msg('Only {0} of {1} planned sessions happened. Cutting the week down to what actually gets run beats redesigning sessions nobody reaches.', r.sessions, r.expected)
     }
   } else if (actionable.suggest === 'restart-light') {
     for (const cfg of after.ex) {
       const from = cfg.sets
       cfg.sets = Math.max(2, (cfg.sets || 3) - 1)
       if (cfg.sets !== from) {
-        changes.push({ exerciseId: cfg.id, field: 'sets', from, to: cfg.sets, why: 'One less set for the first week back.' })
+        changes.push({ exerciseId: cfg.id, field: 'sets', from, to: cfg.sets, why: msg('One less set for the first week back.') })
       }
     }
   } else if (actionable.suggest === 'add-accessory') {
@@ -573,7 +578,7 @@ export function proposeAdaptation(S = {}, review = null, { unit = 'kg' } = {}) {
       after.ex.push({ id: picked.id, sets: 3, reps: 12, weight: 0 })
       changes.push({
         exerciseId: picked.id, field: 'added', from: null, to: `${picked.n}`,
-        why: `Nothing in the plan trains ${MUSCLE_NAME[muscle]?.toLowerCase() || muscle}.`
+        why: msg('Nothing in the plan trains {0}.', muscleList([muscle], 1))
       })
     }
   }

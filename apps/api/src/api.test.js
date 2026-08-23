@@ -8,7 +8,7 @@ const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
 
 beforeAll(async () => {
   process.env.SESSION_SECRET = 'test-secret-not-for-production'
-  app = await build({ databaseUrl: URL })
+  app = await build({ databaseUrl: URL, rateLimit: false })
   const { seedExercises } = await import('@gymbuddy/db/seed-exercises.js')
   await seedExercises()
 })

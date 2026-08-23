@@ -14,3 +14,6 @@ media/
 apps/client/ios/App/Pods/
 apps/client/android/.gradle/
 apps/client/android/app/build/
+
+# Agent worktrees — full checkouts of this repo, registered with `git worktree`.
+.claude/worktrees/

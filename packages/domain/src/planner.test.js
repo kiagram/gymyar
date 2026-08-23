@@ -4,6 +4,7 @@ import {
   reviewTraining, proposeAdaptation, GOALS, EQUIPMENT
 } from './planner.js'
 import { EXIDX } from './exercises.js'
+import { say } from './messages.js'
 
 const GYM = ['barbell', 'dumbbell', 'cable', 'leverage machine', 'body weight']
 const idsIn = programme => programme.routines.flatMap(r => r.ex.map(e => e.id))
@@ -264,7 +265,7 @@ describe('reviewing training', () => {
     const stalled = r.findings.find(f => f.kind === 'stalled')
     expect(stalled).toBeTruthy()
     expect(stalled.exerciseId).toBe('0025')
-    expect(stalled.title).toMatch(/bench press/i)
+    expect(say(stalled.title)).toMatch(/bench press/i)
   })
 
   it('warns one session before a stall rather than after', () => {
@@ -374,8 +375,8 @@ describe('proposing a change', () => {
   it('says why, in words a person would use', () => {
     const S = stalledState()
     const change = proposeAdaptation(S, reviewTraining(S, { today: NOW }))
-    expect(change.changes[0].why).toMatch(/[a-z]{4,}/)
-    expect(change.note).toBeTruthy()
+    expect(say(change.changes[0].why)).toMatch(/[a-z]{4,}/)
+    expect(say(change.note)).toBeTruthy()
   })
 
   it('only ever proposes exercises that exist', () => {
@@ -396,7 +397,7 @@ describe('proposing a change', () => {
     const change = proposeAdaptation(S, reviewTraining(S, { today: NOW }))
     // a lapse is scored higher than attendance, so assert on whichever came out
     expect(['Fewer days, not different exercises', 'Nothing logged for 20 days'])
-      .toContain(change.headline)
+      .toContain(say(change.headline))
   })
 
   it('returns nothing when there is nothing to say', () => {

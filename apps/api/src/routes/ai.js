@@ -9,13 +9,14 @@
  * A coach who can be overruled by software will not use the software.
  */
 import {
-  buildProgramme, reviewTraining, proposeAdaptation, normaliseBrief, EXIDX
+  buildProgramme, reviewTraining, proposeAdaptation, normaliseBrief, msg, EXIDX
 } from '@gymbuddy/domain'
 import { createAI } from '@gymbuddy/ai'
 import { requireScope, activeLink } from '@gymbuddy/db/coaching.js'
 import { db } from '@gymbuddy/db'
 import { requireUser } from '../session.js'
 import { stateForUser } from '../state.js'
+import { limit } from '../rate-limit.js'
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status })
 
@@ -29,6 +30,9 @@ export default async function aiRoutes(app, opts = {}) {
     return {
       model: ai.available,
       provider: ai.provider,
+      // Which model answers which task, so "why does the wording keep changing" is answerable
+      // without reading the deployment's environment.
+      models: ai.models,
       note: ai.available
         ? 'Plans are built from your training data; the wording comes from a language model.'
         : 'No language model configured. Plans and reviews work exactly the same; the wording is written from a template.'
@@ -43,13 +47,14 @@ export default async function aiRoutes(app, opts = {}) {
    * Returns the routines and the week — it does not save them. The caller looks at what they got
    * and decides; a plan that installed itself would be a plan nobody read.
    */
-  app.post('/api/ai/programme', async req => {
-    await requireUser(req)
+  app.post('/api/ai/programme', { config: limit('model.draft') }, async req => {
+    const user = await requireUser(req)
     const { text, brief: given } = req.body || {}
 
     let brief; let summary = null; let source = 'local'; let modelError = null
     if (text) {
-      const r = await ai.interpretBrief(String(text), { hint: given || {} })
+      // The reader and the model both answer in the language this person set on their profile.
+      const r = await ai.interpretBrief(String(text), { hint: given || {}, lang: user.locale })
       brief = r.brief; summary = r.summary; source = r.source; modelError = r.modelError ?? null
     } else {
       brief = normaliseBrief(given || {})
@@ -91,7 +96,7 @@ export default async function aiRoutes(app, opts = {}) {
    * The output is exactly the payload the propose endpoint takes, so the coach's next step is to
    * read it, edit it and send it. Nothing reaches the client from here.
    */
-  app.post('/api/coach/clients/:id/ai-review', async req => {
+  app.post('/api/coach/clients/:id/ai-review', { config: limit('model.draft') }, async req => {
     const user = await requireUser(req)
     const clientId = req.params.id
     // Reviewing training requires having been shown the training. Programmes alone are not
@@ -108,13 +113,17 @@ export default async function aiRoutes(app, opts = {}) {
     if (!change) {
       return {
         review, change: null, note: null, source: 'local',
-        headline: 'Nothing to change',
-        detail: 'Nothing in the last ' + days + ' days argues for a change. Leaving a programme alone while it is working is a decision too.'
+        // Unrendered, like everything else the review returns — the coach's client renders it.
+        headline: msg('Nothing to change'),
+        detail: msg('Nothing in the last {0} days argues for a change. Leaving a programme alone while it is working is a decision too.', days)
       }
     }
 
-    const [client] = await db()`select name from users where id = ${clientId}`
-    const explained = await ai.explainChange(change, { clientName: client?.name ?? null })
+    const [client] = await db()`select name, locale from users where id = ${clientId}`
+    // The client's language, not the coach's — they are the one who reads this note.
+    const explained = await ai.explainChange(change, {
+      clientName: client?.name ?? null, lang: client?.locale
+    })
 
     return {
       review,
@@ -145,7 +154,7 @@ export default async function aiRoutes(app, opts = {}) {
    * Parsed and returned, never written. The caller shows what was understood and the person
    * confirms it — a log they did not read is a log they cannot trust.
    */
-  app.post('/api/ai/parse-log', async req => {
+  app.post('/api/ai/parse-log', { config: limit('model.parse') }, async req => {
     const user = await requireUser(req)
     const text = String(req.body?.text || '')
     if (!text.trim()) throw bad('nothing to read')

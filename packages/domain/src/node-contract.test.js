@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 
-const INDEX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.js')
+// A file:// URL rather than a path: an absolute Windows path is not a valid import specifier
+// — node reads `C:` as an unsupported URL scheme — so building one here fails on Windows only.
+const INDEX = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.js')).href
 
 describe('domain package runs outside a bundler', () => {
   // Vitest transforms modules, so `import.meta.env` would resolve here and hide the bug this

@@ -61,10 +61,16 @@ computed by `packages/domain/src/planner.js` against the real library and the sa
 rules the app already runs on. A model is asked to do two things: turn free text into a structured
 brief, and write the note explaining a change. Both have deterministic implementations underneath.
 
-With no `ANTHROPIC_API_KEY` set, GymBuddy builds the same plans, finds the same stalls and parses
-the same logs — it phrases things from a template instead of writing prose, and `/api/ai/status`
-says so. That is what makes it safe to expose: nothing can invent a lift that is not in the
-library, or put 140 kg on a beginner's bar.
+Which model does that is configuration. DeepSeek, Anthropic and anything else speaking the
+OpenAI shape are one adapter; a model on your own hardware via Ollama is the failover underneath
+them, which is what an outage, a lapsed key and a blocked route all look like from here. Two
+tiers, because the note a client actually reads is worth a better model than the parse nobody
+sees. See `.env.example`.
+
+With no key set at all, GymBuddy builds the same plans, finds the same stalls and parses the
+same logs — it phrases things from a template instead of writing prose, in whichever language
+the person is using, and `/api/ai/status` says so. That is what makes it safe to expose: nothing
+can invent a lift that is not in the library, or put 140 kg on a beginner's bar.
 
 Nothing drafted is ever applied. A generated plan comes back for the person to look at; a drafted
 change for a client fills in the composer their coach already uses. There is no endpoint that
@@ -103,7 +109,8 @@ throwaway database will do.
 - [x] **Phase 2** — Postgres, delta sync, Fastify API, migration from an openGym blob
 - [x] **Phase 3** — coaches, clients, scopes, proposals, messaging
 - [x] **Phase 4** — programme generation, training review, logging by typing
-- [ ] **Phase 5** — billing and store submission
+- [x] **Phase 5** — Persian and RTL, locale-aware weeks, rate limits, provider choice
+- [ ] **Phase 6** — billing and store submission
 
 ## Before launch
 

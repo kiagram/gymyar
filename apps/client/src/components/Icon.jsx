@@ -132,9 +132,13 @@ export default function Icon({ name, size, className = '', style, ...rest }) {
   const d = P[name]
   if (!d) return null
   const s = size ? { width: size, height: size } : null
+  // Chevrons and arrows point somewhere, so they mirror in a right-to-left layout while a
+  // dumbbell or a cog must not. Marking them here keeps that one rule in one place rather
+  // than every caller remembering which of its icons has a direction.
+  const directional = /^(chevron|arrow)/.test(name)
   return (
     <svg
-      className={'icn ' + className}
+      className={'icn ' + (directional ? 'icn-dir ' : '') + className}
       viewBox="0 0 24 24"
       aria-hidden="true"
       focusable="false"

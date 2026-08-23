@@ -27,6 +27,23 @@ function verify(token) {
   return payload
 }
 
+/**
+ * Whose session this is, without touching the database.
+ *
+ * The signature is checked — a forged cookie must not let someone spend another account's
+ * budget — but the account is not loaded and `session_version` is not compared. That makes it
+ * cheap enough to run on every request, which is what a rate limiter needs, and the worst a
+ * stale-but-signed cookie buys is being counted under a user who is signing out anyway.
+ */
+export function sessionUserId(req) {
+  const token = req.cookies?.[COOKIE]
+  if (!token) return null
+  const payload = verify(token)
+  if (!payload) return null
+  const [uid, exp] = payload.split(':')
+  return uid && Number(exp) >= Date.now() ? uid : null
+}
+
 export function issue(reply, user) {
   const exp = Date.now() + config.sessionDays * 86400000
   reply.setCookie(COOKIE, sign(`${user.id}:${exp}:${user.session_version}`), {
