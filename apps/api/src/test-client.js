@@ -11,7 +11,9 @@ export function client(app) {
     if (set) cookie = (Array.isArray(set) ? set : [set]).map(c => c.split(';')[0]).join('; ')
     let json = null
     try { json = res.json() } catch { /* empty body */ }
-    return { status: res.statusCode, body: json }
+    // Headers come back too: a route that answers with a redirect says everything it has to
+    // say in `location`, and a test that can only read bodies cannot check it at all.
+    return { status: res.statusCode, body: json, headers: res.headers }
   }
   return {
     get: (u) => call('GET', u),

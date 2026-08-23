@@ -1,16 +1,23 @@
 /* Coach ↔ client. Every route here is a thin wrapper over packages/db/coaching.js, which is
  * where the permission rules live — deliberately, so they are enforced once and testable
  * without an HTTP server in the way.
+ *
+ * There is a second kind of permission here now: whether the coach has paid. `requireCoach`
+ * is that check, and it guards exactly three things — taking on a client, authoring a
+ * proposal, and writing a message as the coach. Reading is never gated, and **nothing a
+ * client does is ever gated**, which is why the guard appears only in the coach-side half of
+ * this file. See apps/api/src/entitlement.js.
  */
 import {
   inviteClient, acceptInvite, declineInvite, endLink, setScopes, findLinkByCode,
-  roster, coachesOf, requireScope, activeLink,
+  roster, coachesOf, requireScope, activeLink, linkById,
   proposeRoutine, pendingProposals, acceptProposal, declineProposal,
   sendMessage, readThread, SCOPES
 } from '@gymbuddy/db/coaching.js'
 import { pullAll } from '@gymbuddy/db/sync.js'
 import { db } from '@gymbuddy/db'
 import { requireUser } from '../session.js'
+import { requireCoach } from '../entitlement.js'
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status })
 
@@ -25,6 +32,8 @@ export default async function coachingRoutes(app) {
 
   app.post('/api/coach/invites', async req => {
     const user = await requireUser(req)
+    // Also where a first-time coach's trial starts — this is the first coach action there is.
+    await requireCoach(user.id, 'takeClients')
     const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : null
     const scopes = Array.isArray(req.body?.scopes) ? req.body.scopes : undefined
     const link = await inviteClient({ coachId: user.id, email, scopes })
@@ -57,6 +66,7 @@ export default async function coachingRoutes(app) {
 
   app.post('/api/coach/clients/:id/propose', async req => {
     const user = await requireUser(req)
+    await requireCoach(user.id, 'propose')
     const { routineId, payload, note } = req.body || {}
     if (!routineId || !payload?.name) throw bad('routineId and a named payload are required')
     const link = await activeLink(user.id, req.params.id)
@@ -138,6 +148,11 @@ export default async function coachingRoutes(app) {
 
   app.post('/api/threads/:linkId', async req => {
     const user = await requireUser(req)
+    // Only the coach's side of the conversation is gated. A client writing to their coach is
+    // never blocked — they are not the customer, and stranding them mid-question because
+    // somebody else's card expired would be the worst possible moment to do it.
+    const link = await linkById(req.params.linkId)
+    if (link?.coach_id === user.id) await requireCoach(user.id, 'message')
     const body = String(req.body?.body || '').trim()
     if (!body) throw bad('a message body is required')
     if (body.length > 4000) throw bad('message too long')
