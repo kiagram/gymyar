@@ -1,0 +1,14 @@
+{
+  "name": "gymbuddy",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "workspaces": ["apps/client", "apps/api", "packages/domain"],
+  "scripts": {
+    "dev": "npm run dev -w @gymbuddy/client",
+    "build": "npm run build -w @gymbuddy/client",
+    "test": "npm run test -w @gymbuddy/domain && npm run test -w @gymbuddy/client",
+    "sync:mobile": "npm run build:mobile -w @gymbuddy/client"
+  }
+}

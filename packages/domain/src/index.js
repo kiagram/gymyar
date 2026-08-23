@@ -1,0 +1,18 @@
+/* @gymbuddy/domain — runtime-agnostic training logic.
+ *
+ * Everything here runs unchanged in the browser, in the API and in the AI worker:
+ * no DOM, no React, no Vite-only syntax. That is the contract, and it is what lets
+ * the server generate and validate a programme with exactly the rules the client
+ * used to log it. Anything needing a browser stays in apps/client/src/lib.
+ */
+export * from './i18n-adapter.js'
+export * from './format.js'
+export * from './exercises-data.js'
+export * from './exercises.js'
+export * from './history.js'
+export * from './progression.js'
+export * from './onerm.js'
+export * from './effort.js'
+export * from './muscles.js'
+export * from './import-csv.js'
+export * from './starter.js'

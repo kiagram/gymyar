@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+
+# Runtime instance state — session secret, VAPID private key, user records.
+# The GitHub re-upload of openGym committed these; never do that.
+data/
+
+# Exercise media is © Gym visual and is fetched at build time, never committed.
+media/
+
+.DS_Store
+*.log
+apps/client/ios/App/Pods/
+apps/client/android/.gradle/
+apps/client/android/app/build/
