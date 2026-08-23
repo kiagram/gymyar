@@ -1,5 +1,36 @@
 apply plugin: 'com.android.application'
 
+/* Release signing, from a file or from the environment — never from this repository.
+ *
+ * Android identifies an app by its signing key, not by its version: an update signed with a
+ * different key is refused as a different app, and there is no recovery except asking every
+ * user to uninstall and lose their local data. So the keystore is the single most important
+ * thing to back up in this project, and the single most important thing never to commit.
+ *
+ * Two ways in, because releases happen in two places:
+ *   - `android/keystore.properties` on a maintainer's machine (gitignored)
+ *   - GYMBUDDY_KEYSTORE_* in the environment, for CI, where files are the wrong shape
+ *
+ * With neither, `assembleRelease` still builds — unsigned. That is deliberate: a contributor
+ * checking that the release build compiles should not need a key, and an unsigned artifact
+ * cannot be mistaken for a shippable one.
+ */
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+/* Prefixed, and not by accident. Naming these `storePassword` / `keyAlias` would shadow the
+ * signing DSL's own setters inside the closure below, where `storePassword storePassword`
+ * can bind to the delegate's getter instead of this local and pass null to a build that
+ * still succeeds — producing an unsigned artifact that looks signed. */
+def ksFile = keystoreProperties['storeFile'] ?: System.getenv('GYMBUDDY_KEYSTORE_FILE')
+def ksStorePassword = keystoreProperties['storePassword'] ?: System.getenv('GYMBUDDY_KEYSTORE_PASSWORD')
+def ksKeyAlias = keystoreProperties['keyAlias'] ?: System.getenv('GYMBUDDY_KEY_ALIAS')
+def ksKeyPassword = keystoreProperties['keyPassword'] ?: System.getenv('GYMBUDDY_KEY_PASSWORD')
+def canSign = ksFile && ksStorePassword && ksKeyAlias && ksKeyPassword && file(ksFile).exists()
+
 android {
     namespace "com.gymbuddy.app"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +38,8 @@ android {
         applicationId "com.gymbuddy.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
-        versionName "1.2.4"
+        versionCode 10000
+        versionName "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +47,33 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (canSign) {
+                storeFile file(ksFile)
+                storePassword ksStorePassword
+                keyAlias ksKeyAlias
+                keyPassword ksKeyPassword
+                // Both schemes. v1 is what Android below 7 verifies and minSdk is 23, so
+                // dropping it would silently exclude the oldest devices we claim to support.
+                // These are the AGP 8 spellings; `v1SigningEnabled` is the deprecated one.
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
     buildTypes {
         release {
+            // Left off. The app is a WebView around a bundle Vite has already minified, so
+            // there is almost no Java to shrink — and R8 on Capacitor's reflection-heavy
+            // plugin registry breaks things that only show up at runtime on a real device.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (canSign) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.lifecycle('GymBuddy: no keystore configured — the release build will be UNSIGNED.')
+            }
         }
     }
 }

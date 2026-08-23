@@ -1,11 +1,22 @@
 // Backend + WebAuthn helpers (ported from the vanilla app).
+import { MOBILE } from './mobile.js'
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
 export const IS_ANDROID = /Android/.test(navigator.userAgent)
 export const BIO = IS_APPLE ? 'Face ID / Touch ID' : IS_ANDROID ? 'fingerprint or face unlock' : 'your fingerprint, face or PIN'
 export const VAULT = IS_APPLE ? 'iCloud Keychain' : IS_ANDROID ? 'Google Password Manager' : 'your password manager'
 export const webauthnOK = () => !!(window.PublicKeyCredential && navigator.credentials)
 
+/* The native build has no backend, and this is where that stops being a convention.
+ *
+ * Every caller is already behind a `MOBILE` check or a screen the native build cannot reach,
+ * so nothing here should ever run — but "should" is not what you want underneath a privacy
+ * declaration that says the app transmits nothing. A thrown error is a claim the code enforces:
+ * a future screen that forgets the check fails loudly in development instead of quietly
+ * calling a server that is not there, and the store listing stays true without anybody having
+ * to re-audit it.
+ */
 export async function api(path, opts) {
+  if (MOBILE) throw new Error(`the native build has no backend (tried ${path})`)
   const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
   const data = await r.json().catch(() => ({}))
   if (!r.ok) {

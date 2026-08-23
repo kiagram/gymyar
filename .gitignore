@@ -17,3 +17,10 @@ apps/client/android/app/build/
 
 # Agent worktrees — full checkouts of this repo, registered with `git worktree`.
 .claude/worktrees/
+
+# Android release signing. The keystore identifies the app to every device that has it
+# installed — losing it means no user can ever update again, and leaking it means anyone
+# can ship an update. Back it up somewhere that is not a git repository.
+apps/client/android/keystore.properties
+*.keystore
+*.jks

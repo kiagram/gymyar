@@ -1,7 +1,7 @@
 {
   "name": "GymBuddy",
   "short_name": "GymBuddy",
-  "description": "Personal gym & body weight tracker",
+  "description": "Train, track and coach. Log every set, follow a programme, and work with a coach who can see what you actually did.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -9,7 +9,31 @@
   "background_color": "#0c0e12",
   "theme_color": "#0c0e12",
   "icons": [
-    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
-  ]
+    {
+      "src": "icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "id": "/",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": [
+    "health",
+    "fitness",
+    "sports"
+  ],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "prefer_related_applications": false,
+  "version": "1.0.0"
 }
