@@ -23,6 +23,14 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - name: Versions agree
+        # The version lives in four files that cannot agree on their own, and Android refuses
+        # an update whose versionCode did not rise. Cheaper to catch here than after upload.
+        run: node infra/scripts/version.mjs --check
+      - name: Locale packs are in sync
+        # A key present in some locales and missing from others falls back to English
+        # mid-sentence, silently, with nothing failing anywhere.
+        run: node apps/client/scripts/check-locales.mjs
       - name: Domain tests
         run: npm run test -w @gymbuddy/domain
       - name: AI layer tests
@@ -33,6 +41,19 @@ jobs:
         run: npm run test -w @gymbuddy/api
       - name: Client tests
         run: npm run test -w @gymbuddy/client
+      - name: Release tooling tests
+        run: npm run test:release
+      - name: Mobile build talks to nobody
+        # The native build's store listing declares that it collects and transmits nothing.
+        # This is the check behind that claim: build the mobile bundle and fail if a host
+        # nobody has accounted for appears in it. See docs/store/privacy.md.
+        # `build:mobile:web` rather than a bare vite build: it carries the same CDN media
+        # bases the shipped bundle has, and without them jsDelivr never appears and the check
+        # passes on an artifact nobody ships. `build:mobile` itself also runs `cap sync`,
+        # which would need the native toolchains for a check that only reads the web bundle.
+        run: |
+          npm run build:mobile:web -w @gymbuddy/client
+          node infra/scripts/check-mobile-hosts.mjs
       - name: Web build
         run: npm run build -w @gymbuddy/client
       - name: End-to-end smoke test

@@ -1,7 +1,7 @@
 {
   "name": "gymbuddy",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "license": "AGPL-3.0-or-later",
   "workspaces": [
@@ -14,7 +14,7 @@
   "scripts": {
     "dev": "npm run dev -w @gymbuddy/client",
     "build": "npm run build -w @gymbuddy/client",
-    "test": "npm run test -w @gymbuddy/domain && npm run test -w @gymbuddy/ai && npm run test -w @gymbuddy/db && npm run test -w @gymbuddy/api && npm run test -w @gymbuddy/client",
+    "test": "npm run test -w @gymbuddy/domain && npm run test -w @gymbuddy/ai && npm run test -w @gymbuddy/db && npm run test -w @gymbuddy/api && npm run test -w @gymbuddy/client && npm run test:release",
     "sync:mobile": "npm run build:mobile -w @gymbuddy/client",
     "migrate": "npm run migrate -w @gymbuddy/db",
     "seed": "npm run seed -w @gymbuddy/db",
@@ -22,7 +22,10 @@
     "test:smoke": "./infra/scripts/smoke.sh",
     "db:reset": "npm run reset -w @gymbuddy/db",
     "db:demo": "npm run demo -w @gymbuddy/db",
-    "api": "npm start -w @gymbuddy/api"
+    "api": "npm start -w @gymbuddy/api",
+    "test:release": "vitest run --root infra",
+    "version:stamp": "node infra/scripts/version.mjs",
+    "version:check": "node infra/scripts/version.mjs --check"
   },
   "devDependencies": {
     "playwright-core": "^1.49.0"

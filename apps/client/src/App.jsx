@@ -28,6 +28,8 @@ import Coach from './views/Coach.jsx'
 import CoachClient from './views/CoachClient.jsx'
 import Coaching, { InviteAccept } from './views/Coaching.jsx'
 import Billing from './views/Billing.jsx'
+import { MOBILE } from './lib/mobile.js'
+import { DEMO } from './lib/demo.js'
 import PlanBuilder from './views/PlanBuilder.jsx'
 
 bindUI(useUI)   // lets the shared controls open sheets without importing the store at module scope
@@ -88,8 +90,15 @@ function Shell() {
               <Route path="/coach" element={user?.isCoach ? <Coach /> : <Navigate to="/home" replace />} />
               <Route path="/coach/:id" element={user?.isCoach ? <CoachClient /> : <Navigate to="/home" replace />} />
               {/* Not gated on isCoach: somebody whose subscription lapsed still needs to reach
-                  the screen that sells them a new one, and a receipt outlives a role. */}
-              <Route path="/billing" element={<Billing />} />
+                  the screen that sells them a new one, and a receipt outlives a role.
+
+                  Gated on the build, though. The native shells and the GitHub Pages demo have
+                  no backend at all — no accounts, no coaching, nothing to subscribe to — so
+                  this screen has nothing to ask and would render an error to anyone who
+                  reached it. An app shipped to a store must have no payment surface it cannot
+                  honour, which is also the simplest possible answer to every store's rules
+                  about who may take the money. */}
+              <Route path="/billing" element={MOBILE || DEMO ? <Navigate to="/home" replace /> : <Billing />} />
               <Route path="/admin" element={user?.isAdmin ? <Admin /> : <Navigate to="/home" replace />} />
               <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>

@@ -36,7 +36,7 @@ packages/domain   runtime-agnostic training logic, shared by client and server
 packages/db       Postgres schema, migrations, sync engine, coaching rules
 packages/ai       the language layer, and the deterministic path underneath it
 infra             nginx, Docker builds, media fetch, smoke and browser tests
-docs              self-hosting, mobile builds, upstream README
+docs              self-hosting, mobile builds, releasing, store listings, upstream README
 ```
 
 ### How sync works
@@ -111,14 +111,28 @@ npm run db:reset          # schema + exercise library, against $DATABASE_URL
 npm run db:demo           # …plus the demo coach and clients
 npm run api               # API on :3000
 npm run dev               # client on :5173, proxying /api to it
-npm test                  # domain, database, API and client suites
+npm test                  # domain, database, API, client and release suites
 npm run test:smoke        # end-to-end over HTTP against a running instance
 npm run test:e2e          # the same flows driven through a real browser
 npm run sync:mobile       # build + capacitor sync for the native shells
+npm run version:stamp     # one version, into all four files that carry it
 ```
 
 The database and API suites need a Postgres in `DATABASE_URL`. CI stands one up; locally, any
 throwaway database will do.
+
+## Three products, one codebase
+
+The web app is the whole thing: accounts, sync, coaching, subscriptions. The **native builds**
+(`VITE_MOBILE=1`) are a different product on purpose — an offline single-user tracker with no
+accounts, no backend and nothing to buy. Training data lives in a file on the phone, and
+`api()` throws if anything tries to reach a server, so the privacy declaration the app stores
+are given is enforced rather than promised.
+
+That split is also the answer to the store question: a build with no accounts and no payment
+surface raises none of the rules about who may take money for digital goods. Coaching is a web
+product, reached through the PWA. See [docs/RELEASING.md](docs/RELEASING.md) — including why
+the App Store and Google Play are not available on this path at all, and which channels are.
 
 ## Status
 
@@ -127,7 +141,8 @@ throwaway database will do.
 - [x] **Phase 3** — coaches, clients, scopes, proposals, messaging
 - [x] **Phase 4** — programme generation, training review, logging by typing
 - [x] **Phase 5** — Persian and RTL, locale-aware weeks, rate limits, provider choice
-- [ ] **Phase 6** — billing (API done, no UI yet) and store submission
+- [x] **Phase 6** — subscriptions end to end; release engineering and store metadata
+- [ ] **Launch** — exercise media licence, legal review, a public repository
 
 ## Before launch
 
