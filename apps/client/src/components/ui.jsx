@@ -29,7 +29,14 @@ export function NumberField({ value, onChange, decimal = true, nullable = false,
   // null and undefined are the same "empty" here — a nullable field's key is dropped once cleared.
   if (draft !== null && (committed.current ?? null) !== (value ?? null)) { setDraft(null); committed.current = null }
   const commit = raw => {
-    let s = raw.replace(/,/g, '.').replace(/[^0-9.]/g, '')
+    // Persian and Arabic-Indic digits normalise to ASCII before anything else looks at them.
+    // A Farsi keyboard types ۸۰, and the strip below would otherwise throw every character
+    // away and silently commit 0 — a weight of zero, entered as a full number.
+    let s = raw
+      .replace(/[۰-۹]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x06F0 + 48))
+      .replace(/[٠-٩]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x0660 + 48))
+      .replace(/[٫،,]/g, '.')
+      .replace(/[^0-9.]/g, '')
     const i = s.indexOf('.')
     if (i !== -1) s = decimal ? s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '') : s.slice(0, i)
     const n = s === '' || s === '.' ? (nullable ? null : 0) : Math.max(0, parseFloat(s))

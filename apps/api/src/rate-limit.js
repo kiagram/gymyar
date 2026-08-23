@@ -1,0 +1,103 @@
+/* Who is allowed to ask for how much, and how often.
+ *
+ * The numbers all live here rather than beside the routes, for the same reason the coaching
+ * permission rules live in one file: a limit you have to go looking for is a limit nobody
+ * reviews. Routes opt into a bucket by name; this file decides what the name costs.
+ *
+ * ## Keyed by account, not by address
+ *
+ * The obvious key is the client's IP, and it is the wrong one for this product's users. Iranian
+ * mobile and home connections sit behind carrier-grade NAT, so a single address can front an
+ * entire neighbourhood. An IP-keyed limit there does not stop an abuser — it lets one abuser
+ * lock out everybody who shares their carrier, and makes ordinary traffic look like an attack.
+ *
+ * So: signed-in requests are counted against the account, which is the thing actually spending
+ * money. Only requests with no account fall back to the address, and the one place that really
+ * matters — signing in — is keyed by the identifier being tried, so failing to guess one
+ * person's password cannot lock their neighbours out of their own accounts.
+ *
+ * ## What is worth limiting
+ *
+ * Not everything. Sync is high-volume by design — a debounced push after every set — and
+ * throttling it loses training data rather than saving anything. The expensive routes are the
+ * ones that call a model, because each one costs real money and nothing else in this codebase
+ * does. They get the tight buckets; everything else gets a ceiling that only a runaway client
+ * or a script would ever reach.
+ */
+import rateLimit from '@fastify/rate-limit'
+import { config } from './config.js'
+import { sessionUserId } from './session.js'
+
+const MINUTE = 60_000
+
+/**
+ * The buckets. `max` requests per `window`, per key.
+ *
+ * `model` covers everything that can reach a language model. The numbers are deliberately far
+ * above what a person drafting a plan does — a dozen attempts at describing your training is a
+ * bad afternoon, not abuse — and far below what a loop costs.
+ */
+export const BUCKETS = {
+  // Drafting a programme, and a coach drafting a change for a client. Both call a model and
+  // both are things a person does a handful of times, thinks about, then does again.
+  'model.draft': { max: 12, window: 10 * MINUTE },
+  // Reading a typed log. Called mid-workout and more often, still model-backed.
+  'model.parse': { max: 40, window: 10 * MINUTE },
+  // Signing in. Tight, and keyed by the identifier being tried rather than the address.
+  'auth': { max: 10, window: 15 * MINUTE },
+  // Everything else: a ceiling, not a throttle.
+  'default': { max: 240, window: MINUTE }
+}
+
+/** Route config for a bucket: `app.post('/x', { config: limit('model.draft') }, handler)`. */
+export const limit = name => {
+  const b = BUCKETS[name]
+  if (!b) throw new Error(`unknown rate-limit bucket: ${name}`)
+  return { rateLimit: { max: b.max, timeWindow: b.window } }
+}
+
+/* The identifier a sign-in attempt is about, so one account being guessed at does not spend
+ * the budget of everyone else behind the same carrier. Falls back to the address when the
+ * request does not name anybody — which is itself worth limiting. */
+const authSubject = req => {
+  const email = req.body?.email
+  return email ? 'email:' + String(email).trim().toLowerCase() : 'ip:' + req.ip
+}
+
+export async function registerRateLimit(app, { enabled = config.rateLimit } = {}) {
+  if (!enabled) {
+    app.log?.warn?.('rate limiting is off')
+    return
+  }
+
+  await app.register(rateLimit, {
+    global: true,
+    max: BUCKETS.default.max,
+    timeWindow: BUCKETS.default.window,
+    // preHandler, not the default onRequest: the sign-in key is the account being tried, and
+    // the body that names it has not been parsed yet at onRequest. Keyed too early, every
+    // login in the country lands in one bucket — the exact failure this file exists to avoid.
+    hook: 'preHandler',
+    // Counted per account wherever there is one — see the note at the top of this file.
+    keyGenerator: req => {
+      if (req.routeOptions?.url?.startsWith('/api/login') ||
+          req.routeOptions?.url?.startsWith('/api/register')) {
+        return authSubject(req)
+      }
+      const uid = sessionUserId(req)
+      return uid ? 'user:' + uid : 'ip:' + req.ip
+    },
+    // Health checks are how a container decides whether to keep running. Never throttle them.
+    allowList: req => req.url === '/api/health',
+    // The route handlers throw `{ status }` and a shared error handler turns that into a body;
+    // this keeps a 429 the same shape as every other error the client already knows how to read.
+    // What this returns is thrown as the error, so it has to carry the status itself —
+    // without `statusCode` a correct 429 body goes out as a 500.
+    errorResponseBuilder: (req, ctx) => ({
+      statusCode: 429,
+      error: `Too many requests — try again in ${Math.ceil(ctx.ttl / 1000)}s`,
+      code: 'rate_limited',
+      retryAfter: Math.ceil(ctx.ttl / 1000)
+    })
+  })
+}

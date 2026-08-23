@@ -57,7 +57,7 @@ git push mirror gymbuddy
 
 - `data/` — session signing secret, VAPID private key, user records
 - `media/` — 2,649 Gym visual files that are not licensed to you
-- `.env` — `SESSION_SECRET`, database credentials, `ANTHROPIC_API_KEY`
+- `.env` — `SESSION_SECRET`, database credentials, and whichever model API key you set
 
 Before the first push, check nothing slipped in:
 

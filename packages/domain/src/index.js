@@ -6,6 +6,7 @@
  * used to log it. Anything needing a browser stays in apps/client/src/lib.
  */
 export * from './i18n-adapter.js'
+export * from './messages.js'
 export * from './format.js'
 export * from './exercises-data.js'
 export * from './exercises.js'

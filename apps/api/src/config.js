@@ -10,6 +10,9 @@ export const config = {
   rpId: process.env.RP_ID || 'localhost',
   rpName: process.env.RP_NAME || 'GymBuddy',
   inviteOnly: bool(process.env.INVITE_ONLY),
+  // On by default. A single-user instance on a home server has nobody to rate limit, and the
+  // test suite drives hundreds of requests through one client — both want it off.
+  rateLimit: !/^(0|false|no|off)$/i.test(process.env.RATE_LIMIT || 'on'),
   sessionDays: Math.max(1, +(process.env.SESSION_DAYS || 90) || 90),
   // A generated secret means every restart signs out every user. Fine for a laptop, a data-loss
   // incident in production — so it is refused there rather than silently accepted.

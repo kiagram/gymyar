@@ -1,5 +1,5 @@
 // Formatting + date helpers (ported from the vanilla app, unit taken from the store where needed).
-import { dateLocale, t } from './i18n-adapter.js'
+import { dateLocale, t, weekStartsOn } from './i18n-adapter.js'
 export const todayISO = () => {
   const d = new Date()
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
@@ -44,14 +44,46 @@ export const fmtVol = (v, unit) => fmtNum(v) + ' ' + unit
 // Plural forms are not automatic when the English string is the key.
 export const exCount = n => t(n === 1 ? '{0} exercise' : '{0} exercises', n)
 
-export function weekKey(d) {
-  const dt = new Date(d + 'T12:00:00')
-  const day = (dt.getDay() + 6) % 7
-  dt.setDate(dt.getDate() - day + 3)
-  const jan4 = new Date(dt.getFullYear(), 0, 4)
-  const week = 1 + Math.round(((dt - jan4) / 86400000 - 3 + ((jan4.getDay() + 6) % 7)) / 7)
-  return dt.getFullYear() + '-' + week
+/**
+ * The first day of the week containing `value`, as a Date at local noon.
+ *
+ * Which day that is is a locale question rather than a constant. Iran's week starts on Saturday,
+ * and a Monday-anchored grid puts two of its days in the wrong week — which does not fail
+ * visibly, it quietly shifts every heatmap cell, every streak and every "this week" count by two
+ * days. Noon for the same reason `fmtDate` uses it: it survives any timezone offset.
+ *
+ * Accepts a calendar day, a full timestamp or a Date, like the other date helpers here.
+ */
+export function startOfWeek(value) {
+  const d = value instanceof Date
+    ? new Date(value)
+    : new Date(String(value).slice(0, 10) + 'T12:00:00')
+  d.setHours(12, 0, 0, 0)
+  d.setDate(d.getDate() - weekdayOffset(d))
+  return d
 }
+
+/** Which column of the week grid a date belongs in — 0 is the locale's first day. */
+export const weekdayOffset = d => (d.getDay() - weekStartsOn() + 7) % 7
+
+/**
+ * The short weekday labels in the order this locale's week runs.
+ *
+ * `DAYS` is indexed by `getDay()` and always starts at Sunday, which is the right shape for
+ * looking a day up and the wrong one for heading a grid. Rotating here means a calendar cannot
+ * disagree with the offset that positions its cells.
+ */
+export const weekdayLabels = () => DAYS.slice(weekStartsOn()).concat(DAYS.slice(0, weekStartsOn()))
+
+/**
+ * Identity of the week a day falls in — the start of that week, as a calendar day.
+ *
+ * This is a bucket key rather than something anybody reads: it groups sets by week, answers
+ * "same week as today", and counts distinct weeks for a streak. An ISO week number did that job
+ * too, but it could not follow the locale and needed its own year-boundary arithmetic to get
+ * right. A date sorts, compares and is obvious in a debugger.
+ */
+export const weekKey = d => isoOf(startOfWeek(d))
 
 export const localTZ = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' } catch { return 'UTC' } }
 

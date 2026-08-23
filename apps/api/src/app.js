@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import { connect, migrate, db } from '@gymbuddy/db'
 import { config } from './config.js'
+import { registerRateLimit } from './rate-limit.js'
 import authRoutes from './routes/auth.js'
 import syncRoutes from './routes/sync.js'
 import coachingRoutes from './routes/coaching.js'
@@ -10,12 +11,20 @@ import pushRoutes from './routes/push.js'
 import adminRoutes from './routes/admin.js'
 import aiRoutes from './routes/ai.js'
 
-export async function build({ logger = false, databaseUrl = config.databaseUrl, runMigrations = true, ai = null } = {}) {
+export async function build({
+  logger = false, databaseUrl = config.databaseUrl, runMigrations = true, ai = null,
+  // The API suite drives hundreds of requests through one client on one key, which is exactly
+  // what the limiter exists to stop. Tests turn it off and test it directly instead.
+  rateLimit = config.rateLimit
+} = {}) {
   connect(databaseUrl)
   if (runMigrations) await migrate()
 
   const app = Fastify({ logger, bodyLimit: 5 * 1024 * 1024 })
   await app.register(cookie)
+  // Before the routes: the limiter reads the session cookie to decide whose budget a request
+  // spends, so it has to be registered after cookies and before anything it protects.
+  await registerRateLimit(app, { enabled: rateLimit })
 
   // Routes throw `Object.assign(new Error(msg), { status })` rather than composing replies, so
   // the permission rules read as rules. This is where that becomes an HTTP response — and where

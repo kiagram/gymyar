@@ -10,14 +10,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useUI } from '../store/useUI.js'
 import { Section, Row, Button, TextField, TextArea } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
-import { t } from '../lib/i18n.js'
+import { t, exName, say } from '../lib/i18n.js'
 import { fmtDate, fmtNum, EXIDX, DAYN, setLabel, modeOf } from '@gymbuddy/domain'
 import {
   fetchClient, proposeRoutine, fetchThread, sendMessage, SCOPE_INFO, daysSince
 } from '../lib/coaching.js'
 import { draftClientChange } from '../lib/ai.js'
 
-const exName = id => EXIDX[id]?.n || id
+const exLabel = id => exName(EXIDX[id]) || id
 
 /* A routine's exercise list, rendered the same way in the read view and in the proposal
  * preview — so what a coach sends is visibly the thing they were just looking at. */
@@ -27,7 +27,7 @@ function ExerciseList({ exercises }) {
     <ol className="dim small" style={{ margin: '4px 0 0', paddingLeft: 20, lineHeight: 1.7 }}>
       {exercises.map((e, i) => (
         <li key={`${e.id}-${i}`}>
-          {exName(e.id)}
+          {exLabel(e.id)}
           {e.sets ? ` — ${e.sets} × ${modeOf(e) === 'time' ? `${e.sec || 30}s` : (e.reps ?? '?')}` : ''}
         </li>
       ))}
@@ -71,7 +71,7 @@ function ProposeSheet({ clientId, routine, close, onDone, draft = null }) {
 
       {draft && (
         <div className="card small" style={{ borderLeft: '3px solid var(--acc)' }}>
-          <strong>{draft.headline}</strong>
+          <strong>{say(draft.headline)}</strong>
           <div className="dim" style={{ marginTop: 4 }}>
             {(draft.changes || []).map((c, i) => (
               <div key={i}>{c.name}: {c.field} {c.from ?? '—'} → {c.to}</div>
@@ -89,7 +89,7 @@ function ProposeSheet({ clientId, routine, close, onDone, draft = null }) {
 
       <Section title={t('Exercises')}>
         {rows.map((r, i) => (
-          <Row key={`${r.id}-${i}`} title={exName(r.id)}>
+          <Row key={`${r.id}-${i}`} title={exLabel(r.id)}>
             <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <input className="input" style={{ width: 54, textAlign: 'center', padding: '8px 4px' }}
                      inputMode="numeric" value={r.sets ?? ''} aria-label={t('Sets')}
@@ -213,7 +213,7 @@ export default function CoachClient() {
     setDrafting(true)
     try {
       const draft = await draftClientChange(id)
-      if (!draft.change) { toast(draft.detail || t('Nothing to change')); return }
+      if (!draft.change) { toast(say(draft.detail) || t('Nothing to change')); return }
       const target = routines.find(r => r.id === draft.change.routineId) ||
                      { id: draft.change.routineId, name: draft.change.payload.name, exercises: [] }
       openSheet(close => (

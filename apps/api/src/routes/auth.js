@@ -16,6 +16,7 @@ import {
 } from '@gymbuddy/db/users.js'
 import { config } from '../config.js'
 import { issue, clear, requireUser, currentUser } from '../session.js'
+import { limit } from '../rate-limit.js'
 
 /* Challenges are short-lived and single-use. In memory on purpose: they are worthless after five
  * minutes, and a restart losing them costs a user one retry. */
@@ -60,7 +61,7 @@ export default async function authRoutes(app) {
 
   /* ---------------------------------------------------------- passkeys ---- */
 
-  app.post('/api/register/options', async req => {
+  app.post('/api/register/options', { config: limit('auth') }, async req => {
     const name = String(req.body?.name || '').trim().slice(0, 40)
     if (!name) throw bad('name required')
     const code = String(req.body?.code || '').trim().toUpperCase()
@@ -75,7 +76,7 @@ export default async function authRoutes(app) {
     return { cid: putChallenge({ challenge: options.challenge, name, code }), options }
   })
 
-  app.post('/api/register/verify', async (req, reply) => {
+  app.post('/api/register/verify', { config: limit('auth') }, async (req, reply) => {
     const c = takeChallenge(req.body?.cid)
     if (!c?.name) throw bad('challenge expired — try again')
 
@@ -111,14 +112,14 @@ export default async function authRoutes(app) {
     return { user: publicUser(user) }
   })
 
-  app.post('/api/login/options', async () => {
+  app.post('/api/login/options', { config: limit('auth') }, async () => {
     const options = await generateAuthenticationOptions({
       rpID: config.rpId, userVerification: 'preferred', allowCredentials: []
     })
     return { cid: putChallenge({ challenge: options.challenge }), options }
   })
 
-  app.post('/api/login/verify', async (req, reply) => {
+  app.post('/api/login/verify', { config: limit('auth') }, async (req, reply) => {
     const c = takeChallenge(req.body?.cid)
     if (!c) throw bad('challenge expired — try again')
     const cred = await findCredential(req.body?.credential?.id)
@@ -168,7 +169,7 @@ export default async function authRoutes(app) {
     return { user: publicUser(user) }
   })
 
-  app.post('/api/login/password', async (req, reply) => {
+  app.post('/api/login/password', { config: limit('auth') }, async (req, reply) => {
     const email = String(req.body?.email || '').trim().toLowerCase()
     const password = String(req.body?.password || '')
     const user = await findUserByEmail(email)

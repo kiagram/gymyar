@@ -15,7 +15,7 @@ import { useUI } from '../store/useUI.js'
 import { Section, Row, Button, TextArea, Check, Segmented } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
-import { t } from '../lib/i18n.js'
+import { t, say } from '../lib/i18n.js'
 import { DAYN, uid } from '@gymbuddy/domain'
 import {
   aiStatus, draftProgramme, reviewMe,
@@ -193,7 +193,7 @@ function Review() {
         <Row key={`${f.kind}-${i}`}
              icon={f.severity === 'high' ? 'flame' : f.severity === 'medium' ? 'info' : 'dot'}
              iconTint={SEVERITY[f.severity]}
-             title={f.title} subtitle={f.detail} />
+             title={say(f.title)} subtitle={say(f.detail)} />
       ))}
     </Section>
   )

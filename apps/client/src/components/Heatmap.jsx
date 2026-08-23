@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { fmtVol, isoOf, todayISO, MONTHS } from '@gymbuddy/domain'
+import { fmtVol, isoOf, todayISO, startOfWeek, MONTHS } from '@gymbuddy/domain'
 import { t } from '../lib/i18n.js'
 
 // GitHub-style activity heatmap, shaded by time trained per day.
@@ -19,7 +19,7 @@ export default function Heatmap({ S, onDay }) {
   const level = a => !a ? 0 : !a.min ? 1 : a.min >= t3 ? 4 : a.min >= t2 ? 3 : a.min >= t1 ? 2 : 1
 
   const today = new Date(); today.setHours(12, 0, 0, 0)
-  const end = new Date(today); end.setDate(today.getDate() - ((today.getDay() + 6) % 7))
+  const end = startOfWeek(today)
   const start = new Date(end); start.setDate(end.getDate() - 52 * 7)
 
   const months = [], cols = []

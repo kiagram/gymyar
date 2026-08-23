@@ -12,14 +12,14 @@ import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { Section, Row, Button, Check } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
-import { t } from '../lib/i18n.js'
+import { t, exName } from '../lib/i18n.js'
 import { fmtDate, EXIDX, modeOf } from '@gymbuddy/domain'
 import {
   fetchCoaches, previewInvite, acceptInvite, declineInvite, updateScopes, endCoaching,
   acceptProposal, declineProposal, SCOPE_INFO
 } from '../lib/coaching.js'
 
-const exName = id => EXIDX[id]?.n || id
+const exLabel = id => exName(EXIDX[id]) || id
 
 /* What accepting will actually do, side by side with what they have now. A proposal that
  * arrives as "your coach changed something" is a thing people click through; one that shows
@@ -37,7 +37,7 @@ function ProposalDiff({ proposal, current }) {
         const changed = !was || line(was) !== line(e)
         return (
           <div key={`${e.id}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-            <span>{exName(e.id)}</span>
+            <span>{exLabel(e.id)}</span>
             <span style={{ fontVariantNumeric: 'tabular-nums', color: changed ? 'var(--accent)' : 'var(--label-2)' }}>
               {was && changed && <span className="dim" style={{ textDecoration: 'line-through', marginRight: 6 }}>{line(was)}</span>}
               {line(e)}
@@ -50,7 +50,7 @@ function ProposalDiff({ proposal, current }) {
         .filter(e => !next.some(n => n.id === e.id))
         .map(e => (
           <div key={`gone-${e.id}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }} className="dim">
-            <span style={{ textDecoration: 'line-through' }}>{exName(e.id)}</span>
+            <span style={{ textDecoration: 'line-through' }}>{exLabel(e.id)}</span>
             <span>{t('removed')}</span>
           </div>
         ))}

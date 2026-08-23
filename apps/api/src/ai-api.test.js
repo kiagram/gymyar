@@ -10,7 +10,7 @@ const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
 beforeAll(async () => {
   process.env.SESSION_SECRET = 'test-secret-not-for-production'
   // No key in CI and none wanted: these tests assert the product works without one.
-  app = await build({ databaseUrl: URL, ai: createAI({ provider: nullProvider }) })
+  app = await build({ databaseUrl: URL, ai: createAI({ provider: nullProvider }), rateLimit: false })
   const { seedExercises } = await import('@gymbuddy/db/seed-exercises.js')
   await seedExercises()
 })
