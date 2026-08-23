@@ -4,7 +4,7 @@
 // Exercise instructions come from separately generated packs in src/instr/ (one per
 // language, from the upstream dataset) — also lazy-loaded on language switch.
 import { useSyncExternalStore } from 'react'
-import { setI18n } from '@gymbuddy/domain'
+import { setI18n, setMediaBases } from '@gymbuddy/domain'
 
 // UI languages. de/pt have no instruction pack upstream — instructions fall back to English.
 export const LANGS = {
@@ -60,3 +60,7 @@ export function useLang() {
 // to English, which is also what an untranslated key resolves to — so a domain string
 // rendered before the first setLang() is correct, never a placeholder.
 setI18n({ t, dateLocale })
+
+// Same reason: `import.meta.env` is Vite-only, so the domain package reads its media bases
+// through a setter and this — the client, the one runtime that has Vite — supplies them.
+setMediaBases({ img: import.meta.env.VITE_IMG_BASE, gif: import.meta.env.VITE_GIF_BASE })
