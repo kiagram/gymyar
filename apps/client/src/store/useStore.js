@@ -4,6 +4,7 @@ import { localTZ } from '@gymbuddy/domain'
 import { registerCustom } from '@gymbuddy/domain'
 import { DEMO, DEMO_SEEDED } from '../lib/demo.js'
 import { MOBILE, nativeLoad, nativeSave, syncReminder } from '../lib/mobile.js'
+import { sync as syncDelta, mergeChanges, resetSync, getCursor } from '../lib/sync.js'
 
 const KEY = 'gym_state_v1'
 export const DEF = {
@@ -32,6 +33,7 @@ const hasData = st => !!((st.workouts || []).length || (st.routines || []).lengt
 export const useStore = create((set, get) => {
   let pushTm = null
   let saveTm = null
+  let syncing = null
 
   // Mobile build: mirror the state into a file in the app's data directory (survives WebView
   // storage eviction) and keep the native reminder schedule in step with the weekly plan.
@@ -76,6 +78,10 @@ export const useStore = create((set, get) => {
     localStorage.removeItem('gym_guest')
     localStorage.removeItem('gym_dirty')
     localStorage.removeItem(KEY)
+    // The cursor and snapshot describe what *that account* had synced. Leaving them behind
+    // would have the next person to sign in on this device push someone else's history as
+    // their own delta.
+    resetSync()
     persist(clone(DEF), false)
   }
 
@@ -83,6 +89,8 @@ export const useStore = create((set, get) => {
     S: (() => { const s = loadState(); registerCustom(s.customEx); return s })(),
     user: (() => { try { return JSON.parse(localStorage.getItem('gym_user')) || null } catch { return null } })(),
     ready: false,
+    syncedAt: null,
+    syncError: null,
 
     // Mutate a draft of S via producer fn, then persist + schedule sync.
     update(mut, push = true) {
@@ -101,25 +109,47 @@ export const useStore = create((set, get) => {
       set({ user: u })
     },
 
-    async pushState() {
-      if (!get().user) return
+    // One sync: push what this device has changed, pull what it has not seen. Both directions
+    // are deltas — the whole account no longer moves on every save.
+    //
+    // `full` starts from scratch: no cursor, no snapshot, ask for everything. Used on first
+    // sign-in on a device, and as the recovery path if a cursor is ever lost.
+    async syncNow({ full = false } = {}) {
+      if (!get().user) return null
       clearTimeout(pushTm)
-      try { await api('/api/data', { method: 'PUT', body: JSON.stringify({ state: get().S }) }); localStorage.removeItem('gym_dirty') }
-      catch (e) { localStorage.setItem('gym_dirty', '1') }
+      pushTm = null
+      if (syncing) return syncing            // never two in flight; the second would race the first
+      syncing = (async () => {
+        try {
+          const report = await syncDelta(get().S, changes => {
+            // `active` is device-local by design and never crosses the wire, so a merge must
+            // not drop the session this device is in the middle of.
+            const activeHere = get().S.active
+            const merged = mergeChanges(get().S, changes)
+            if (activeHere) merged.active = activeHere
+            persist(Object.assign(clone(DEF), merged), false)
+            return get().S
+          }, { full })
+          localStorage.removeItem('gym_dirty')
+          set({ syncedAt: Date.now(), syncError: null })
+          return report
+        } catch (e) {
+          // Offline is the common case and not worth surfacing; the delta is still in the
+          // difference between state and snapshot and goes out on the next attempt.
+          localStorage.setItem('gym_dirty', '1')
+          set({ syncError: e.status === 401 ? 'signed-out' : 'offline' })
+          if (e.status === 401) get().setUser(null)
+          return null
+        } finally {
+          syncing = null
+        }
+      })()
+      return syncing
     },
-    async pullState() {
-      try {
-        const { state } = await api('/api/data')
-        const S = get().S
-        const dirty = localStorage.getItem('gym_dirty') === '1'
-        if (state && (!hasData(S) || ((state._ts || 0) >= (S._ts || 0) && !dirty))) {
-          const active = S.active
-          const next = Object.assign(clone(DEF), state)
-          if (active) next.active = active
-          persist(next, false)
-        } else if (hasData(S)) { await get().pushState() }
-      } catch (e) { /* offline — keep local */ }
-    },
+
+    // Kept so the rest of the app can call it by the old name; a push now implies a sync.
+    async pushState() { return get().syncNow() },
+    async pullState() { return get().syncNow() },
 
     async signOut() {
       try { await get().pushState(); await api('/api/logout', { method: 'POST', body: '{}' }) } catch (e) { /* */ }
@@ -140,7 +170,7 @@ export const useStore = create((set, get) => {
     // Demo build only: drop the seeded example profile back in (Settings → "Reset demo data").
     // Dynamic import so the generator never ships in a self-hosted bundle.
     async resetDemo() {
-      const { buildDemoState } = await import('../lib/demoSeed.js')
+      const { buildDemoState } = await import('@gymbuddy/domain/demo-seed.js')
       localStorage.removeItem('gym_dirty')
       persist(Object.assign(clone(DEF), buildDemoState()), false)
     },
@@ -174,8 +204,12 @@ export const useStore = create((set, get) => {
       }
       try {
         const me = await api('/api/me')
+        const switched = get().user && get().user.id !== me.user.id
         get().setUser(me.user)
-        await get().pullState()
+        // A different account on this device starts clean rather than inheriting a cursor
+        // and snapshot that belong to someone else.
+        if (switched) resetSync()
+        await get().syncNow({ full: switched || !getCursor() })
         // Re-stamp the reminder's timezone on every load — keeps it correct if you're travelling,
         // without needing to revisit Settings.
         const tz = localTZ()

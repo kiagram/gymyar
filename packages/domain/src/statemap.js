@@ -20,6 +20,8 @@
  * profile's unit, because assuming kg would quietly multiply every pound-user's history by 2.2.
  */
 
+import { modeOf } from './history.js'
+
 const LB_PER_KG = 0.45359237
 
 export const toKg = (v, unit) => (v == null ? null : round(unit === 'lb' ? v * LB_PER_KG : v, 4))
@@ -27,7 +29,20 @@ export const fromKg = (v, unit) => (v == null ? null : round(unit === 'lb' ? v /
 
 const round = (n, dp) => { const f = 10 ** dp; return Math.round(Number(n) * f) / f }
 const num = v => (v == null || v === '' ? null : Number(v))
-const iso = d => (d instanceof Date ? d.toISOString().slice(0, 10) : d ?? null)
+/* A calendar day as `YYYY-MM-DD`, whichever shape the value arrives in.
+ *
+ * This matters more than it looks. On the server, postgres.js hands back `Date` objects; over
+ * the wire those become ISO *timestamp* strings, so the client sees "2026-06-01T18:28:00.000Z"
+ * where the server saw a Date. Passing that straight through gives every workout a `d` that is
+ * a timestamp rather than a date — and `d` is the key the heatmap, the streak counter, the
+ * weekly filters and "today's session" all match on, so all of them quietly stop finding
+ * anything. Server-side tests cannot catch it; only a round trip through JSON can. */
+const iso = d => {
+  if (d == null) return null
+  if (d instanceof Date) return d.toISOString().slice(0, 10)
+  const str = String(d)
+  return /^\d{4}-\d{2}-\d{2}/.test(str) ? str.slice(0, 10) : str
+}
 const ms = d => (d instanceof Date ? d.getTime() : typeof d === 'number' ? d : d ? Date.parse(d) : null)
 const stamp = v => (v == null ? null : new Date(v).toISOString())
 
@@ -43,6 +58,20 @@ export const SETTING_KEYS = [
   'unit', 'restSec', 'sound', 'keepAwake', 'lang', 'theme', 'accent', 'body', 'targetW',
   'gifSize', 'reminder', 'effort', 'showRir', 'exWeights'
 ]
+
+/* A logged workout entry does not carry the mode its sets were recorded in — that lives on the
+ * routine config. Resolving it wrong writes a plank's duration into a reps column, so both the
+ * client and the importer build the resolver the same way, from here.
+ *
+ * `routines` may be state routines (`ex`) or database rows (`exercises`); both shapes turn up
+ * depending on which side of the wire the caller is on. */
+export function makeModeResolver(routines = []) {
+  const byExercise = new Map()
+  for (const r of routines) {
+    for (const e of (r.ex || r.exercises || [])) if (!byExercise.has(e.id)) byExercise.set(e.id, e)
+  }
+  return entry => modeOf(byExercise.get(entry.id) || entry)
+}
 
 /* ---------------------------------------------------------------- sets ---- */
 /* A set is one of three shapes and the database has to hold all three without a `kind` column
@@ -251,8 +280,9 @@ export function stateToRows(S, { userId, modeFor }) {
     workouts.push(workout)
     workoutSets.push(...sets)
   }
+  // No id: one weigh-in per person per day, so (user, date) is the key. Anything derived from
+  // the date alone would be the same string for every user.
   const bodyweight = (S.bodyweight || []).map(b => ({
-    id: b.id || `bw:${b.d}`,
     user_id: userId,
     on_date: b.d,
     weight_kg: toKg(num(b.w), unit)
@@ -303,7 +333,7 @@ export function applyRows(S, changes, { modeFor }) {
     for (const row of changes.bodyweight) {
       const d = iso(row.on_date)
       if (row.deleted_at) by.delete(d)
-      else by.set(d, { id: row.id, d, w: fromKg(num(row.weight_kg), unit) })
+      else by.set(d, { d, w: fromKg(num(row.weight_kg), unit) })
     }
     next.bodyweight = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1))
   }

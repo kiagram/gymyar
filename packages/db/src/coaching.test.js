@@ -64,6 +64,9 @@ describe('invitations', () => {
     const { coach, client, invite } = await pair()
     await declineInvite(invite.invite_code)
     expect(await activeLink(coach.id, client.id)).toBeNull()
+    // and the same link cannot be revived by clicking it again
+    await expect(acceptInvite({ inviteCode: invite.invite_code, clientId: client.id }))
+      .rejects.toMatchObject({ status: 409 })
   })
 
   it('shows a pending invitation to the client it was addressed to', async () => {
@@ -71,6 +74,17 @@ describe('invitations', () => {
     const rows = await coachesOf(client.id, client.email)
     expect(rows).toHaveLength(1)
     expect(rows[0].status).toBe('pending')
+  })
+
+  it('works with no email at all — a link the coach sends themselves', async () => {
+    // caught by the smoke test: the invite constraint used to require an email, so an
+    // invitation created as a bare shareable link failed at the database
+    const coach = await createUser({ name: 'Coach', isCoach: true })
+    const client = await createUser({ name: 'Client' })
+    const invite = await inviteClient({ coachId: coach.id })
+    expect(invite.invite_email).toBeNull()
+    const link = await acceptInvite({ inviteCode: invite.invite_code, clientId: client.id })
+    expect(link.status).toBe('active')
   })
 
   it('lets either side end the relationship alone', async () => {

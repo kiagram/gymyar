@@ -18,7 +18,7 @@ export default function Settings() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
-  const { update, replaceState, setUser, pullState, pushState, signOut, signOutAll, resetDemo } = useStore()
+  const { update, replaceState, setUser, syncNow, signOut, signOutAll, resetDemo } = useStore()
   const toast = useUI(s => s.toast)
   const fileRef = useRef(null)
   const importRef = useRef(null)
@@ -49,10 +49,10 @@ export default function Settings() {
     rd.readAsText(f)
   }
   const signInHere = async () => {
-    try { const u = await passkeyLogin(); setUser(u); await pullState(); toast(t('Welcome back, {0}', u.name)) }
+    try { const u = await passkeyLogin(); setUser(u); await syncNow({ full: true }); toast(t('Welcome back, {0}', u.name)) }
     catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') toast(e.message || t('Sign-in failed')) }
   }
-  const registerHere = () => useUI.getState().openSheet(close => <RegisterInline close={close} setUser={setUser} pushState={pushState} pullState={pullState} toast={toast} />)
+  const registerHere = () => useUI.getState().openSheet(close => <RegisterInline close={close} setUser={setUser} syncNow={syncNow} toast={toast} />)
   // Ends the profile's sessions on every device — this one included, so on success it lands in
   // the same place as the plain sign-out above (home, local data cleared). On failure nothing
   // local is touched: still signed in here, and say so rather than leaving a half-signed-out app.
@@ -86,7 +86,9 @@ export default function Settings() {
           onClick={() => window.open(REPO, '_blank', 'noopener')} />
       </> : user ? <>
         <Row icon="personCircle" iconTint="var(--grey)" title={user.name} subtitle={t('Signed in with passkey — data syncs to this profile.')} />
-        {user.admin && <Row icon="wrench" iconTint="var(--indigo)" title={t('Admin dashboard')} accessory="chevron" onClick={() => nav('/admin')} />}
+        {user.isCoach && <Row icon="clipboard" iconTint="var(--accent)" title={t('Your clients')} subtitle={t('Rosters, adherence and programme proposals')} accessory="chevron" onClick={() => nav('/coach')} />}
+        <Row icon="personCircle" iconTint="var(--indigo)" title={t('Coaching')} subtitle={t('Who can see your training')} accessory="chevron" onClick={() => nav('/coaching')} />
+        {user.isAdmin && <Row icon="wrench" iconTint="var(--indigo)" title={t('Admin dashboard')} accessory="chevron" onClick={() => nav('/admin')} />}
         <Row icon="signOut" iconTint="var(--red)" title={t('Sign out')} danger onClick={() => confirmSheet({ title: t('Sign out?'), message: t('Your data is synced to your profile first, then cleared from this device.'), confirmText: t('Sign out'), danger: true, onConfirm: () => { signOut(); nav('/home') } })} />
         <Row icon="shield" iconTint="var(--red)" title={t('Sign out everywhere')} subtitle={t('Ends this profile’s sessions on all your devices.')} danger onClick={signOutEverywhere} />
       </> : webauthnOK() ? <>
@@ -330,19 +332,20 @@ function PushCard({ S, update, toast }) {
 // The same registration as the sign-in screen's, reached from Settings instead. It asks for
 // the invite code on the same terms: an invite-only instance rejects a registration without
 // one, so a form that cannot collect it is a form that cannot succeed.
-function RegisterInline({ close, setUser, pushState, pullState, toast }) {
+function RegisterInline({ close, setUser, syncNow, toast }) {
   const nameRef = useRef(null)
   const [code, setCode] = useState('')
   const [inviteOnly, setInviteOnly] = useState(false)
-  useEffect(() => { api('/api/config').then(c => setInviteOnly(!!c.invite_only)).catch(() => {}) }, [])
+  useEffect(() => { api('/api/config').then(c => setInviteOnly(!!c.inviteOnly)).catch(() => {}) }, [])
   const go = async () => {
     const n = (nameRef.current.value || '').trim()
     if (!n) { toast(t('Enter a name')); return }
     if (inviteOnly && !code.trim()) { toast(t('An invite code is required')); return }
     try {
       const u = await passkeyRegister(n, code.trim()); setUser(u); close()
-      if (hasData(useStore.getState().S)) { await pushState(); toast(t('Profile created — data moved into it')) }
-      else { await pullState(); toast(t('Welcome, {0}', u.name)) }
+      const carried = hasData(useStore.getState().S)
+      await syncNow({ full: true })
+      toast(carried ? t('Profile created — data moved into it') : t('Welcome, {0}', u.name))
     } catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') toast(e.message || t('Registration failed')) }
   }
   return <>

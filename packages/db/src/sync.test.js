@@ -74,6 +74,18 @@ describe('delta sync', () => {
     expect(changes.settings).toMatchObject({ unit: 'kg', restSec: 90, theme: 'light' })
   })
 
+  it('lets two users weigh in on the same day', async () => {
+    // caught by the demo seeder: body-weight rows used to derive an id from the date alone,
+    // so the second user's weigh-in collided with the first's and the write was refused
+    const a = await createUser({ name: 'A' })
+    const b = await createUser({ name: 'B' })
+    const day = { on_date: '2026-06-01', weight_kg: 82 }
+    await push(a.id, { bodyweight: [day] })
+    await push(b.id, { bodyweight: [{ ...day, weight_kg: 71 }] })
+    expect(Number((await pullAll(a.id)).changes.bodyweight[0].weight_kg)).toBe(82)
+    expect(Number((await pullAll(b.id)).changes.bodyweight[0].weight_kg)).toBe(71)
+  })
+
   it('keeps two users entirely separate', async () => {
     const a = await createUser({ name: 'A' })
     const b = await createUser({ name: 'B' })

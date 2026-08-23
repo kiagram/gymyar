@@ -34,7 +34,7 @@ function assertWrote(rows, table, id) {
 const TABLES = {
   routines:           { key: 'routines',     id: r => r.id },
   workouts:           { key: 'workouts',     id: r => r.id },
-  bodyweight_entries: { key: 'bodyweight',   id: r => r.id },
+  bodyweight_entries: { key: 'bodyweight',   id: r => String(r.on_date) },
   exercises:          { key: 'exercises',    id: r => r.id },
   week_plan:          { key: 'weekPlan',     id: r => String(r.weekday) },
   day_overrides:      { key: 'dayOverrides', id: r => String(r.on_date) },
@@ -103,6 +103,9 @@ async function readRows(s, table, userId, ids) {
   }
   if (table === 'day_overrides') {
     return s`select * from day_overrides where user_id = ${userId} and on_date in ${s(ids)}`
+  }
+  if (table === 'bodyweight_entries') {
+    return s`select * from bodyweight_entries where user_id = ${userId} and on_date in ${s(ids)}`
   }
   const owner = table === 'exercises' ? s`owner_id = ${userId}` : s`user_id = ${userId}`
   return s`select * from ${s(table)} where ${owner} and id in ${s(ids)}`
@@ -198,21 +201,19 @@ export async function push(userId, payload = {}, s = db()) {
     }
 
     for (const b of payload.bodyweight || []) {
+      // (user, date) is the key, so the upsert is naturally scoped to the caller and there is
+      // no cross-account write to guard against.
       if (b.deleted) {
         await tx`update bodyweight_entries set deleted_at = now(), updated_at = now()
-                 where id = ${b.id} and user_id = ${userId}`
-        await logChange(tx, userId, 'bodyweight_entries', b.id, 'delete')
+                 where user_id = ${userId} and on_date = ${b.on_date}`
+        await logChange(tx, userId, 'bodyweight_entries', String(b.on_date), 'delete')
       } else {
-        const wrote = await tx`
-          insert into bodyweight_entries (id, user_id, on_date, weight_kg)
-          values (${b.id}, ${userId}, ${b.on_date}, ${b.weight_kg})
-          on conflict (id) do update set
-            on_date = excluded.on_date, weight_kg = excluded.weight_kg,
-            deleted_at = null, updated_at = now()
-          where bodyweight_entries.user_id = ${userId}
-          returning id`
-        assertWrote(wrote, 'bodyweight entry', b.id)
-        await logChange(tx, userId, 'bodyweight_entries', b.id)
+        await tx`
+          insert into bodyweight_entries (user_id, on_date, weight_kg)
+          values (${userId}, ${b.on_date}, ${b.weight_kg})
+          on conflict (user_id, on_date) do update set
+            weight_kg = excluded.weight_kg, deleted_at = null, updated_at = now()`
+        await logChange(tx, userId, 'bodyweight_entries', String(b.on_date))
       }
       touched++
     }

@@ -38,8 +38,14 @@ export default async function coachingRoutes(app) {
     const clientId = req.params.id
     const link = await requireScope(user.id, clientId, 'programmes')
     const { changes } = await pullAll(clientId)
+    // The link row alone has no name on it — without this the screen is headed "Client".
+    const [who] = await db()`select name, email, units from users where id = ${clientId}`
 
-    const view = { link, routines: changes.routines, settings: changes.settings }
+    const view = {
+      link: { ...link, client_name: who?.name ?? null, client_email: who?.email ?? null },
+      routines: changes.routines,
+      settings: changes.settings
+    }
     // Scope is checked per section rather than once at the door: a client who shared their
     // programme has not thereby agreed to hand over every weigh-in.
     if (link.scopes.includes('workouts')) view.workouts = changes.workouts

@@ -16,6 +16,14 @@
     "test": "npm run test -w @gymbuddy/domain && npm run test -w @gymbuddy/db && npm run test -w @gymbuddy/api && npm run test -w @gymbuddy/client",
     "sync:mobile": "npm run build:mobile -w @gymbuddy/client",
     "migrate": "npm run migrate -w @gymbuddy/db",
-    "seed": "npm run seed -w @gymbuddy/db"
+    "seed": "npm run seed -w @gymbuddy/db",
+    "test:e2e": "node infra/scripts/e2e.mjs",
+    "test:smoke": "./infra/scripts/smoke.sh",
+    "db:reset": "npm run reset -w @gymbuddy/db",
+    "db:demo": "npm run demo -w @gymbuddy/db",
+    "api": "npm start -w @gymbuddy/api"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.0"
   }
 }

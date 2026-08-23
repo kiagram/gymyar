@@ -5,16 +5,22 @@
   "type": "module",
   "license": "AGPL-3.0-or-later",
   "main": "./src/index.js",
-  "exports": { ".": "./src/index.js", "./*": "./src/*" },
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*"
+  },
   "scripts": {
     "migrate": "node src/cli.js migrate",
     "seed": "node src/cli.js seed",
     "reset": "node src/cli.js reset",
-    "test": "vitest run"
+    "test": "vitest run",
+    "demo": "node src/cli.js demo"
   },
   "dependencies": {
     "postgres": "^3.4.5",
     "@gymbuddy/domain": "*"
   },
-  "devDependencies": { "vitest": "^4.1.10" }
+  "devDependencies": {
+    "vitest": "^4.1.10"
+  }
 }

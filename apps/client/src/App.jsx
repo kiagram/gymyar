@@ -24,6 +24,9 @@ import History from './views/History.jsx'
 import Library from './views/Library.jsx'
 import Settings from './views/Settings.jsx'
 import Admin from './views/Admin.jsx'
+import Coach from './views/Coach.jsx'
+import CoachClient from './views/CoachClient.jsx'
+import Coaching, { InviteAccept } from './views/Coaching.jsx'
 
 bindUI(useUI)   // lets the shared controls open sheets without importing the store at module scope
 
@@ -75,7 +78,13 @@ function Shell() {
               <Route path="/history" element={<History />} />
               <Route path="/library" element={<Library />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="/admin" element={user?.admin ? <Admin /> : <Navigate to="/home" replace />} />
+              <Route path="/coaching" element={<Coaching />} />
+              <Route path="/invite/:code" element={<InviteAccept />} />
+              {/* The coach screens are gated on the flag, not hidden by it: a direct link from
+                  someone who is not a coach lands on Home rather than an empty roster. */}
+              <Route path="/coach" element={user?.isCoach ? <Coach /> : <Navigate to="/home" replace />} />
+              <Route path="/coach/:id" element={user?.isCoach ? <CoachClient /> : <Navigate to="/home" replace />} />
+              <Route path="/admin" element={user?.isAdmin ? <Admin /> : <Navigate to="/home" replace />} />
               <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>
           )}

@@ -57,3 +57,21 @@ export async function passkeyLogin() {
   const res = await api('/api/login/verify', { method: 'POST', body: JSON.stringify({ cid, credential: credToJSON(cred) }) })
   return res.user
 }
+
+/* Email + password. Passkeys remain the better option and the one the screen leads with, but
+ * "create an account" cannot be a dead end on a browser or device that will not do WebAuthn —
+ * which is the difference between a self-hosted tool and a product people sign up for. */
+export async function passwordRegister({ name, email, password, code, asCoach }) {
+  const res = await api('/api/register/password', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, password, code: code || '', asCoach: !!asCoach })
+  })
+  return res.user
+}
+
+export async function passwordLogin({ email, password }) {
+  const res = await api('/api/login/password', {
+    method: 'POST', body: JSON.stringify({ email, password })
+  })
+  return res.user
+}
