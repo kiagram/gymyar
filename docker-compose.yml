@@ -1,4 +1,4 @@
-name: opengym
+name: gymbuddy
 
 services:
   # One-time: download the exercise images + GIFs into ./media (skipped if already there).
@@ -24,8 +24,9 @@ services:
   # Passkey auth + per-user data (Node, no framework).
   # image: prebuilt (docker compose pull). build: from source (docker compose up --build).
   api:
-    image: ghcr.io/duartesantos8/opengym-api:latest
-    build: ./api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     env_file: .env
     environment:
@@ -37,10 +38,9 @@ services:
   # Builds the React frontend (multi-stage) and serves it, proxying /api → api
   # and the exercise media from the shared volume. Single origin for passkeys.
   web:
-    image: ghcr.io/duartesantos8/opengym-web:latest
     build:
       context: .
-      dockerfile: web/Dockerfile
+      dockerfile: infra/web/Dockerfile
     restart: unless-stopped
     depends_on:
       media:

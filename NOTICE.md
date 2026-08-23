@@ -1,7 +1,14 @@
 # Third-party notices
 
-openGym — Copyright (C) 2026 Duarte Santos.
-openGym's own code is licensed under the **GNU AGPL v3.0** (see [LICENSE](LICENSE)).
+GymBuddy — Copyright (C) 2026 kiarash.
+GymBuddy's own code is licensed under the **GNU AGPL v3.0** (see [LICENSE](LICENSE)).
+
+## Derived from openGym
+
+GymBuddy is a derivative work of **openGym** — Copyright (C) 2026 Duarte Santos, licensed
+under the GNU AGPL v3.0. Canonical upstream: <https://gitea.com/DuarteSantos/openGym>.
+All notices below are inherited from openGym and remain in force for the parts of this
+codebase derived from it, including the App Store additional permission.
 
 ## App store exception
 
@@ -12,9 +19,14 @@ with the AGPL, provided the corresponding source code remains available under th
 the project repository. This permission applies to the distribution channel only and does
 not otherwise limit the license.
 
+> Inherited by GymBuddy: an additional permission granted under AGPL section 7 travels with the
+> code to downstream works unless it is explicitly removed. It is not removed here, and the
+> condition attaches to us in turn — GymBuddy's corresponding source stays available under the
+> AGPL at its own repository.
+
 ## Body diagram geometry
 
-The muscle outlines the body maps are drawn from (`frontend/src/lib/body-paths.js`) are derived
+The muscle outlines the body maps are drawn from (`apps/client/src/lib/body-paths.js`) are derived
 from [**MuscleMap**](https://github.com/melihcolpan/MuscleMap) by Melih Colpan, used under the
 **MIT License** and reproduced below. MuscleMap ships its path data as Swift source rather than
 `.svg` files; the paths were converted to a JSON module, its sub-group shapes were dropped, and
@@ -46,8 +58,8 @@ SOFTWARE.
 
 ## Exercise data & media
 
-The exercise names, instructions (English in `frontend/src/lib/exercises-data.js`, other
-languages in `frontend/src/instr/`, regenerated via `scripts/build-instructions.mjs`), images
+The exercise names, instructions (English in `packages/domain/src/exercises-data.js`, other
+languages in `apps/client/src/instr/`, regenerated via `infra/scripts/build-instructions.mjs`), images
 and animations (fetched into `media/` at build time) come from
 [**hasaneyldrm/exercises-dataset**](https://github.com/hasaneyldrm/exercises-dataset)
 and are **not** covered by openGym's AGPL license — they remain under that dataset's own terms.

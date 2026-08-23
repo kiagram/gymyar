@@ -1,0 +1,21 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Domain tests
+        run: npm run test -w @gymbuddy/domain
+      - name: Client tests
+        run: npm run test -w @gymbuddy/client
+      - name: Web build
+        run: npm run build -w @gymbuddy/client
