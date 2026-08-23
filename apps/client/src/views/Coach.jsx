@@ -4,13 +4,14 @@
  * what needs attention, the top of the screen is the answer to "who do I message today".
  */
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { Section, Row, Button, TextField, Check } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { t } from '../lib/i18n.js'
 import { fetchRoster, createInvite, SCOPE_INFO, daysSince } from '../lib/coaching.js'
+import { fetchBilling, describeEntitlement, isPaymentRequired } from '../lib/billing.js'
 
 const WINDOW_DAYS = 28
 
@@ -57,7 +58,7 @@ function clientSubtitle(c) {
   return bits.join(' · ')
 }
 
-function InviteSheet({ close }) {
+function InviteSheet({ close, nav }) {
   const toast = useUI(s => s.toast)
   const [email, setEmail] = useState('')
   const [scopes, setScopes] = useState(['programmes', 'workouts'])
@@ -71,7 +72,13 @@ function InviteSheet({ close }) {
   const submit = async () => {
     setBusy(true); setErr(null)
     try { setInvite((await createInvite({ email: email.trim() || null, scopes })).invite) }
-    catch (e) { setErr(e.message) }
+    catch (e) {
+      // A refusal for want of payment is not an error to read and dismiss — it is a thing to
+      // go and fix. Sending them straight to the screen that fixes it beats a red sentence
+      // with no way forward.
+      if (isPaymentRequired(e)) { close(); nav('/billing') }
+      else setErr(e.message)
+    }
     finally { setBusy(false) }
   }
 
@@ -124,11 +131,32 @@ function InviteSheet({ close }) {
   )
 }
 
+/* The way into the subscription screen, and the only place the roster mentions money.
+ *
+ * Hidden entirely on an instance with no gateway — `describeEntitlement` answers null for
+ * `unbilled`, and a self-hosted GymBuddy should have no idea subscriptions exist. */
+function SubscriptionRow({ billing, nav }) {
+  const status = describeEntitlement(billing?.entitlement)
+  if (!status) return null
+  const tint = status.tone === 'stop' ? 'var(--red)' : status.tone === 'warn' ? 'var(--orange)' : undefined
+  return (
+    <Section>
+      <Row
+        icon="star" iconTint={tint}
+        title={status.title} subtitle={status.detail}
+        accessory="chevron" onClick={() => nav('/billing')}
+      />
+    </Section>
+  )
+}
+
 export default function Coach() {
   const nav = useNavigate()
   const openSheet = useUI(s => s.openSheet)
   const user = useStore(s => s.user)
+  const [params] = useSearchParams()
   const [clients, setClients] = useState(null)
+  const [billing, setBilling] = useState(null)
   const [err, setErr] = useState(null)
 
   const load = async () => {
@@ -137,7 +165,20 @@ export default function Coach() {
   }
   useEffect(() => { load() }, [])
 
-  const invite = () => openSheet(close => <InviteSheet close={() => { close(); load() }} />)
+  /* Subscription state is loaded alongside the roster but never blocks it: whether somebody
+   * has paid is not a reason to fail to show them their clients, and this request failing
+   * should leave the screen exactly as it was before subscriptions existed. */
+  useEffect(() => { fetchBilling().then(setBilling).catch(() => {}) }, [])
+
+  /* The gateway redirects to /#/coach?billing=… because that is a URL that exists whether or
+   * not the payer still has a session. Handing it straight on to the screen that explains it
+   * keeps the wording in one file. */
+  const outcome = params.get('billing')
+  useEffect(() => {
+    if (outcome) nav('/billing?billing=' + encodeURIComponent(outcome), { replace: true })
+  }, [outcome])
+
+  const invite = () => openSheet(close => <InviteSheet nav={nav} close={() => { close(); load() }} />)
 
   if (err) return (
     <div className="view">
@@ -171,6 +212,7 @@ export default function Coach() {
       </header>
 
       {!clients.length ? (
+        <>
         <Section>
           <div style={{ padding: '28px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 34, color: 'var(--label-3)' }}><Icon name="clipboard" /></div>
@@ -181,6 +223,8 @@ export default function Coach() {
             <Button variant="primary" icon="plus" onClick={invite}>{t('Invite a client')}</Button>
           </div>
         </Section>
+        <SubscriptionRow billing={billing} nav={nav} />
+        </>
       ) : (
         <>
           <Section footer={t('Adherence compares finished sessions against the days their weekly plan has a routine on.')}>
@@ -201,6 +245,7 @@ export default function Coach() {
           <Section>
             <Row icon="plus" title={t('Invite a client')} accessory="chevron" onClick={invite} />
           </Section>
+          <SubscriptionRow billing={billing} nav={nav} />
         </>
       )}
       <div style={{ height: 24 }} />
