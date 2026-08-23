@@ -100,7 +100,7 @@ create index on routines (user_id, updated_at);
 create table routine_exercises (
   id            uuid primary key default gen_random_uuid(),
   routine_id    uuid not null references routines(id) on delete cascade,
-  exercise_ref  text not null,                  -- library id, or custom_exercises.id
+  exercise_id   uuid not null references exercises(id),
   position      int  not null,
   superset_group int,                           -- same value = logged back to back, one rest after
   config        jsonb not null default '{}',    -- sets, rep range, per-exercise policy override
@@ -110,18 +110,32 @@ create table routine_exercises (
 );
 create index on routine_exercises (routine_id, position);
 
-create table custom_exercises (
+-- Library exercises and a user's own live in one table: owner_id null means it came from the
+-- 1,324-exercise library, otherwise it belongs to that user. One code path everywhere, real
+-- foreign keys from every set, and — the reason this matters most — the media lives behind
+-- image_url/animation_url, so replacing the Gym visual assets is an UPDATE, not a migration.
+create table exercises (
   id            uuid primary key default gen_random_uuid(),
-  user_id       uuid not null references users(id) on delete cascade,
+  owner_id      uuid references users(id) on delete cascade,   -- null = library
+  library_key   text unique,                                   -- upstream dataset id, library rows only
   name          text not null,
   body_part     text not null,
+  target        text,
   equipment     text,
   description   text,
+  is_cardio     boolean not null default false,
+  is_bodyweight boolean not null default false,
+  per_side      boolean not null default false,
+  image_url     text,
+  animation_url text,
+  attribution   text,                                          -- required for Gym visual media
   updated_at    timestamptz not null default now(),
   deleted_at    timestamptz,
-  rev           bigint not null default 1
+  rev           bigint not null default 1,
+  check (owner_id is not null or library_key is not null)
 );
-create index on custom_exercises (user_id);
+create index on exercises (owner_id) where owner_id is not null;
+create index on exercises (body_part);
 
 -- weekday → routine, plus per-date overrides for "I'm moving Tuesday to Thursday"
 create table week_plan (
@@ -140,6 +154,26 @@ create table day_overrides (
   rev           bigint not null default 1,
   primary key (user_id, on_date)
 );
+
+-- A coach never writes a client's routine directly — their version lands here and the client
+-- accepts it. A client who tweaked their own routine can therefore never lose that tweak
+-- silently, and every programme change carries who proposed it and when it was accepted.
+create table routine_revisions (
+  id            uuid primary key default gen_random_uuid(),
+  routine_id    uuid not null references routines(id) on delete cascade,
+  link_id       uuid not null references coaching_links(id) on delete cascade,
+  proposed_by   uuid not null references users(id),
+  -- full proposed routine + exercises, applied transactionally on accept
+  payload       jsonb not null,
+  note          text,
+  status        text not null default 'pending'
+                  check (status in ('pending','accepted','declined','superseded')),
+  proposed_at   timestamptz not null default now(),
+  resolved_at   timestamptz
+);
+create index on routine_revisions (routine_id, status);
+-- one open proposal per routine; a newer one supersedes the last
+create unique index on routine_revisions (routine_id) where status = 'pending';
 
 -- ── logged training ─────────────────────────────────────────────────────────────
 create table workouts (
@@ -161,7 +195,7 @@ create index on workouts (user_id, finished_at desc) where finished_at is not nu
 create table workout_sets (
   id            uuid primary key default gen_random_uuid(),
   workout_id    uuid not null references workouts(id) on delete cascade,
-  exercise_ref  text not null,
+  exercise_id   uuid not null references exercises(id),
   position      int not null,
   -- one of weight+reps, seconds (planks, carries), or distance+seconds (cardio)
   weight_kg     numeric(7,2),
@@ -176,7 +210,7 @@ create table workout_sets (
 );
 create index on workout_sets (workout_id, position);
 -- 1RM history and progression both read "this exercise, this user, newest first"
-create index on workout_sets (exercise_ref, done_at desc);
+create index on workout_sets (exercise_id, done_at desc);
 
 create table bodyweight_entries (
   id            uuid primary key default gen_random_uuid(),
@@ -215,18 +249,25 @@ create table messages (
   body          text not null,
   -- a comment pinned to a specific session or exercise, which is what coaching actually is
   workout_id    uuid references workouts(id) on delete set null,
-  exercise_ref  text,
+  exercise_id   uuid references exercises(id),
   read_at       timestamptz,
   created_at    timestamptz not null default now()
 );
 create index on messages (link_id, created_at desc);
 
--- ── open questions for review ───────────────────────────────────────────────────
--- 1. exercise_ref is text, not a FK, because library exercises and custom exercises share one
---    namespace. Cleaner alternative: one `exercises` table with a nullable owner. Decide before
---    writing the migration — it is painful to change later.
--- 2. Weights are stored in kg and converted for display. openGym stores whatever the user typed.
---    The migration must therefore read each profile's unit setting, not assume kg.
--- 3. Should a coach's programme edit be a proposal the client accepts, or applied directly?
---    Proposals need a `routine_revisions` table; direct application does not. This is a product
---    decision that changes the schema.
+-- ── decisions taken ─────────────────────────────────────────────────────────────
+-- 1. One `exercises` table with a nullable owner, referenced by real foreign keys, rather than
+--    a shared text namespace. Media sits behind image_url/animation_url so the Gym visual assets
+--    can be swapped without touching a single row of training history.
+-- 2. Weights are stored in kg and converted for display. openGym stores whatever the user typed,
+--    so the migration must read each profile's unit setting — assuming kg silently corrupts
+--    every lb user's history.
+-- 3. A coach's programme edit is a proposal the client accepts (`routine_revisions`), not a
+--    direct write. Costs one table and one screen; buys an audit trail and makes it impossible
+--    for a coach's sync to erase a client's own edit.
+--
+-- ── still open ──────────────────────────────────────────────────────────────────
+-- a. Row-level security policies are not written yet. Every table above carries the column they
+--    need; the policies themselves come with the first migration.
+-- b. change_log has no retention policy. A device offline for a year should fall back to a full
+--    resync rather than replaying two years of cursors — pick the cutoff when sync is built.
