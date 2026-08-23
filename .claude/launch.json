@@ -2,9 +2,27 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--env-file=.env",
+        "apps/api/src/server.js"
+      ],
+      "port": 3100,
+      "autoPort": false
+    },
+    {
       "name": "client",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@gymbuddy/client", "--", "--port", "5173"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "@gymbuddy/client",
+        "--",
+        "--port",
+        "5173"
+      ],
       "port": 5173
     }
   ]

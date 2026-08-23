@@ -16,6 +16,11 @@ import {
   fetchClient, proposeRoutine, fetchThread, sendMessage, SCOPE_INFO, daysSince
 } from '../lib/coaching.js'
 import { draftClientChange } from '../lib/ai.js'
+import { isPaymentRequired } from '../lib/billing.js'
+// The sheets here are opened through `openSheet` and never see the router's hook, which is
+// exactly what lib/nav.js exists for. Aliased so it cannot be confused with the `nav` the
+// view component below gets from `useNavigate`.
+import { nav as goTo } from '../lib/nav.js'
 
 const exLabel = id => exName(EXIDX[id]) || id
 
@@ -58,7 +63,12 @@ function ProposeSheet({ clientId, routine, close, onDone, draft = null }) {
       })
       toast(t('Sent to your client'))
       onDone(); close()
-    } catch (e) { setErr(e.message) }
+    } catch (e) {
+      // Refused for want of payment: the draft is fine, the subscription is not. Send them to
+      // the screen that fixes it rather than making them read an error and guess.
+      if (isPaymentRequired(e)) { close(); goTo('/billing') }
+      else setErr(e.message)
+    }
     finally { setBusy(false) }
   }
 
@@ -138,7 +148,10 @@ function MessageSheet({ linkId, context, close }) {
     if (!text) return
     setBusy(true)
     try { await sendMessage(linkId, text, context); setBody(''); await load(); toast(t('Sent')) }
-    catch (e) { toast(e.message) }
+    catch (e) {
+      if (isPaymentRequired(e)) { toast(t('Renew your subscription to message clients')); goTo('/billing') }
+      else toast(e.message)
+    }
     finally { setBusy(false) }
   }
 

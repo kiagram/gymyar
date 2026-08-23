@@ -8,7 +8,16 @@ export const webauthnOK = () => !!(window.PublicKeyCredential && navigator.crede
 export async function api(path, opts) {
   const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
   const data = await r.json().catch(() => ({}))
-  if (!r.ok) { const e = new Error(data.error || ('HTTP ' + r.status)); e.status = r.status; throw e }
+  if (!r.ok) {
+    const e = new Error(data.error || ('HTTP ' + r.status))
+    e.status = r.status
+    /* Carried through, not just the message. A 402 says *why* it refused in `details`, and a
+     * screen that only has the sentence cannot tell an ended trial from a lapsed subscription
+     * — which are the same refusal and want different buttons. */
+    e.code = data.code || null
+    e.details = data.details || null
+    throw e
+  }
   return data
 }
 

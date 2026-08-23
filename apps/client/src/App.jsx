@@ -27,6 +27,7 @@ import Admin from './views/Admin.jsx'
 import Coach from './views/Coach.jsx'
 import CoachClient from './views/CoachClient.jsx'
 import Coaching, { InviteAccept } from './views/Coaching.jsx'
+import Billing from './views/Billing.jsx'
 import PlanBuilder from './views/PlanBuilder.jsx'
 
 bindUI(useUI)   // lets the shared controls open sheets without importing the store at module scope
@@ -86,6 +87,9 @@ function Shell() {
                   someone who is not a coach lands on Home rather than an empty roster. */}
               <Route path="/coach" element={user?.isCoach ? <Coach /> : <Navigate to="/home" replace />} />
               <Route path="/coach/:id" element={user?.isCoach ? <CoachClient /> : <Navigate to="/home" replace />} />
+              {/* Not gated on isCoach: somebody whose subscription lapsed still needs to reach
+                  the screen that sells them a new one, and a receipt outlives a role. */}
+              <Route path="/billing" element={<Billing />} />
               <Route path="/admin" element={user?.isAdmin ? <Admin /> : <Navigate to="/home" replace />} />
               <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>

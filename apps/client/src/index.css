@@ -921,6 +921,30 @@ h4.sec{
 }
 
 
+/* ================================ notice ================================
+ *
+ * A short piece of state the screen wants to say out loud: a trial running out, a payment that
+ * did not confirm. Three tones and no icon — the colour carries it, and an icon in a strip this
+ * small is decoration.
+ *
+ * `border-inline-start` rather than `border-left`, so the stripe lands on the reading edge in
+ * Farsi instead of trailing the text.
+ */
+.notice{
+  background:var(--surface);border-radius:var(--r-card);
+  padding:12px 14px;margin-bottom:12px;
+  border-inline-start:3px solid var(--label-3);
+}
+.notice-t{font-weight:600;letter-spacing:-.01em;margin:0 0 2px}
+.notice-d{font-size:13px;line-height:1.38;color:var(--label-2);margin:0}
+.notice.ok{border-inline-start-color:var(--green)}
+.notice.warn{border-inline-start-color:var(--orange)}
+.notice.stop{border-inline-start-color:var(--red)}
+
+/* Error text. Used by every view that can fail to load; it was never given a colour, so a
+ * failure read as ordinary body copy. */
+.err{color:var(--red)}
+
 /* ============================ right to left ============================
  *
  * Everything above is written in logical properties, so the layout mirrors on its own when
