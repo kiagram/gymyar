@@ -4,11 +4,18 @@
   "version": "0.1.0",
   "type": "module",
   "license": "AGPL-3.0-or-later",
-  "workspaces": ["apps/client", "apps/api", "packages/domain"],
+  "workspaces": [
+    "apps/client",
+    "apps/api",
+    "packages/domain",
+    "packages/db"
+  ],
   "scripts": {
     "dev": "npm run dev -w @gymbuddy/client",
     "build": "npm run build -w @gymbuddy/client",
-    "test": "npm run test -w @gymbuddy/domain && npm run test -w @gymbuddy/client",
-    "sync:mobile": "npm run build:mobile -w @gymbuddy/client"
+    "test": "npm run test -w @gymbuddy/domain && npm run test -w @gymbuddy/db && npm run test -w @gymbuddy/api && npm run test -w @gymbuddy/client",
+    "sync:mobile": "npm run build:mobile -w @gymbuddy/client",
+    "migrate": "npm run migrate -w @gymbuddy/db",
+    "seed": "npm run seed -w @gymbuddy/db"
   }
 }

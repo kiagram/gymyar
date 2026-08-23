@@ -1,0 +1,336 @@
+/* The wire format: openGym's in-memory state object ⇄ database rows.
+ *
+ * This module exists because the client and the server have to agree on it exactly, and both
+ * import it from here rather than each keeping their own half. A drift between two hand-written
+ * mappers is the kind of bug that eats a user's training history quietly.
+ *
+ * Why the client keeps the blob at all
+ * ------------------------------------
+ * The blob was fatal as the *storage and sync unit* — one whole-account PUT with last-write-wins
+ * means a coach and a client writing in the same minute silently destroy one of the two edits,
+ * and the server can never answer a question about data it never parses. It is perfectly fine as
+ * the client's *in-memory working copy*: it is what every view already reads, it survives being
+ * offline, and it costs nothing to hold. So the blob stays in the browser, rows go over the wire
+ * and into Postgres, and this module is the boundary.
+ *
+ * Units
+ * -----
+ * openGym stores whatever number the user typed, in whatever unit they had selected. The database
+ * stores kilograms, always. Every conversion in this file goes through `toKg`/`fromKg` with the
+ * profile's unit, because assuming kg would quietly multiply every pound-user's history by 2.2.
+ */
+
+const LB_PER_KG = 0.45359237
+
+export const toKg = (v, unit) => (v == null ? null : round(unit === 'lb' ? v * LB_PER_KG : v, 4))
+export const fromKg = (v, unit) => (v == null ? null : round(unit === 'lb' ? v / LB_PER_KG : v, 3))
+
+const round = (n, dp) => { const f = 10 ** dp; return Math.round(Number(n) * f) / f }
+const num = v => (v == null || v === '' ? null : Number(v))
+const iso = d => (d instanceof Date ? d.toISOString().slice(0, 10) : d ?? null)
+const ms = d => (d instanceof Date ? d.getTime() : typeof d === 'number' ? d : d ? Date.parse(d) : null)
+const stamp = v => (v == null ? null : new Date(v).toISOString())
+
+/* Settings that live on the profile rather than in a table of their own. Everything here is
+ * small, read as a unit and never written by anyone but its owner, so a row per key would be
+ * cost with no benefit. `active` — the workout in progress — belongs here too: syncing it is
+ * what lets someone start a session on their phone and finish it on a laptop. */
+export const SETTING_KEYS = [
+  'unit', 'restSec', 'sound', 'keepAwake', 'lang', 'theme', 'accent', 'body', 'targetW',
+  'gifSize', 'reminder', 'effort', 'showRir', 'exWeights', 'active'
+]
+
+/* ---------------------------------------------------------------- sets ---- */
+/* A set is one of three shapes and the database has to hold all three without a `kind` column
+ * doing the work — the columns themselves say which it is.
+ *   reps   { w, r }            → weight_kg + reps
+ *   time   { sec, w? }         → seconds (+ weight for a loaded carry)
+ *   cardio { min, speed }      → seconds + distance_m
+ * Cardio is stored as distance and duration rather than the km/h the UI collects, because
+ * "how far did they actually run this month" is a question the coach dashboard asks and
+ * "8.5" in a speed column cannot answer. Speed is recovered exactly on the way back. */
+
+export function setToRow(s, { workoutId, userId, exerciseId, position, unit, mode, doneAt }) {
+  const row = {
+    id: s.id || `${workoutId}:${position}`,
+    workout_id: workoutId,
+    user_id: userId,
+    exercise_id: exerciseId,
+    position,
+    weight_kg: null, reps: null, seconds: null, distance_m: null,
+    per_side: !!s.side,
+    effort_value: null, effort_scale: null,
+    is_warmup: !!s.warm,
+    done: s.done !== false,
+    done_at: stamp(doneAt) || new Date().toISOString()
+  }
+  if (mode === 'cardio') {
+    const min = num(s.min) ?? 0
+    const speed = num(s.speed) ?? 0
+    row.seconds = Math.round(min * 60)
+    row.distance_m = round((speed * min) / 60 * 1000, 2)
+  } else if (mode === 'time') {
+    row.seconds = num(s.sec) ?? 0
+    row.weight_kg = s.w ? toKg(num(s.w), unit) : null
+  } else {
+    row.weight_kg = toKg(num(s.w) ?? 0, unit)
+    row.reps = num(s.r) ?? 0
+  }
+  // Effort is normalised to reps-in-reserve so two profiles on different scales are comparable,
+  // with the scale it was logged on kept alongside. RPE 8 is exactly RIR 2, so this round-trips.
+  if (s.rir != null) { row.effort_value = num(s.rir); row.effort_scale = 'rir' }
+  else if (s.rpe != null) { row.effort_value = round(10 - num(s.rpe), 2); row.effort_scale = 'rpe' }
+  return row
+}
+
+export function rowToSet(row, { unit, mode }) {
+  const s = {}
+  if (mode === 'cardio') {
+    const seconds = num(row.seconds) ?? 0
+    const metres = num(row.distance_m) ?? 0
+    s.min = round(seconds / 60, 3)
+    s.speed = seconds > 0 ? round(metres / 1000 / (seconds / 3600), 2) : 0
+  } else if (mode === 'time') {
+    s.sec = num(row.seconds) ?? 0
+    if (row.weight_kg != null) s.w = fromKg(num(row.weight_kg), unit)
+  } else {
+    s.w = fromKg(num(row.weight_kg) ?? 0, unit)
+    s.r = num(row.reps) ?? 0
+  }
+  if (row.effort_value != null) {
+    // null, not 0 — an unlogged effort must never come back as "taken to failure".
+    if (row.effort_scale === 'rpe') s.rpe = round(10 - num(row.effort_value), 2)
+    else s.rir = num(row.effort_value)
+  }
+  if (row.per_side) s.side = true
+  if (row.is_warmup) s.warm = true
+  s.done = row.done !== false
+  return s
+}
+
+/* ------------------------------------------------------------ workouts ---- */
+/* A workout and its sets travel as one payload. Nobody edits somebody else's session, so there
+ * is no second writer to reconcile and no reason to sync a set on its own. */
+
+export function workoutToRows(w, { userId, unit, modeFor }) {
+  const startedAt = stamp(ms(w.start)) || new Date(`${w.d}T12:00:00Z`).toISOString()
+  const row = {
+    id: w.id,
+    user_id: userId,
+    routine_id: w.routineId ?? null,
+    routine_name: w.name ?? null,
+    started_at: startedAt,
+    finished_at: stamp(ms(w.end)),
+    bodyweight_kg: w.bw != null ? toKg(num(w.bw), unit) : null,
+    notes: w.notes ?? null,
+    prs: w.prs || []
+  }
+  const sets = []
+  let position = 0
+  for (const entry of w.entries || []) {
+    const mode = modeFor(entry)
+    for (const s of entry.sets || []) {
+      sets.push(setToRow(s, {
+        workoutId: w.id, userId, exerciseId: entry.id, position: position++,
+        unit, mode, doneAt: ms(w.end) || ms(w.start)
+      }))
+    }
+  }
+  return { workout: row, sets }
+}
+
+export function rowsToWorkout(row, setRows, { unit, modeFor }) {
+  const w = {
+    id: row.id,
+    d: iso(row.started_at) || iso(row.finished_at),
+    start: ms(row.started_at),
+    end: ms(row.finished_at),
+    routineId: row.routine_id ?? null,
+    name: row.routine_name ?? null,
+    bw: row.bodyweight_kg != null ? fromKg(num(row.bodyweight_kg), unit) : null,
+    prs: row.prs || [],
+    entries: []
+  }
+  if (row.notes) w.notes = row.notes
+  // Sets arrive ordered by position; consecutive runs of one exercise are one entry, which is
+  // how the app groups them — and re-grouping by exercise id instead would silently merge an
+  // exercise that legitimately appears twice in a session (a routine that opens and closes
+  // with the same movement).
+  const ordered = [...setRows].sort((a, b) => a.position - b.position)
+  let current = null
+  for (const r of ordered) {
+    if (!current || current.id !== r.exercise_id) {
+      current = { id: r.exercise_id, sets: [] }
+      w.entries.push(current)
+    }
+    current.sets.push(rowToSet(r, { unit, mode: modeFor(current) }))
+  }
+  for (const e of w.entries) {
+    const top = e.sets.reduce((m, s) => Math.max(m, num(s.w) || 0), 0)
+    e.topW = top || null
+  }
+  w.vol = w.entries.reduce(
+    (v, e) => v + e.sets.reduce((n, s) => n + (num(s.w) || 0) * (num(s.r) || 0), 0), 0)
+  return w
+}
+
+/* ------------------------------------------------------------- routines ---- */
+
+export const routineToRow = (r, { userId, position = 0 }) => ({
+  id: r.id,
+  user_id: userId,
+  author_id: r.authorId ?? userId,
+  assigned_by: r.assignedBy ?? null,
+  name: r.name,
+  emoji: r.emoji ?? null,
+  policy: r.policy || 'linear',
+  policy_config: r.policyConfig || {},
+  position,
+  // The exercise list is stored as JSON on the routine rather than as rows. A routine is
+  // authored, proposed and accepted as a whole — there is no query that wants half of one,
+  // and no second writer to merge, because a coach's version arrives as a proposal.
+  exercises: r.ex || []
+})
+
+export const rowToRoutine = row => {
+  const r = {
+    id: row.id, name: row.name, ex: row.exercises || [],
+    policy: row.policy || 'linear'
+  }
+  if (row.emoji) r.emoji = row.emoji
+  if (row.policy_config && Object.keys(row.policy_config).length) r.policyConfig = row.policy_config
+  if (row.author_id) r.authorId = row.author_id
+  if (row.assigned_by) r.assignedBy = row.assigned_by
+  return r
+}
+
+/* -------------------------------------------------------- custom exercises ---- */
+
+export const customToRow = (ex, { userId }) => ({
+  id: ex.id,
+  owner_id: userId,
+  library_key: null,
+  name: ex.n ?? ex.name,
+  body_part: ex.bp ?? ex.bodyPart ?? 'other',
+  target: ex.tg ?? null,
+  equipment: ex.eq ?? null,
+  secondary: ex.sm || [],
+  steps: ex.st || [],
+  description: ex.desc ?? null,
+  is_cardio: (ex.bp ?? '') === 'cardio',
+  is_bodyweight: (ex.eq ?? '') === 'body weight',
+  per_side: !!ex.side,
+  image_url: null, animation_url: null, attribution: null
+})
+
+export const rowToCustom = row => {
+  const ex = { id: row.id, n: row.name, bp: row.body_part, custom: true }
+  if (row.equipment) ex.eq = row.equipment
+  if (row.target) ex.tg = row.target
+  if (row.secondary?.length) ex.sm = row.secondary
+  if (row.steps?.length) ex.st = row.steps
+  if (row.description) ex.desc = row.description
+  if (row.per_side) ex.side = true
+  return ex
+}
+
+/* -------------------------------------------------------------- the whole ---- */
+
+/** Whole state object → every row it implies. Used by the importer and by the client's push. */
+export function stateToRows(S, { userId, modeFor }) {
+  const unit = S.unit || 'kg'
+  const routines = (S.routines || []).map((r, i) => routineToRow(r, { userId, position: i }))
+  const workouts = []
+  const workoutSets = []
+  for (const w of S.workouts || []) {
+    const { workout, sets } = workoutToRows(w, { userId, unit, modeFor })
+    workouts.push(workout)
+    workoutSets.push(...sets)
+  }
+  const bodyweight = (S.bodyweight || []).map(b => ({
+    id: b.id || `bw:${b.d}`,
+    user_id: userId,
+    on_date: b.d,
+    weight_kg: toKg(num(b.w), unit)
+  }))
+  const weekPlan = Object.entries(S.week || {})
+    .filter(([, rid]) => rid)
+    .map(([weekday, routineId]) => ({ user_id: userId, weekday: Number(weekday), routine_id: routineId }))
+  const dayOverrides = Object.entries(S.dayPlan || {})
+    .map(([on_date, routine_id]) => ({ user_id: userId, on_date, routine_id: routine_id || null }))
+  const exercises = (S.customEx || []).map(ex => customToRow(ex, { userId }))
+  const settings = {}
+  for (const k of SETTING_KEYS) if (S[k] !== undefined) settings[k] = S[k]
+
+  return { routines, workouts, workoutSets, bodyweight, weekPlan, dayOverrides, exercises, settings }
+}
+
+/**
+ * Merge a delta of rows into a state object, in place on a copy the caller owns.
+ * `changes` is what the sync endpoint returns: per-table upserts and deletes.
+ */
+export function applyRows(S, changes, { modeFor }) {
+  const next = { ...S }
+  const unit = changes.settings?.unit ?? S.unit ?? 'kg'
+
+  if (changes.settings) Object.assign(next, changes.settings)
+
+  if (changes.routines) {
+    const by = new Map((next.routines || []).map(r => [r.id, r]))
+    for (const row of changes.routines) {
+      if (row.deleted_at) by.delete(row.id)
+      else by.set(row.id, rowToRoutine(row))
+    }
+    next.routines = [...by.values()]
+  }
+
+  if (changes.workouts) {
+    const by = new Map((next.workouts || []).map(w => [w.id, w]))
+    for (const row of changes.workouts) {
+      if (row.deleted_at) by.delete(row.id)
+      else by.set(row.id, rowsToWorkout(row, row.sets || [], { unit, modeFor }))
+    }
+    // Chronological, because every view that walks history assumes it.
+    next.workouts = [...by.values()].sort((a, b) => (a.start || 0) - (b.start || 0))
+  }
+
+  if (changes.bodyweight) {
+    const by = new Map((next.bodyweight || []).map(b => [b.d, b]))
+    for (const row of changes.bodyweight) {
+      const d = iso(row.on_date)
+      if (row.deleted_at) by.delete(d)
+      else by.set(d, { id: row.id, d, w: fromKg(num(row.weight_kg), unit) })
+    }
+    next.bodyweight = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1))
+  }
+
+  if (changes.exercises) {
+    const by = new Map((next.customEx || []).map(e => [e.id, e]))
+    for (const row of changes.exercises) {
+      if (row.deleted_at) by.delete(row.id)
+      else by.set(row.id, rowToCustom(row))
+    }
+    next.customEx = [...by.values()]
+  }
+
+  if (changes.weekPlan) {
+    const week = { ...(next.week || {}) }
+    for (const row of changes.weekPlan) {
+      if (row.routine_id) week[row.weekday] = row.routine_id
+      else delete week[row.weekday]
+    }
+    next.week = week
+  }
+
+  if (changes.dayOverrides) {
+    const plan = { ...(next.dayPlan || {}) }
+    for (const row of changes.dayOverrides) {
+      const d = iso(row.on_date)
+      if (row.deleted_at) delete plan[d]
+      else plan[d] = row.routine_id || null
+    }
+    next.dayPlan = plan
+  }
+
+  return next
+}

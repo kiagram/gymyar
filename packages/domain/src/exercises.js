@@ -27,10 +27,19 @@ export function registerCustom(list) {
 export const allExercises = st => [...(st.customEx || []), ...EXDB]
 
 // Media normally sits next to the app (img/ and gif/, mounted into the web container).
-// A build can point them somewhere else — the demo build pulls them off a CDN instead of
-// shipping ~140 MB of images into the deployment.
-const IMG_BASE = import.meta.env.VITE_IMG_BASE || 'img/'
-const GIF_BASE = import.meta.env.VITE_GIF_BASE || 'gif/'
+// A build can point them somewhere else — the mobile build pulls them off a CDN instead of
+// shipping ~140 MB of images into the app bundle.
+//
+// Read through a setter rather than `import.meta.env`, which only exists under Vite: this
+// module also runs in the API and the seeder, and a bare `import.meta.env` there is a
+// TypeError on import, not a missing default. The client sets these at boot.
+let IMG_BASE = 'img/'
+let GIF_BASE = 'gif/'
+export function setMediaBases({ img, gif } = {}) {
+  if (img != null) IMG_BASE = img
+  if (gif != null) GIF_BASE = gif
+}
+export const mediaBases = () => ({ img: IMG_BASE, gif: GIF_BASE })
 export const imgSrc = ex => IMG_BASE + ex.img
 export const gifSrc = ex => GIF_BASE + ex.gif
 

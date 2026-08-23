@@ -1,0 +1,20 @@
+{
+  "name": "@gymbuddy/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "main": "./src/index.js",
+  "exports": { ".": "./src/index.js", "./*": "./src/*" },
+  "scripts": {
+    "migrate": "node src/cli.js migrate",
+    "seed": "node src/cli.js seed",
+    "reset": "node src/cli.js reset",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "postgres": "^3.4.5",
+    "@gymbuddy/domain": "*"
+  },
+  "devDependencies": { "vitest": "^4.1.10" }
+}
