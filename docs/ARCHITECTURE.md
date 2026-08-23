@@ -70,6 +70,71 @@ individually at accept time and revocable at any point. A client who shared thei
 not thereby agreed to hand over every weigh-in. Sections a coach cannot see are labelled rather
 than hidden — a silently absent panel reads as a bug.
 
+## The AI layer
+
+### Why the planner is not a language model
+
+The obvious build is to hand a model the goal and let it write the programme. That is the wrong
+tool twice over.
+
+Sets, reps, loads and progression steps are arithmetic this codebase already does correctly and
+tests thoroughly — `progression.js` knows what Greyskull does after a missed AMRAP, and a model
+does not. And a model asked for exercises will cheerfully name ones that are not in the library,
+or put 140 kg on the bar of somebody who has never squatted. Neither failure is acceptable in
+something people load a barbell from.
+
+So the split is: **the domain owns every number, the model owns language.**
+
+| Job | Who does it |
+|---|---|
+| Choosing exercises for a goal and a set of equipment | `planner.js`, against the live library |
+| Sets, reps, and which progression policy | `planner.js`, from the goal |
+| Finding stalls, missed sessions, untrained muscles | `planner.js`, from logged sets |
+| Turning "I want to get stronger, 3 days, dumbbells" into fields | model, or a keyword reader |
+| Writing the note that explains a change | model, or a template |
+| Reading "bench 5x5 at 80" | deterministic parser |
+| Reading "did five across on bench, felt heavy" | model, rewritten into shorthand the parser reads |
+
+Every model output crosses a validation boundary before it can affect anything. A brief goes
+through `normaliseBrief`, which drops invented goals and equipment and clamps a week to something
+a week can hold. A rewritten log goes back through the deterministic parser, which is the only
+thing allowed to name an exercise — so a model cannot put a lift in somebody's history that does
+not exist.
+
+With no key configured, every feature still runs. `/api/ai/status` reports which one answered, and
+the UI says so, because users forgive a template and do not forgive being told a template was
+intelligence.
+
+### Selecting exercises
+
+Patterns resolve by name against the live data, and a candidate **must** match one of the pattern's
+named preferences — the match is the filter, not a tie-break. Selecting by target muscle alone put
+"left hook. boxing" in overhead press slots and "rear deltoid stretch" in rear-delt slots, because
+the dataset tags both as `delts`. Requiring a named match means every pick was written down by a
+person, and a pattern nobody can equip resolves to nothing at all, which the planner reports rather
+than filling with junk.
+
+Heavy compounds vary across the week — a four-day split that resolves each hinge slot independently
+prescribes barbell deadlift 5×5 twice, which is a programming mistake a lifter spots immediately.
+Accessories do not vary, because reaching for an alternative there finds "dumbbell biceps curl
+squat", and curling the same way twice a week is correct.
+
+Selection is deterministic: the same brief produces a byte-identical programme. That is what makes
+it testable, and what stops "regenerate" from being a slot machine.
+
+### Reviewing training
+
+`reviewTraining` reads logged sets and nothing else. "Feels hard" is not evidence; four sessions in
+a row short of the rep target is. Stalls come from the same `stallCount` the progression policies
+use, so the review and the app never disagree about whether something has stopped moving.
+Attendance counts finished sessions only — a session started and abandoned is not training.
+"This is too easy" needs four rated sessions before it will say so, and stays silent entirely on a
+profile that does not log effort.
+
+`proposeAdaptation` turns the worst finding into a routine in the app's own shape — which is
+exactly the payload the propose endpoint takes. A coach opens a filled-in composer, edits it, and
+sends it. Nothing reaches a client that a coach did not send.
+
 ## Units
 
 The database stores kilograms. openGym stores whatever the user typed in whatever unit they had
@@ -102,6 +167,7 @@ Four layers, because each one caught things the others could not:
 - **domain** — pure logic, no database, no browser
 - **db** — the sync engine and the coaching rules against real Postgres
 - **api** — every route over real HTTP with real session cookies, via fastify's `inject`
+- **ai** — the fallbacks, the validation boundary, and every way a model can misbehave
 - **client** — the diff engine, including the failure paths
 - **smoke** (`infra/scripts/smoke.sh`) — the coaching flow end to end against a running instance
 - **e2e** (`infra/scripts/e2e.mjs`) — the real UI in a real browser

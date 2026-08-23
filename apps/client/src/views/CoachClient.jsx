@@ -91,14 +91,16 @@ function ProposeSheet({ clientId, routine, close, onDone, draft = null }) {
         {rows.map((r, i) => (
           <Row key={`${r.id}-${i}`} title={exName(r.id)}>
             <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input className="tf" style={{ width: 52, textAlign: 'center' }}
+              <input className="input" style={{ width: 54, textAlign: 'center', padding: '8px 4px' }}
                      inputMode="numeric" value={r.sets ?? ''} aria-label={t('Sets')}
                      onChange={e => patch(i, 'sets', Number(e.target.value) || 0)} />
               <span className="dim">×</span>
-              <input className="tf" style={{ width: 52, textAlign: 'center' }}
-                     inputMode="numeric" value={r.reps ?? ''} aria-label={t('Reps')}
-                     onChange={e => patch(i, 'reps', Number(e.target.value) || 0)} />
-              <button className="icon-btn" aria-label={t('Remove')} onClick={() => remove(i)}>
+              <input className="input" style={{ width: 54, textAlign: 'center', padding: '8px 4px' }}
+                     inputMode="numeric"
+                     value={(r.mode === 'time' ? r.sec : r.reps) ?? ''}
+                     aria-label={r.mode === 'time' ? t('Seconds') : t('Reps')}
+                     onChange={e => patch(i, r.mode === 'time' ? 'sec' : 'reps', Number(e.target.value) || 0)} />
+              <button className="iconbtn" aria-label={t('Remove')} onClick={() => remove(i)}>
                 <Icon name="trash" />
               </button>
             </span>
