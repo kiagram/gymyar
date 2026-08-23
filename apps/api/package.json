@@ -3,14 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "server.js",
+  "main": "src/server.js",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "start": "node server.js"
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@gymbuddy/domain": "*",
     "@simplewebauthn/server": "^13.1.1",
+    "fastify": "^5.12.1",
     "web-push": "^3.6.7",
-    "@gymbuddy/domain": "*"
+    "@gymbuddy/db": "*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }
