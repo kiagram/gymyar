@@ -194,6 +194,12 @@ console.log('\ncoach drafts a change')
   await page.waitForTimeout(4000)
   const sheet = await page.textContent('body')
   check(/Propose a change/.test(sheet) || /Nothing to change/.test(sheet), 'drafting answered')
+  if (/Propose a change/.test(sheet)) {
+    // the composer has to arrive filled in — empty boxes mean the coach retypes the whole thing
+    const filled = await page.locator('.sheet-body input[inputmode="numeric"]').first().inputValue()
+    check(/^\d+$/.test(filled), `sets and reps are pre-filled (got "${filled}")`)
+    check(/reps \d+ → \d+|sets \d+ → \d+|added/i.test(sheet), 'the change is spelled out')
+  }
   await page.screenshot({ path: `${SHOTS}/shot-coach-draft.png`, fullPage: true })
   check(errors.length === 0, `no console errors${errors.length ? ': ' + errors[0] : ''}`)
   await ctx.close()
