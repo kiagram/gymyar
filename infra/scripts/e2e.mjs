@@ -117,6 +117,114 @@ console.log('\nsam@gymbuddy.test')
   await ctx.close()
 }
 
+/* ---------------- phase 4: building a plan, and drafting a change ---------------- */
+
+console.log('\nplan builder')
+{
+  const { ctx, page, errors } = await newPage()
+  await signIn(page, 'ava@gymbuddy.test')
+
+  await page.goto(BASE + '/#/plan/build', { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1500)
+  const start = await page.textContent('body')
+  check(/Build a plan/.test(start), 'the builder opens')
+  check(/Describe it/.test(start) && /Choose/.test(start), 'both ways in are offered')
+  await page.screenshot({ path: `${SHOTS}/shot-builder.png`, fullPage: true })
+
+  await page.getByPlaceholder(/I want to get stronger/i)
+    .fill('I want to get stronger, I can train 4 days a week for about an hour, and I have a barbell and dumbbells at home')
+  await page.getByRole('button', { name: /Build me a plan/i }).click()
+  await page.waitForTimeout(3000)
+
+  const plan = await page.textContent('body')
+  check(/Your plan/.test(plan), 'a plan comes back')
+  check(/barbell/i.test(plan), 'it used the equipment that was described')
+  check(/Upper|Lower|Full Body|Push|Pull/.test(plan), 'it named the sessions')
+  check(!/undefined|NaN|\[object/.test(plan), 'nothing renders as undefined')
+  await page.screenshot({ path: `${SHOTS}/shot-plan-draft.png`, fullPage: true })
+
+  const before = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('gym_state_v1') || '{}').routines?.length ?? 0)
+
+  await page.getByRole('button', { name: /Add this to my plan/i }).click()
+  await page.waitForTimeout(3500)
+  const after = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('gym_state_v1') || '{}').routines?.length ?? 0)
+  check(after > before, `the plan lands in their routines (${before} → ${after})`)
+  await page.screenshot({ path: `${SHOTS}/shot-plan-applied.png`, fullPage: true })
+  check(errors.length === 0, `no console errors${errors.length ? ': ' + errors[0] : ''}`)
+  await ctx.close()
+}
+
+console.log('\ntraining review')
+{
+  const { ctx, page, errors } = await newPage()
+  await signIn(page, 'theo@gymbuddy.test')     // stopped training three weeks ago
+  await page.goto(BASE + '/#/plan/build', { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1200)
+  await page.getByRole('button', { name: /Review my training/i }).click()
+  await page.waitForTimeout(2500)
+  const review = await page.textContent('body')
+  check(/last 4 weeks/i.test(review), 'the review renders')
+  check(/Nothing logged for \d+ days/.test(review), 'it noticed he stopped turning up')
+  await page.screenshot({ path: `${SHOTS}/shot-review.png`, fullPage: true })
+  check(errors.length === 0, `no console errors${errors.length ? ': ' + errors[0] : ''}`)
+  await ctx.close()
+}
+
+console.log('\ncoach drafts a change')
+{
+  const { ctx, page, errors } = await newPage()
+  await signIn(page, 'coach@gymbuddy.test')
+  await page.goto(BASE + '/#/coach', { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1500)
+  await page.getByText('Theo Marsh').first().click()
+  await page.waitForTimeout(2000)
+  const detail = await page.textContent('body')
+  // Theo shares programmes only, so there is nothing honest to review
+  check(!/Draft a change/.test(detail), 'no draft button without the workouts scope')
+
+  await page.goto(BASE + '/#/coach', { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1200)
+  await page.getByText('Sam Okonkwo').first().click()
+  await page.waitForTimeout(2000)
+  check(/Draft a change/.test(await page.textContent('body')), 'the draft button is there for a client who shared')
+
+  await page.getByText('Draft a change').first().click()
+  await page.waitForTimeout(4000)
+  const sheet = await page.textContent('body')
+  check(/Propose a change/.test(sheet) || /Nothing to change/.test(sheet), 'drafting answered')
+  await page.screenshot({ path: `${SHOTS}/shot-coach-draft.png`, fullPage: true })
+  check(errors.length === 0, `no console errors${errors.length ? ': ' + errors[0] : ''}`)
+  await ctx.close()
+}
+
+console.log('\nlogging by typing')
+{
+  const { ctx, page, errors } = await newPage()
+  await signIn(page, 'ava@gymbuddy.test')
+  await page.goto(BASE + '/#/history', { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1500)
+  await page.getByLabel(/Log by typing/i).click()
+  await page.waitForTimeout(800)
+  await page.locator('textarea').first().fill('bench 5x5 at 80\nplank 3x45s\nflurbulator 3x10')
+  await page.getByRole('button', { name: /Read it back to me/i }).click()
+  await page.waitForTimeout(2500)
+  const read = await page.textContent('body')
+  check(/bench press/i.test(read), 'it read the bench sets')
+  check(/45s/.test(read), 'it read the plank as a hold')
+  check(/Not saved/.test(read) && /flurbulator/.test(read), 'it said what it could not read')
+  await page.screenshot({ path: `${SHOTS}/shot-textlog.png`, fullPage: true })
+
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('gym_state_v1') || '{}').workouts?.length ?? 0)
+  await page.getByRole('button', { name: /Save this session/i }).click()
+  await page.waitForTimeout(2500)
+  const after = await page.evaluate(() => JSON.parse(localStorage.getItem('gym_state_v1') || '{}').workouts?.length ?? 0)
+  check(after === before + 1, `the session is saved once confirmed (${before} → ${after})`)
+  check(errors.length === 0, `no console errors${errors.length ? ': ' + errors[0] : ''}`)
+  await ctx.close()
+}
+
 await browser.close()
 console.log(failures ? `\nFAILURES: ${failures}` : '\nall browser checks passed')
 process.exit(failures ? 1 : 0)

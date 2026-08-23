@@ -25,6 +25,8 @@ jobs:
       - run: npm ci
       - name: Domain tests
         run: npm run test -w @gymbuddy/domain
+      - name: AI layer tests
+        run: npm run test -w @gymbuddy/ai
       - name: Database tests
         run: npm run test -w @gymbuddy/db
       - name: API tests

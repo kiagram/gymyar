@@ -8,8 +8,9 @@ import coachingRoutes from './routes/coaching.js'
 import exerciseRoutes from './routes/exercises.js'
 import pushRoutes from './routes/push.js'
 import adminRoutes from './routes/admin.js'
+import aiRoutes from './routes/ai.js'
 
-export async function build({ logger = false, databaseUrl = config.databaseUrl, runMigrations = true } = {}) {
+export async function build({ logger = false, databaseUrl = config.databaseUrl, runMigrations = true, ai = null } = {}) {
   connect(databaseUrl)
   if (runMigrations) await migrate()
 
@@ -41,6 +42,7 @@ export async function build({ logger = false, databaseUrl = config.databaseUrl, 
   await app.register(exerciseRoutes)
   await app.register(pushRoutes)
   await app.register(adminRoutes)
+  await app.register(aiRoutes, { ai })
 
   return app
 }

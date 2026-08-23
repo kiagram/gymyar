@@ -8,12 +8,13 @@
     "apps/client",
     "apps/api",
     "packages/domain",
-    "packages/db"
+    "packages/db",
+    "packages/ai"
   ],
   "scripts": {
     "dev": "npm run dev -w @gymbuddy/client",
     "build": "npm run build -w @gymbuddy/client",
-    "test": "npm run test -w @gymbuddy/domain && npm run test -w @gymbuddy/db && npm run test -w @gymbuddy/api && npm run test -w @gymbuddy/client",
+    "test": "npm run test -w @gymbuddy/domain && npm run test -w @gymbuddy/ai && npm run test -w @gymbuddy/db && npm run test -w @gymbuddy/api && npm run test -w @gymbuddy/client",
     "sync:mobile": "npm run build:mobile -w @gymbuddy/client",
     "migrate": "npm run migrate -w @gymbuddy/db",
     "seed": "npm run seed -w @gymbuddy/db",

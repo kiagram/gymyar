@@ -439,6 +439,8 @@ h4.sec{
   background:var(--surface-3);border-radius:9px;padding:2px;isolation:isolate;
 }
 .seg>button{flex:1 1 0;min-width:0}
+/* A segmented control used as a page-level switch rather than inside a row. */
+.seg-full{width:100%;margin:14px 0 18px}
 :root[data-theme="light"] .seg{background:rgba(118,118,128,.12)}
 .seg-sel{
   position:absolute;z-index:0;top:2px;bottom:2px;left:2px;

@@ -967,3 +967,85 @@ function doFinishWorkout() {
   beep(snd(), 880, 0.15); beep(snd(), 1100, 0.15, 0.18); beep(snd(), 1320, 0.3, 0.36)
   ui().openSheet(close => <FinishSummary w={w} prs={prs} e1prs={e1prs} close={close} />, { kind: 'center', locked: true })
 }
+
+/* ============================ log by typing ============================ */
+/* For the session you did but did not log — a week ago, on someone else's phone, or written on
+ * the back of your hand. Parsed, shown, and saved only once you have read it back.
+ *
+ * Nothing is written until the confirm: a log you did not read is a log you cannot trust, and
+ * this is the one place in the app where the input is prose rather than a stepper. */
+function TextLogSheet({ close }) {
+  const [text, setText] = useState('')
+  const [result, setResult] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+
+  const read = async () => {
+    setBusy(true); setErr(null)
+    try {
+      const { parseLogText } = await import('./lib/ai.js')
+      setResult(await parseLogText(text))
+    } catch (e) { setErr(e.message) }
+    finally { setBusy(false) }
+  }
+
+  const save = () => {
+    const now = Date.now()
+    const w = {
+      id: uid(), d: todayISO(), start: now, end: now,
+      routineId: null, name: t('Logged by typing'), bw: null, prs: [],
+      entries: result.entries.map(({ name, ...e }) => e)
+    }
+    w.vol = w.entries.reduce((v, e) => v + e.sets.reduce((n, s) => n + (s.w || 0) * (s.r || 0), 0), 0)
+    update(st => { st.workouts.push(w) })
+    toast(t('Session saved'))
+    close()
+  }
+
+  if (result) {
+    return <>
+      <h3>{t('Is this right?')}</h3>
+      {result.entries.length === 0 && (
+        <div className="card small muted">{t('Nothing in that described a set. Try "bench 5x5 at 80".')}</div>
+      )}
+      {result.entries.map((e, i) => (
+        <div key={i} className="card small" style={{ textAlign: 'left' }}>
+          <strong>{e.name}</strong>
+          <div className="dim">{e.sets.length} × {e.sets[0].sec != null ? `${e.sets[0].sec}s`
+            : e.sets[0].min != null ? `${e.sets[0].min} min` : `${e.sets[0].r}${e.sets[0].w ? ` @ ${e.sets[0].w}` : ''}`}</div>
+        </div>
+      ))}
+      {result.unresolved.length > 0 && (
+        <div className="card small" style={{ textAlign: 'left', borderLeft: '3px solid var(--orange)' }}>
+          <strong>{t('Not saved')}</strong>
+          {result.unresolved.map((u, i) => (
+            <div key={i} className="dim">“{u.line}” — {u.reason}</div>
+          ))}
+        </div>
+      )}
+      <div style={{ height: 10 }} />
+      {result.entries.length > 0 && (
+        <Button variant="primary" icon="check" onClick={save}>{t('Save this session')}</Button>
+      )}
+      <Button onClick={() => setResult(null)}>{t('Edit what I wrote')}</Button>
+    </>
+  }
+
+  return <>
+    <h3>{t('Log by typing')}</h3>
+    <div className="muted small" style={{ marginBottom: 12, textAlign: 'left' }}>
+      {t('One exercise per line. "bench 5x5 at 80", "plank 3x45s", "run 30 min at 12". Add "rpe 8" if you rated it.')}
+    </div>
+    <textarea className="input" rows={5} value={text} onChange={e => setText(e.target.value)}
+              placeholder={'bench 5x5 at 80\nbarbell row 4x8 60\nplank 3x45s'} />
+    {err && <p className="err small">{err}</p>}
+    <div style={{ height: 12 }} />
+    <Button variant="primary" icon="magnifier" disabled={busy || !text.trim()} onClick={read}>
+      {busy ? t('Reading…') : t('Read it back to me')}
+    </Button>
+  </>
+}
+
+export function textLogSheet() {
+  ui().openSheet(close => <TextLogSheet close={close} />)
+}
