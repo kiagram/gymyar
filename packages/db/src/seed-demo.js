@@ -10,6 +10,7 @@ import { db } from './index.js'
 import { createUser, findUserByEmail } from './users.js'
 import { importState } from './import-blob.js'
 import { inviteClient, acceptInvite, proposeRoutine, sendMessage } from './coaching.js'
+import { setPaidThrough } from './billing.js'
 
 export const DEMO_PASSWORD = 'gymbuddy-demo-1'
 
@@ -41,6 +42,10 @@ export async function seedDemo({ log = () => {} } = {}) {
   }
 
   const coach = await createUser({ ...PEOPLE.coach, password: DEMO_PASSWORD })
+  // Paid up for a decade. On an instance with billing configured the demo coach would otherwise
+  // start a fourteen-day trial and the demo would quietly stop demonstrating anything a
+  // fortnight later — which nobody would notice until somebody important was looking at it.
+  await setPaidThrough(coach.id, new Date(Date.now() + 3650 * 86400000))
   log(`coach ${coach.email}`)
 
   const links = []

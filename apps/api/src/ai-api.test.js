@@ -3,6 +3,7 @@ import { build } from './app.js'
 import { client } from './test-client.js'
 import { db, close } from '@gymbuddy/db'
 import { createAI, nullProvider } from '@gymbuddy/ai'
+import { say } from '@gymbuddy/domain'
 
 let app
 const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
@@ -175,7 +176,9 @@ describe('drafting a change for a client', () => {
     const { coach, client_ } = await linked()
     const r = await coach.c.post(`/api/coach/clients/${client_.user.id}/ai-review`, {})
     expect(r.body.change).toBeNull()
-    expect(r.body.headline).toMatch(/nothing to change/i)
+    // Unrendered on the wire — the review carries `{ msg, args }` so the client can translate
+    // it, and `say()` is what turns that back into the English the server would have written.
+    expect(say(r.body.headline)).toMatch(/nothing to change/i)
   })
 
   it('refuses when the client never shared their workouts', async () => {

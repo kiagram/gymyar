@@ -94,6 +94,10 @@ export async function setScopes({ linkId, clientId, scopes }, s = db()) {
 /* ---------------------------------------------------------- permissions ---- */
 
 /** The active link between these two, or null. Every coach-side read goes through this. */
+/** A link by id, without asking who is looking. Callers check that themselves. */
+export const linkById = (linkId, s = db()) =>
+  s`select * from coaching_links where id = ${linkId}`.then(r => r[0] || null)
+
 export const activeLink = (coachId, clientId, s = db()) =>
   s`select * from coaching_links
     where coach_id = ${coachId} and client_id = ${clientId} and status = 'active'`

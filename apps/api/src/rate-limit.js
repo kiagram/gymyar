@@ -45,6 +45,9 @@ export const BUCKETS = {
   'model.parse': { max: 40, window: 10 * MINUTE },
   // Signing in. Tight, and keyed by the identifier being tried rather than the address.
   'auth': { max: 10, window: 15 * MINUTE },
+  // Starting a checkout. Each one mints an authority at the gateway and a row here, and a
+  // person buying a subscription does it once — twice if the first attempt went wrong.
+  'billing': { max: 8, window: 10 * MINUTE },
   // Everything else: a ceiling, not a throttle.
   'default': { max: 240, window: MINUTE }
 }

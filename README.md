@@ -76,6 +76,23 @@ Nothing drafted is ever applied. A generated plan comes back for the person to l
 change for a client fills in the composer their coach already uses. There is no endpoint that
 writes training.
 
+### What is paid for, and what never is
+
+Training is free and stays free: logging, programmes, history, stats — everything openGym did,
+ungated. The subscription is on the **coach** side, and it buys three things: taking on clients,
+proposing programmes to them, and messaging them. Reading a roster you already built is never
+gated, and **a client is never gated at all** — they are not the customer, and a coach whose
+payment lapses cannot take their clients' training away. It was never the coach's to take.
+
+With no `ZARINPAL_MERCHANT_ID` set, none of that applies and coaching is simply free. The paid
+tier is a property of a deployment, not of the software, which is also the only honest reading
+of the licence — we can charge for hosting, not for the code.
+
+Zarinpal has neither recurring billing nor webhooks, so a subscription is a **paid-through
+date** that a purchase extends rather than a state machine something upstream drives. Payments
+are confirmed when the payer's browser comes back; the ones that never come back are found by
+reconciliation, not by hoping.
+
 ### The rule that makes coaching safe
 
 **A coach never writes a client's rows.** A proposed programme lands in `routine_revisions` and
@@ -110,7 +127,7 @@ throwaway database will do.
 - [x] **Phase 3** — coaches, clients, scopes, proposals, messaging
 - [x] **Phase 4** — programme generation, training review, logging by typing
 - [x] **Phase 5** — Persian and RTL, locale-aware weeks, rate limits, provider choice
-- [ ] **Phase 6** — billing and store submission
+- [ ] **Phase 6** — billing (API done, no UI yet) and store submission
 
 ## Before launch
 
