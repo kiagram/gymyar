@@ -56,6 +56,8 @@ services:
       PORT: 3000                       # internal only — nginx proxies here
       DATABASE_URL: postgres://${POSTGRES_USER:-gymbuddy}:${POSTGRES_PASSWORD:-gymbuddy}@db:5432/${POSTGRES_DB:-gymbuddy}
       SEED_DEMO: ${SEED_DEMO:-}
+      # Optional. Without it every AI feature still works, in fewer words.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

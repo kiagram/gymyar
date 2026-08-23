@@ -15,6 +15,7 @@ import { fmtDate, fmtNum, EXIDX, DAYN, setLabel, modeOf } from '@gymbuddy/domain
 import {
   fetchClient, proposeRoutine, fetchThread, sendMessage, SCOPE_INFO, daysSince
 } from '../lib/coaching.js'
+import { draftClientChange } from '../lib/ai.js'
 
 const exName = id => EXIDX[id]?.n || id
 
@@ -34,11 +35,12 @@ function ExerciseList({ exercises }) {
   )
 }
 
-function ProposeSheet({ clientId, routine, close, onDone }) {
+function ProposeSheet({ clientId, routine, close, onDone, draft = null }) {
   const toast = useUI(s => s.toast)
-  const [name, setName] = useState(routine.name)
-  const [note, setNote] = useState('')
-  const [rows, setRows] = useState(() => (routine.exercises || []).map(e => ({ ...e })))
+  const [name, setName] = useState(draft?.payload?.name ?? routine.name)
+  const [note, setNote] = useState(draft?.note ?? '')
+  const [rows, setRows] = useState(() =>
+    (draft?.payload?.exercises ?? routine.exercises ?? []).map(e => ({ ...e })))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
 
@@ -66,6 +68,22 @@ function ProposeSheet({ clientId, routine, close, onDone }) {
       <p className="dim small">
         {t('Nothing changes on their side until they accept. Their own edits stay as they are in the meantime.')}
       </p>
+
+      {draft && (
+        <div className="card small" style={{ borderLeft: '3px solid var(--acc)' }}>
+          <strong>{draft.headline}</strong>
+          <div className="dim" style={{ marginTop: 4 }}>
+            {(draft.changes || []).map((c, i) => (
+              <div key={i}>{c.name}: {c.field} {c.from ?? '—'} → {c.to}</div>
+            ))}
+          </div>
+          <div className="dim" style={{ marginTop: 6 }}>
+            {draft.source === 'model'
+              ? t('Drafted from their logged sets; wording from a language model. Edit anything before you send it.')
+              : t('Drafted from their logged sets. Edit anything before you send it.')}
+          </div>
+        </div>
+      )}
 
       <TextField value={name} onChange={e => setName(e.target.value)} placeholder={t('Routine name')} />
 
@@ -161,6 +179,8 @@ export default function CoachClient() {
   const openSheet = useUI(s => s.openSheet)
   const [view, setView] = useState(null)
   const [err, setErr] = useState(null)
+  const [drafting, setDrafting] = useState(false)
+  const toast = useUI(s => s.toast)
 
   const load = async () => {
     try { setView(await fetchClient(id)); setErr(null) }
@@ -185,6 +205,23 @@ export default function CoachClient() {
   const recent = (workouts || []).slice(-8).reverse()
   const openMessages = ctx => openSheet(close => <MessageSheet linkId={link.id} context={ctx} close={close} />)
 
+  /* Drafting never sends. It reads their logged sets, works out what to change, and opens the
+   * same composer the coach uses by hand, filled in. The coach is the one who decides. */
+  const draftChange = async () => {
+    setDrafting(true)
+    try {
+      const draft = await draftClientChange(id)
+      if (!draft.change) { toast(draft.detail || t('Nothing to change')); return }
+      const target = routines.find(r => r.id === draft.change.routineId) ||
+                     { id: draft.change.routineId, name: draft.change.payload.name, exercises: [] }
+      openSheet(close => (
+        <ProposeSheet clientId={id} routine={target} close={close} onDone={load}
+                      draft={{ ...draft.change, note: draft.note, headline: draft.headline, source: draft.source }} />
+      ))
+    } catch (e) { toast(e.message) }
+    finally { setDrafting(false) }
+  }
+
   return (
     <div className="view">
       <header className="vhead">
@@ -197,6 +234,13 @@ export default function CoachClient() {
 
       <Section>
         <Row icon="bell" title={t('Messages')} accessory="chevron" onClick={() => openMessages({})} />
+        {scopes.includes('workouts') && (
+          <Row icon="sparkles" iconTint="var(--acc)"
+               title={drafting ? t('Reading their last 4 weeks…') : t('Draft a change')}
+               subtitle={t('Finds what has stalled or slipped and fills in a proposal for you to edit')}
+               accessory="chevron"
+               onClick={drafting ? undefined : draftChange} />
+        )}
       </Section>
 
       {proposals.length > 0 && (
