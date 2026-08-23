@@ -61,8 +61,12 @@ export async function acceptInvite({ inviteCode, clientId, scopes = null }, s = 
 }
 
 export async function declineInvite(inviteCode, s = db()) {
+  // The code is kept rather than cleared. A declined link has no client, so clearing it would
+  // leave a row identifying nobody — and the status already makes it unusable: acceptInvite
+  // refuses anything that is not pending, and the preview endpoint 404s it. Keeping it also
+  // means a coach re-sending the same link gets "declined" rather than silently working again.
   const [link] = await s`
-    update coaching_links set status = 'declined', ended_at = now(), invite_code = null
+    update coaching_links set status = 'declined', ended_at = now()
     where invite_code = ${inviteCode} and status = 'pending'
     returning *`
   return link || null

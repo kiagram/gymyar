@@ -12,8 +12,20 @@ export const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 export const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-export function fmtDate(iso, long) {
+/* Accepts a calendar day ('2026-08-01'), a full ISO timestamp, or a Date.
+ *
+ * The noon suffix is not decoration: parsing a bare 'YYYY-MM-DD' is defined as UTC midnight, so
+ * anyone west of Greenwich sees the previous day. Noon local puts it safely inside the day
+ * whatever the offset. That trick only works on a bare date, though — appending it to a full
+ * timestamp produces "…ZT12:00:00" and Invalid Date, which is what the coaching screens showed
+ * once they started rendering server timestamps. So normalise first, then apply it. */
+export function fmtDate(value, long) {
+  if (value == null) return ''
+  const iso = value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : /^\d{4}-\d{2}-\d{2}/.test(String(value)) ? String(value).slice(0, 10) : String(value)
   const d = new Date(iso + 'T12:00:00')
+  if (Number.isNaN(d.getTime())) return String(value)
   return d.toLocaleDateString(dateLocale(), long ? { weekday: 'short', day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short' })
 }
 export function fmtDur(ms) {

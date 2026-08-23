@@ -1,8 +1,13 @@
-// The example profile behind the demo build (see demo.js). Imported dynamically, so it stays
-// out of the bundle self-hosters ship.
-import { isoOf, uid } from '@gymbuddy/domain'
-import { starterRoutines } from '@gymbuddy/domain'
-import { modeOf } from '@gymbuddy/domain'
+// A fabricated but realistic training history: twelve weeks of a push/pull/legs split with
+// progression, a deload, effort ratings and a body-weight trend.
+//
+// Deliberately NOT exported from index.js. Two callers import it by path — the client's demo
+// build, dynamically, so it never lands in a self-hosted bundle; and the database seeder, which
+// uses it to give `docker compose up` something worth looking at. Both want the same data, and
+// a second generator would drift from this one.
+import { isoOf, uid } from './index.js'
+import { starterRoutines } from './index.js'
+import { modeOf } from './index.js'
 
 // Starting weight and weekly increment per exercise of the starter plan (kg).
 // Chest dips are body-weight only here, so they log reps at 0 added weight.

@@ -153,6 +153,7 @@ describe('whole state', () => {
     expect(rows.workouts).toHaveLength(1)
     expect(rows.workoutSets).toHaveLength(1)
     expect(rows.bodyweight).toHaveLength(1)
+    expect(rows.bodyweight[0].id).toBeUndefined()
     expect(rows.weekPlan).toEqual([
       { user_id: 'u1', weekday: 1, routine_id: 'r1' },
       { user_id: 'u1', weekday: 3, routine_id: 'r1' }
@@ -241,8 +242,50 @@ describe('applying a delta', () => {
     // a profile switching kg → lb arrives as settings + rows in the same delta
     const next = applyRows(base, {
       settings: { unit: 'lb' },
-      bodyweight: [{ id: 'b1', on_date: '2026-08-01', weight_kg: 81.6466 }]
+      bodyweight: [{ on_date: '2026-08-01', weight_kg: 81.6466 }]
     }, { modeFor: modeReps })
     expect(next.bodyweight[0].w).toBeCloseTo(180, 0)
+  })
+})
+
+describe('dates survive the wire', () => {
+  // The server sees Date objects from postgres.js; the client sees the ISO strings JSON made
+  // of them. Both have to produce a plain YYYY-MM-DD `d`, because that is what every
+  // date-keyed view matches on.
+  const row = at => ({
+    id: 'w1', user_id: 'u1', started_at: at, finished_at: at,
+    routine_id: 'r1', routine_name: 'Push', bodyweight_kg: null, prs: []
+  })
+
+  it('reads a Date the way the server gets it', () => {
+    const w = rowsToWorkout(row(new Date('2026-06-01T18:28:00Z')), [], { unit: 'kg', modeFor: modeReps })
+    expect(w.d).toBe('2026-06-01')
+  })
+
+  it('reads the ISO string the way the client gets it', () => {
+    const w = rowsToWorkout(row('2026-06-01T18:28:00.000Z'), [], { unit: 'kg', modeFor: modeReps })
+    expect(w.d).toBe('2026-06-01')
+  })
+
+  it('leaves a plain date alone', () => {
+    const w = rowsToWorkout(row('2026-06-01'), [], { unit: 'kg', modeFor: modeReps })
+    expect(w.d).toBe('2026-06-01')
+  })
+
+  it('does the same for body-weight entries in both shapes', () => {
+    const asDate = applyRows({}, {
+      bodyweight: [{ on_date: new Date('2026-08-01T00:00:00Z'), weight_kg: 82 }]
+    }, { modeFor: modeReps })
+    const asString = applyRows({}, {
+      bodyweight: [{ on_date: '2026-08-01T00:00:00.000Z', weight_kg: 82 }]
+    }, { modeFor: modeReps })
+    expect(asDate.bodyweight[0].d).toBe('2026-08-01')
+    expect(asString.bodyweight[0].d).toBe('2026-08-01')
+  })
+
+  it('keeps start and end as real timestamps, not dates', () => {
+    const w = rowsToWorkout(row('2026-06-01T18:28:00.000Z'), [], { unit: 'kg', modeFor: modeReps })
+    expect(w.start).toBe(Date.parse('2026-06-01T18:28:00.000Z'))
+    expect(w.end).toBe(Date.parse('2026-06-01T18:28:00.000Z'))
   })
 })

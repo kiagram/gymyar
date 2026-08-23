@@ -161,10 +161,11 @@ describe('coaching over http', () => {
     const { coach, client_, code } = await setup()
     await client_.c.post(`/api/invites/${code}/accept`, { scopes: ['programmes'] })
     await client_.c.post('/api/sync', {
-      changes: { bodyweight: [{ id: 'b1', on_date: '2026-08-01', weight_kg: 82 }] }
+      changes: { bodyweight: [{ on_date: '2026-08-01', weight_kg: 82 }] }
     })
     const view = await coach.c.get(`/api/coach/clients/${client_.user.id}`)
     expect(view.status).toBe(200)
+    expect(view.body.link.client_name).toBe('Sam')   // the screen is headed by a name, not "Client"
     expect(view.body.routines).toBeDefined()
     expect(view.body.bodyweight).toBeUndefined()   // shared programmes, not weigh-ins
     expect(view.body.workouts).toBeUndefined()

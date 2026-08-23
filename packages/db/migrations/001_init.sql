@@ -103,7 +103,10 @@ create table coaching_links (
   invited_at   timestamptz not null default now(),
   accepted_at  timestamptz,
   ended_at     timestamptz,
-  check (client_id is not null or invite_email is not null)
+  -- Either it is accepted and points at a client, or it is still an open invitation and its
+  -- code is what identifies it. An email is optional: a coach who copies the invite link and
+  -- sends it themselves never gives us an address, and that is a normal way to invite someone.
+  check (client_id is not null or invite_code is not null)
 );
 create unique index coaching_links_pair_idx on coaching_links (coach_id, client_id)
   where client_id is not null and status in ('pending','active','paused');
@@ -191,16 +194,17 @@ create index workout_sets_workout_idx on workout_sets (workout_id, position);
 -- progression and 1RM both read "this person, this exercise, newest first"
 create index workout_sets_history_idx on workout_sets (user_id, exercise_id, done_at desc);
 
+-- Keyed by (user, date), with no synthetic id. There is exactly one weigh-in per day per
+-- person, so the day *is* the key — and a derived id like `bw:2026-06-01` would be identical
+-- for every user on the planet, which is a collision waiting to become a data leak.
 create table bodyweight_entries (
-  id         text primary key,
   user_id    uuid not null references users(id) on delete cascade,
   on_date    date not null,
   weight_kg  numeric(6,2) not null,
   updated_at timestamptz not null default now(),
-  deleted_at timestamptz
+  deleted_at timestamptz,
+  primary key (user_id, on_date)
 );
-create unique index bodyweight_day_idx on bodyweight_entries (user_id, on_date)
-  where deleted_at is null;
 
 create table user_settings (
   user_id    uuid primary key references users(id) on delete cascade,
