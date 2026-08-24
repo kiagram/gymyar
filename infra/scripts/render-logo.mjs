@@ -30,6 +30,7 @@ const ICON = 'gymbuddy-icon.svg'                 // rounded field — web, PWA, 
 const SQUARE = 'gymbuddy-icon-square.svg'        // square field — iOS masks it itself
 const MASKABLE = 'gymbuddy-icon-maskable.svg'    // pulled-in mark — Android adaptive, maskable
 const MARK = 'gymbuddy-mark-white.svg'           // mark alone — adaptive foreground layer
+const MARK_RED = 'gymbuddy-mark.svg'             // mark alone, brand red — served to the app
 
 /* Android's adaptive layers are PNGs whose sizes were fixed when the project was
  * generated; read them off disk rather than restating the density table here. */
@@ -201,8 +202,17 @@ for (const { src, out, w, h, shape, fill, field } of targets) {
   }
 }
 
-/* The PWA wants the vector too, and Capacitor reads its source icon from resources/. */
-for (const [src, out] of [[ICON, 'apps/client/public/icon.svg'], [SQUARE, 'apps/client/resources/icon.svg']]) {
+/* The PWA wants the vector too, Capacitor reads its source icon from resources/, and the
+ * app itself shows the bare mark on the screens before sign-in. That last one goes into src/
+ * to be imported rather than into public/ to be fetched by path: the client builds with
+ * `base: './'`, so a bare "mark.svg" resolves against the current route and 404s the moment
+ * anyone lands on a nested one while signed out. An imported asset gets its URL from Vite,
+ * which is right under every base. */
+for (const [src, out] of [
+  [ICON, 'apps/client/public/icon.svg'],
+  [SQUARE, 'apps/client/resources/icon.svg'],
+  [MARK_RED, 'apps/client/src/assets/mark.svg'],
+]) {
   const note = `<!-- Generated from logo/${src}. Edit that, then: node infra/scripts/render-logo.mjs -->\n`
   const copy = Buffer.from(note + readFileSync(join(LOGO, src), 'utf8'), 'utf8')
   if (CHECK) compare(out, copy, false)

@@ -88,4 +88,6 @@ export const weekKey = d => isoOf(startOfWeek(d))
 export const localTZ = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' } catch { return 'UTC' } }
 
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
-export const ACCENTS = { lime: '#30d158', sky: '#0a84ff', orange: '#ff9f0a', violet: '#bf5af2', pink: '#ff375f', red: '#ff453a', teal: '#40c8e0', gold: '#ffd60a' }
+/* Order is the order the swatches appear in. Red is the brand's own #e63935 rather than
+ * the system red, and it leads because it is what the app ships as. */
+export const ACCENTS = { red: '#e63935', lime: '#30d158', sky: '#0a84ff', orange: '#ff9f0a', violet: '#bf5af2', pink: '#ff375f', teal: '#40c8e0', gold: '#ffd60a' }

@@ -5,8 +5,8 @@ import { hasData } from '../store/useStore.js'
 import { t } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { useState, useRef, useEffect } from 'react'
-import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
+import mark from '../assets/mark.svg'
 
 /* What happens after any successful sign-in, whichever way it happened.
  *
@@ -130,7 +130,8 @@ export default function Login() {
   }
   const withPassword = mode => openSheet(close => <PasswordSheet close={close} mode={mode} />)
   const head = <>
-    <div style={{ fontSize: 54, display: 'flex', justifyContent: 'center', color: 'var(--acc)' }}><Icon name="dumbbell" /></div>
+    {/* The mark, not the accent: a logo is one colour whatever accent the profile picked. */}
+    <div style={{ display: 'flex', justifyContent: 'center' }}><img src={mark} alt="" height="64" /></div>
     <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-.028em', margin: '10px 0 4px' }}>GymBuddy</h1>
   </>
   const wrap = { display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '78vh', textAlign: 'center' }

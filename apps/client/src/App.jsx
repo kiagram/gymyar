@@ -8,7 +8,6 @@ import { setLang, useLang } from './lib/i18n.js'
 import { setNav } from './lib/nav.js'
 import { useWakeLock } from './lib/wakelock.js'
 import { startFlow } from './sheets.jsx'
-import Icon from './components/Icon.jsx'
 import TabBar from './components/TabBar.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Modals from './components/Modals.jsx'
@@ -31,13 +30,14 @@ import Billing from './views/Billing.jsx'
 import { MOBILE } from './lib/mobile.js'
 import { DEMO } from './lib/demo.js'
 import PlanBuilder from './views/PlanBuilder.jsx'
+import mark from './assets/mark.svg'
 
 bindUI(useUI)   // lets the shared controls open sheets without importing the store at module scope
 
 function applyPrefs(theme, accent) {
   const de = document.documentElement
   de.dataset.theme = theme === 'light' ? 'light' : 'dark'
-  de.dataset.accent = ACCENTS[accent] ? accent : 'lime'
+  de.dataset.accent = ACCENTS[accent] ? accent : 'red'
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.content = de.dataset.theme === 'light' ? '#f2f2f7' : '#000000'
 }
@@ -60,8 +60,10 @@ function Shell() {
   const authed = user || isGuest
   if (!ready && !authed) return (
     <div id="app">
-      <div style={{ paddingTop: '44vh', display: 'flex', justifyContent: 'center', fontSize: 34, color: 'var(--label-3)' }}>
-        <Icon name="dumbbell" />
+      {/* The first paint before anything is known: the mark, held back so it reads as a
+          screen still loading rather than a screen that has arrived. */}
+      <div style={{ paddingTop: '44vh', display: 'flex', justifyContent: 'center', opacity: .3 }}>
+        <img src={mark} alt="" height="44" />
       </div>
     </div>
   )
