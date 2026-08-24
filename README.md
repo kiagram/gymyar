@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="logo/gymbuddy-hero-dark.png">
+  <img src="logo/gymbuddy-hero.png" alt="GymBuddy — AI. Training. Results." width="460">
+</picture>
+
 # GymBuddy
 
 A coaching platform built on [openGym](https://gitea.com/DuarteSantos/openGym) — the gym and
@@ -24,7 +29,9 @@ first boot creates a coach and three clients with twelve weeks of training each:
 | `ava@gymbuddy.test` | `gymbuddy-demo-1` | Shares programmes and workouts, not body weight |
 | `theo@gymbuddy.test` | `gymbuddy-demo-1` | Shares programmes only, and stopped training three weeks ago |
 
-Turn `SEED_DEMO` off for a real instance and set a real `SESSION_SECRET`.
+Turn `SEED_DEMO` off for a real instance and set a real `SESSION_SECRET`. For a real deployment —
+HTTPS, passkeys on a domain you own, backups, invite-only signup — see
+[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
 
 ## Layout
 

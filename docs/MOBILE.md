@@ -57,16 +57,28 @@ through `cmd.exe` on Windows — where it is a syntax error rather than a build.
 
 ## App icons and splash screens
 
-`apps/client/resources/icon.svg` is the 1024×1024 source. Generate every platform asset from
-it on a machine with the tooling:
+The identity lives in [`logo/`](../logo/README.md) — five SVGs and nothing else. Every raster
+the apps ship is cut from them:
 
 ```bash
-cd apps/client
-npx @capacitor/assets generate --iconBackgroundColor '#0c0e12' --splashBackgroundColor '#0c0e12'
+node infra/scripts/render-logo.mjs
 ```
 
-If the generator will not take the SVG directly, export it to `resources/icon.png` at 1024×1024
-first — any image tool will do.
+That writes the Android mipmaps and splash screens, the iOS app icon and splash, the PWA icons
+in `apps/client/public/`, and `apps/client/resources/icon.svg` — which is a *copy*, not a
+source. Edit `logo/`, re-run, commit what changes. CI runs the same script with `--check` and
+fails if a committed PNG has drifted.
+
+It renders through headless Chromium — the rasteriser the browser tests already depend on —
+rather than `@capacitor/assets`, which needs a working `sharp` native build and does not touch
+`public/` at all.
+
+The launch screen is not a drawing: it is the app-icon tile centred on the brand's off black,
+sized to a share of the shorter side so it survives being centre-cropped to whatever shape the
+device is. Android gets one per density and orientation, night variants included — the app is
+dark whichever way the system is set, so a light launch screen would flash white before the
+first paint. iOS gets one square for every device, and because cropping that to a tall phone
+leaves less than half its width visible, the tile on it is drawn smaller.
 
 ## Permissions, and what asks for them
 

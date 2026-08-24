@@ -72,5 +72,11 @@ jobs:
           npx wait-on -t 60000 http://127.0.0.1:5173/api/health
           node infra/scripts/e2e.mjs http://127.0.0.1:5173
 
+      - name: Icons match the vectors in logo/
+        # Runs here because the step above already installed the Chromium this renders with.
+        # The app icon exists in twenty-odd files across three platforms; the only way they
+        # stay one identity is for all of them to be output.
+        run: node infra/scripts/render-logo.mjs --check
+
       - name: Compose file is valid
         run: cp .env.example .env && docker compose config -q
