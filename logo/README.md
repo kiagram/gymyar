@@ -22,8 +22,11 @@ Everything the apps ship is cut from these. Edit the SVG, never the PNG.
 | `gymbuddy-mark.svg` | Figure alone, GymBuddy red, transparent | Paper, light UI, README, print |
 | `gymbuddy-mark-white.svg` | Figure alone, white, transparent | On red, on ink, adaptive foreground layer |
 | `gymbuddy-mark-black.svg` | Figure alone, off black, transparent | One-colour use on light surfaces |
-
-| `gymbuddy-hero.png` | The full lockup, 900px, transparent | README header, docs, marketing |
+| `gymbuddy-wordmark.svg` | `GYM BUDDY` + tagline, off black and red | Light surfaces |
+| `gymbuddy-wordmark-white.svg` | Same, off black turned white | Dark surfaces |
+| `gymbuddy-lockup.svg` | Figure above the wordmark | The full logo, light surfaces |
+| `gymbuddy-lockup-white.svg` | Same, for dark surfaces | The full logo, dark surfaces |
+| `gymbuddy-hero.png` | The lockup as a shaded render, 900px | README header, marketing |
 | `gymbuddy-hero-dark.png` | Same, wordmark lifted for dark pages | README header on a dark theme |
 
 The mark files are trimmed to the figure — no invisible padding — so they scale predictably
@@ -44,8 +47,8 @@ where a committed PNG has drifted from its source.
 **The launch screen** is not a separate drawing: it is `gymbuddy-icon.svg` centred on off
 black, at 26% of the shorter side — 14% on the single square iOS uses for every device, where
 cropping to a tall phone throws away more than half the width. That rule lives in the render
-script. If the launch screen should ever carry the wordmark too, it needs the wordmark as a
-vector first.
+script. `gymbuddy-lockup.svg` could go there instead now that it exists, but the tile is what
+the brand system's own onboarding screens show.
 
 ## Colour
 
@@ -70,6 +73,26 @@ flat — the gradient belongs to the icon, not to the mark.
 - Do not recolour the contours, add a stroke, rotate, skew, or drop a shadow on it. Do not put
   the rounded field behind it anywhere except an app icon — the field is the icon, not the logo.
 
+## The wordmark
+
+`BUDDY` is red in every colourway. Only `GYM` and the tagline change — off black on light
+surfaces, white on dark — because the red half is the brand colour and does not become
+something else on a different background.
+
+The lockup places the figure above the wordmark at the proportions the brand system uses:
+the figure is 0.372 of the wordmark's width, and the gap under it is 0.0438 of its own
+height. Those are measured off the system's own stacked lockup, not chosen.
+
+**Smallest size** for the wordmark is about 360px wide. Below that the tagline closes up and
+stops being readable while the letters are still fine — at which point drop the tagline
+rather than shrinking it further. There is no tagline-free cut in here yet; it is four lines
+to add if a navigation bar needs one.
+
+The two-line **horizontal** variant in the brand sheets — figure left, `GYM` over `BUDDY`
+right, tagline beneath both — is not here. It is a different arrangement of the letters
+rather than a recolouring of this one, so it would have to be laid out from the glyphs
+again rather than composed from what exists.
+
 ## Provenance, and what is still raster
 
 The brand system in this directory is the source of everything above:
@@ -78,16 +101,22 @@ The brand system in this directory is the source of everything above:
   the largest flat rendition of the mark.
 - The palette is read off the **COLOR SYSTEM** sheet (`…10_29_05 PM.png`), not sampled by eye.
 - Type, bilingual FA/EN pairing and the screen system are in the remaining sheets.
+- The wordmark was traced from the hero render (`…10_26_56 PM.png`), which carries it at 144px
+  cap height. That file is already on transparency, so the letterforms come off its alpha
+  channel and the shading inside them is irrelevant; chroma then says which half of the
+  wordmark each shape belongs to. The tagline is masked by band rather than by colour — it is
+  one colour by design, but it sits over the render's red glow, and two of its glyphs file as
+  red if you go by chroma alone.
 
-**The wordmark is not a vector yet.** `GYM BUDDY` and the `AI. TRAINING. RESULTS.` line exist
-only as raster, so the lockups cannot be regenerated at arbitrary size the way the mark can.
-The two `gymbuddy-hero-*.png` files are that lockup: the hero render (`…10_26_56 PM.png`,
-which already carried its own transparency) trimmed to its content and scaled to 900px.
+**The hero is still raster.** `gymbuddy-hero-*.png` are the same lockup as a shaded
+illustration — gradients, highlights, a rim light — which is a painting rather than a logo and
+does not reduce to flat paths. They are that render trimmed to its content and scaled to
+900px. For anything that needs the lockup crisp at any size, use `gymbuddy-lockup.svg`.
 
 `gymbuddy-hero-dark.png` differs from the light one in the wordmark only. `GYM` and the
 tagline are black, which disappears on a dark page, so their ink is inverted to white — the
 figure is untouched, because its shading is neutral black as well and inverting that punches
 holes in the torso. The README picks between them with `prefers-color-scheme`.
 
-Anything that needs the lockup at a size these two cannot serve should set the words as live
-text next to `gymbuddy-mark.svg`, until the wordmark is drawn as a vector.
+The README header still uses the hero, because the illustration is what belongs at the top of
+a page someone lands on. The vector lockup is the one to reach for everywhere else.
