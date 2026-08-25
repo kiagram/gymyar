@@ -58,6 +58,15 @@ services:
       SEED_DEMO: ${SEED_DEMO:-}
       # Optional. Without it every AI feature still works, in fewer words.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      STORAGE_PATH: /data/media
+    volumes:
+      # Uploaded media — form-check video, progress photos, voice notes.
+      #
+      # A named volume rather than a bind mount, so it survives `docker compose down` the way
+      # `db` does. It is also the first user data that a pg_dump does not contain: the rows
+      # describing these files are in Postgres and the bytes are here. Back both up, or restore
+      # a database full of attachments that will not open. See docs/SELF_HOSTING.md section 7.
+      - media:/data/media
     depends_on:
       db:
         condition: service_healthy
@@ -82,3 +91,4 @@ services:
 
 volumes:
   db:
+  media:

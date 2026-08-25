@@ -167,8 +167,7 @@ Cloudflare Access…) in front still works, and composes with the above.
 
 ## 7. Backups
 
-**The database is the backup.** `./media` is 140 MB of files that can be re-downloaded, and the
-containers hold nothing.
+**Two things, and only one of them is the database.**
 
 ```bash
 docker compose exec -T db pg_dump -U gymbuddy gymbuddy | gzip > gymbuddy-$(date +%F).sql.gz
@@ -181,7 +180,30 @@ gunzip -c gymbuddy-2026-08-23.sql.gz | docker compose exec -T db psql -U gymbudd
 ```
 
 That dump holds every profile, passkey credential, coaching relationship and set ever logged.
-Take it on a schedule and keep it somewhere that is not the same disk. Individual users can also
+Take it on a schedule and keep it somewhere that is not the same disk.
+
+**It does not hold uploaded media.** Form-check video, progress photos and voice notes live on
+the `media` volume, and the database holds only the rows describing them. Restore the dump
+alone and you get an instance where every attachment is a broken link — the rows are all there,
+pointing at bytes that are not. So take the volume too:
+
+```bash
+docker run --rm -v gymbuddy_media:/data -v "$PWD":/out alpine tar czf /out/gymbuddy-media-$(date +%F).tar.gz -C /data .
+```
+
+and put it back the same way:
+
+```bash
+docker run --rm -v gymbuddy_media:/data -v "$PWD":/in alpine tar xzf /in/gymbuddy-media-2026-08-25.tar.gz -C /data
+```
+
+The two are not required to be from the same instant. An attachment row whose bytes are missing
+renders as unavailable rather than breaking the screen around it, and bytes with no row are
+swept up. A media archive an hour older than the database is a handful of unavailable clips, not
+a broken restore.
+
+`./media` — the 1,324 exercise images and GIFs — is a third thing and needs no backup at all:
+it is re-downloaded on first boot if the directory is empty. Individual users can also
 export their own training as JSON from **Settings → Data**, which is a per-user convenience and
 not an instance backup — it carries no other accounts, no credentials and no coaching state.
 
