@@ -28,3 +28,9 @@ apps/client/android/keystore.properties
 # Built APKs. `assembleDebug` drops a 6 MB artifact into the tree on every build, and a
 # signed release one is a shippable binary that belongs on the site, not in the history.
 *.apk
+
+# Deploy-time assets for the project site: screenshots, banner and icons are copied in
+# from assets/ and apps/client/public/ rather than duplicated in the tree. See apps/site/README.md.
+apps/site/img/
+apps/site/icon-180.png
+apps/site/icon-512.png

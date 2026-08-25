@@ -31,7 +31,7 @@ nav {
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--fg); }
 .brand:hover { text-decoration: none; }
 .brand svg { width: 26px; height: 26px; }
-.nav-links { display: flex; gap: 18px; margin-left: auto; align-items: center; flex-wrap: wrap; }
+.nav-links { display: flex; gap: 18px; margin-inline-start: auto; align-items: center; flex-wrap: wrap; }
 .nav-links a { color: var(--dim); font-size: 14.5px; font-weight: 500; }
 .nav-links a:hover { color: var(--fg); text-decoration: none; }
 .nav-links a.cta { color: #fff; background: var(--acc-fill); padding: 7px 14px; border-radius: 10px; font-weight: 600; }
@@ -96,8 +96,8 @@ h2 { font-size: clamp(26px, 4.5vw, 34px); letter-spacing: -.02em; margin: 6px 0 
 .card h3 { font-size: 20px; margin-bottom: 4px; display: flex; gap: 9px; align-items: center; }
 .card .for { color: var(--faint); font-size: 13.5px; margin-bottom: 14px; }
 .card ul { list-style: none; padding: 0; margin: 0 0 18px; }
-.card li { padding: 6px 0 6px 26px; position: relative; font-size: 14.5px; color: var(--dim); }
-.card li::before { content: "✓"; position: absolute; left: 2px; color: var(--acc); font-weight: 700; }
+.card li { padding: 6px 0; padding-inline-start: 26px; position: relative; font-size: 14.5px; color: var(--dim); }
+.card li::before { content: "✓"; position: absolute; inset-inline-start: 2px; color: var(--acc); font-weight: 700; }
 .card li.no::before { content: "—"; color: var(--faint); }
 .card .btn { width: 100%; justify-content: center; }
 .meta { font-size: 12.5px; color: var(--faint); margin-top: 10px; text-align: center; }
@@ -124,11 +124,12 @@ h2 { font-size: clamp(26px, 4.5vw, 34px); letter-spacing: -.02em; margin: 6px 0 
 .prose h2 { font-size: 24px; margin: 44px 0 10px; }
 .prose h3 { font-size: 17.5px; margin: 26px 0 8px; }
 .prose p, .prose li { color: #c7c7cc; font-size: 15.5px; }
-.prose ul, .prose ol { padding-left: 22px; margin: 10px 0; }
+.prose ul, .prose ol { padding-inline-start: 22px; margin: 10px 0; }
 .prose li { margin: 5px 0; }
 .note {
-  background: var(--acc-dim); border-left: 3px solid var(--acc);
-  border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 16px 0; font-size: 14.5px;
+  background: var(--acc-dim); border-inline-start: 3px solid var(--acc);
+  border-start-start-radius: 0; border-end-start-radius: 0;
+  border-start-end-radius: 10px; border-end-end-radius: 10px; padding: 12px 16px; margin: 16px 0; font-size: 14.5px;
 }
 pre {
   background: #0a0c10; border: 1px solid var(--line); border-radius: 12px;
@@ -143,7 +144,7 @@ p code, li code { background: var(--card2); border-radius: 6px; padding: 1.5px 6
 /* ---------- footer ---------- */
 footer { border-top: 1px solid var(--line); margin-top: 70px; padding: 30px 0 46px; }
 .foot { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; color: var(--faint); font-size: 14px; }
-.foot .links { margin-left: auto; display: flex; gap: 16px; flex-wrap: wrap; }
+.foot .links { margin-inline-start: auto; display: flex; gap: 16px; flex-wrap: wrap; }
 .foot a { color: var(--dim); }
 
 @media (max-width: 640px) {
@@ -152,3 +153,30 @@ footer { border-top: 1px solid var(--line); margin-top: 70px; padding: 30px 0 46
   .nav-in { gap: 12px; }
   header.hero { padding-top: 52px; }
 }
+
+/* ---------- Persian, and right to left ---------- */
+/* The Persian pages under /fa/ load this same stylesheet with <html lang="fa" dir="rtl">.
+ * Nothing above needs a mirrored copy: every rule that had a side to it — the nav's
+ * margin, the ✓ before a card's list item, the prose indent, the note's accent edge — is
+ * written with logical properties, so it flips with `dir` and there is one stylesheet
+ * rather than two that drift. Only the things below are genuinely language-specific. */
+
+/* No webfont. Google Fonts is not reachable from Iran, a self-hosted Vazirmatn is ~80 KB
+ * of network before the first paint, and every platform that matters already ships a
+ * Persian face: Segoe UI and Tahoma on Windows, the system UI font on iOS and macOS,
+ * Noto Naskh/Roboto on Android. Naming Vazirmatn first costs nothing and picks it up on
+ * the machines of the Iranian designers who do have it installed. */
+:lang(fa) {
+  font-family: Vazirmatn, "Segoe UI", Tahoma, "Iranian Sans", -apple-system,
+               BlinkMacSystemFont, "Noto Naskh Arabic", sans-serif;
+  line-height: 1.85;   /* Persian sits lower and its ascenders are taller; 1.6 crowds it. */
+}
+/* Code, versions and shell commands stay Latin and left to right inside Persian prose —
+ * `docker compose up -d` reversed is not a command anyone can run. */
+:lang(fa) code, :lang(fa) pre { direction: ltr; text-align: left; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+:lang(fa) .stat b { direction: ltr; }
+
+/* The language switch in the nav. Deliberately not a flag: a flag names a country, and
+ * the choice here is a script. */
+.nav-links a.lang { color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 13px; }
+.nav-links a.lang:hover { border-color: var(--acc); }
