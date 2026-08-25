@@ -89,7 +89,19 @@ console.log('\nsam@gymbuddy.test')
 
   await page.goto(BASE + '/#/stats', { waitUntil: 'networkidle' }); await page.waitForTimeout(2500)
   const stats = await page.textContent('body')
-  check(/Workouts\s*35/.test(stats.replace(/\s+/g, ' ')), 'stats counts the synced sessions')
+  /* Against what this profile actually synced, not a literal.
+   *
+   * The demo history is generated from *today* backwards - twelve weeks of Mon/Wed/Fri -
+   * so how many sessions fall inside the window depends on which weekday today is. The
+   * literal 35 was right the week it was written and is 33 on a Tuesday: a test that
+   * fails on the calendar rather than on the code. The check is named for agreement
+   * between two numbers, so it compares them.
+   *
+   * Whitespace is squeezed out entirely rather than matched, which is what the regex
+   * this replaced was doing with its optional-space class. */
+  const synced = local.workouts
+  const flat = stats.replace(/\s+/g, '')
+  check(flat.includes('Workouts' + synced), `stats counts the synced sessions (${synced})`)
   check(!/No workouts in this period yet/.test(stats), 'muscle balance finds this week\'s training')
   await page.screenshot({ path: `${SHOTS}/shot-client-stats.png`, fullPage: true })
 
