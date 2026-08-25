@@ -641,6 +641,7 @@ export default {
   "Payments": "결제 내역",
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "본인 운동은 무료이며 앞으로도 그렇습니다 — 기록, 프로그램, 히스토리, 통계는 구독에 포함된 적이 없습니다. 구독은 다른 사람을 코칭하는 데 필요합니다.",
   "Renew your subscription to message clients": "회원에게 메시지를 보내려면 구독을 갱신하세요",
+  "Your plan covers {0} clients — upgrade to take on more": "현재 플랜은 클라이언트 {0}명까지입니다 — 더 받으려면 업그레이드하세요",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

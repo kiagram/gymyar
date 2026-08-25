@@ -5,7 +5,7 @@
  * lapsing, a payment that came back unconfirmed.
  */
 import { describe, it, expect } from 'vitest'
-import { describeEntitlement, readOutcome, isPaymentRequired, termLabel, CHECKOUT_OUTCOMES } from './billing.js'
+import { describeEntitlement, readOutcome, isPaymentRequired, termLabel, CHECKOUT_OUTCOMES, isCapReached} from './billing.js'
 
 const DAY = 86400000
 const inDays = n => new Date(Date.now() + n * DAY).toISOString()
@@ -121,5 +121,22 @@ describe('term labels', () => {
     expect(termLabel(12)).toMatch(/year/i)
     expect(termLabel(1)).toMatch(/1 month/i)
     expect(termLabel(3)).toMatch(/3 months/i)
+  })
+})
+
+describe('spotting a full plan', () => {
+  it('recognises the cap refusal', () => {
+    expect(isCapReached({ status: 402, code: 'client_cap_reached' })).toBe(true)
+  })
+
+  it('does not confuse it with a lapsed subscription', () => {
+    // Both are 402 and both end at the billing screen, but they are different sentences.
+    expect(isCapReached({ status: 402, code: 'payment_required' })).toBe(false)
+    expect(isCapReached({ status: 402 })).toBe(false)
+    expect(isCapReached(null)).toBe(false)
+  })
+
+  it('is still a payment refusal, so the existing routing keeps working', () => {
+    expect(isPaymentRequired({ status: 402, code: 'client_cap_reached' })).toBe(true)
   })
 })

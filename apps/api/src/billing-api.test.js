@@ -415,3 +415,93 @@ describe('the trial endpoint', () => {
     expect(r.body.entitlement.state).toBe('active')
   })
 })
+
+describe('the client cap', () => {
+  /** Put this coach on a tier of `cap` clients, the way a purchase would. */
+  const setCap = (id, cap, tier = 'solo') => db()`
+    update subscriptions set tier = ${tier}, client_cap = ${cap} where user_id = ${id}`
+
+  it('reports how much room is left, on the screen that is about it', async () => {
+    const { coach, coachUser } = await linked()
+    await setCap(coachUser.id, 5)
+
+    const r = await coach.get('/api/coach/clients')
+    expect(r.status).toBe(200)
+    expect(r.body.capacity).toMatchObject({ cap: 5, used: 1, remaining: 4, full: false, tier: 'solo' })
+  })
+
+  it('tells a full coach their plan is too small, and which one is not', async () => {
+    const { coach, coachUser } = await linked()
+    await setCap(coachUser.id, 1)
+
+    const r = await coach.post('/api/coach/invites', { email: 'another@x.test' })
+    expect(r.status).toBe(402)
+    expect(r.body.code).toBe('client_cap_reached')
+    // A wall that names the way over it. `studio` is the next size up from `solo`.
+    expect(r.body.details).toMatchObject({ cap: 1, used: 1, tier: 'solo', nextTier: 'studio' })
+  })
+
+  it('has nothing to offer a full coach on the largest tier', async () => {
+    const { coach, coachUser } = await linked()
+    await setCap(coachUser.id, 1, 'pro')
+    const r = await coach.post('/api/coach/invites', { email: 'another@x.test' })
+    expect(r.body.details.nextTier).toBeNull()
+  })
+
+  it('never hands a client a bill for their coach’s plan', async () => {
+    // The invitation is issued while there is room, and the coach fills up before it is used.
+    const { coach, coachUser } = await linked()
+    const invite = await coach.post('/api/coach/invites', { email: 'second@x.test' })
+    expect(invite.status).toBe(200)
+    await setCap(coachUser.id, 1)
+
+    const { c: second } = await signUp('Second', 'second@x.test')
+    const r = await second.post(`/api/invites/${invite.body.invite.code}/accept`, {})
+
+    // 409, not 402. A person being coached must never see a payment prompt that is not theirs.
+    expect(r.status).toBe(409)
+    expect(r.body.code).toBe('coach_at_capacity')
+  })
+
+  it('leaves every existing client alone when the coach is over their cap', async () => {
+    const { coach, coachUser, cl, linkId } = await linked()
+
+    // A second client, while there is still room for one.
+    const invite = await coach.post('/api/coach/invites', { email: 'second@x.test' })
+    const { c: second } = await signUp('Second', 'second@x.test')
+    expect((await second.post(`/api/invites/${invite.body.invite.code}/accept`, {})).status).toBe(200)
+
+    // Then they downgrade to a tier smaller than the book they already have.
+    await setCap(coachUser.id, 1)
+    const seen = await coach.get('/api/coach/clients')
+    expect(seen.body.capacity).toMatchObject({ cap: 1, used: 2, remaining: 0, full: true })
+
+    // Both clients are still there, still readable, still being coached.
+    expect(seen.body.clients).toHaveLength(2)
+    expect((await cl.get('/api/coaches')).body.coaches).toHaveLength(1)
+    expect((await second.get('/api/coaches')).body.coaches).toHaveLength(1)
+    // And they can still talk to each other.
+    expect((await coach.post(`/api/threads/${linkId}`, { body: 'still here' })).status).toBe(200)
+
+    // Only growth is refused.
+    expect((await coach.post('/api/coach/invites', { email: 'third@x.test' })).status).toBe(402)
+  })
+
+  it('does not cap a coach who is still on trial', async () => {
+    const { coach } = await linked()
+    // A trial writes a subscription row with no cap on it — capping a trial would advertise a
+    // worse product than the one being sold.
+    const r = await coach.post('/api/coach/invites', { email: 'third@x.test' })
+    expect(r.status).toBe(200)
+  })
+
+  it('does not cap anybody on an instance with no gateway', async () => {
+    const { coach, coachUser } = await linked()
+    await setCap(coachUser.id, 1)
+    delete process.env.ZARINPAL_MERCHANT_ID
+
+    const r = await coach.post('/api/coach/invites', { email: 'another@x.test' })
+    expect(r.status).toBe(200)
+    expect((await coach.get('/api/coach/clients')).body.capacity.cap).toBeNull()
+  })
+})

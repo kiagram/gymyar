@@ -18,8 +18,9 @@
  * routes — asking about a client who is not yours — and collapsing the two would put a
  * pay-to-continue prompt in front of people who need an error message instead.
  */
-import { entitlement } from '@gymbuddy/domain/entitlement.js'
+import { entitlement, capacity, nextTierAfter } from '@gymbuddy/domain/entitlement.js'
 import { subscriptionFor, ensureTrial } from '@gymbuddy/db/billing.js'
+import { countClients } from '@gymbuddy/db/coaching.js'
 import { billingEnabled } from './payments/pricing.js'
 
 /** Everything allowed, which is what an instance with no gateway hands out. */
@@ -70,4 +71,43 @@ export async function requireCapability(userId, capability, { startTrial = false
 export const requireCoach = (userId, capability) =>
   requireCapability(userId, capability, { startTrial: true })
 
-export { UNGATED }
+/* ------------------------------------------------------------ capacity ---- */
+
+/** No cap, which is what an instance with nobody to bill hands out. */
+const UNCAPPED = { cap: null, used: 0, tier: 'legacy', remaining: null, full: false }
+
+/**
+ * How much room this coach has left.
+ *
+ * Reported rather than only enforced: the roster shows "12 of 25", and a coach who can see the
+ * ceiling approaching does not discover it halfway through inviting somebody.
+ */
+export async function capacityFor(userId) {
+  if (!billingEnabled()) return UNCAPPED
+  const [sub, used] = await Promise.all([subscriptionFor(userId), countClients(userId)])
+  return capacity(sub, used)
+}
+
+/**
+ * Throw unless this coach has room for one more client.
+ *
+ * 402 and not 409, because this is the coach being told their plan is too small — the same
+ * conversation as an expired subscription, wanting the same screen. The refusal a *client*
+ * gets when they try to accept an invitation from a full coach is a different thing entirely,
+ * carries 409, and is raised in db/coaching.js where the slot is actually taken. Nobody being
+ * coached should ever see a payment prompt for somebody else's plan.
+ *
+ * `nextTier` rides along so the answer can be an offer. A wall that names the way over it is
+ * worth building; one that does not is just a lost customer with extra steps.
+ */
+export async function requireCapacity(userId) {
+  const cap = await capacityFor(userId)
+  if (!cap.full) return cap
+  throw Object.assign(new Error('this plan is for ' + cap.cap + ' clients'), {
+    status: 402,
+    code: 'client_cap_reached',
+    details: { ...cap, nextTier: nextTierAfter(cap.tier)?.id ?? null }
+  })
+}
+
+export { UNGATED, UNCAPPED }

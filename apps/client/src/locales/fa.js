@@ -722,6 +722,7 @@ export default {
   "Payments": "پرداخت‌ها",
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "تمرین خودتان رایگان است و همیشه خواهد بود — ثبت تمرین، برنامه‌ها، تاریخچه و آمار هیچ‌وقت بخشی از اشتراک نیستند. این اشتراک برای مربی‌گری دیگران است.",
   "Renew your subscription to message clients": "برای پیام دادن به شاگردان، اشتراک را تمدید کنید",
+  "Your plan covers {0} clients — upgrade to take on more": "اشتراک شما {0} شاگرد را پوشش می‌دهد — برای گرفتن شاگرد بیشتر ارتقا بدهید",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

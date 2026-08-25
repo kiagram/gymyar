@@ -116,6 +116,15 @@ export const readOutcome = key => (CHECKOUT_OUTCOMES[key] ? CHECKOUT_OUTCOMES[ke
 /** Did this request fail because nobody has paid? */
 export const isPaymentRequired = err => err?.status === 402 || err?.code === 'payment_required'
 
+/**
+ * Did it fail because the plan is too small rather than because it lapsed?
+ *
+ * Both arrive as 402 and both end at the billing screen, but they are different sentences on
+ * the way there — "renew this" and "outgrow this" are not the same news, and a coach who has
+ * just filled their last slot has done something worth congratulating rather than chasing.
+ */
+export const isCapReached = err => err?.code === 'client_cap_reached'
+
 /* Payment statuses, for the receipts list. Keyed to what the database stores. */
 export const PAYMENT_STATUS = {
   paid: () => t('Paid'),

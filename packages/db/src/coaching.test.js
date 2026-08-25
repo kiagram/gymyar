@@ -5,8 +5,9 @@ import { push, pullAll } from './sync.js'
 import {
   inviteClient, acceptInvite, declineInvite, endLink, setScopes, activeLink, requireScope,
   roster, coachesOf, proposeRoutine, pendingProposals, acceptProposal, declineProposal,
-  sendMessage, readThread
+  sendMessage, readThread, countClients, countCommitted
 } from './coaching.js'
+import { db } from './index.js'
 
 // Wrapped, not passed directly: a hook that returns a function is treated by Vitest as a
 // teardown callback, and setupDb returns the postgres handle — which is itself callable.
@@ -297,5 +298,136 @@ describe('messages', () => {
       .rejects.toMatchObject({ status: 403 })
     await expect(readThread({ linkId: link.id, userId: stranger.id }))
       .rejects.toMatchObject({ status: 403 })
+  })
+})
+
+describe('client capacity', () => {
+  /** A coach on a tier, with the cap written onto the row the way a purchase writes it. */
+  const cappedCoach = async (cap, email = 'coach@x.test') => {
+    const coach = await createUser({ name: 'Coach', email, isCoach: true })
+    await db()`
+      insert into subscriptions (user_id, paid_through, tier, client_cap)
+      values (${coach.id}, now() + interval '30 days', 'solo', ${cap})`
+    return coach
+  }
+  const client = n => createUser({ name: 'C' + n, email: `c${n}@x.test` })
+
+  const join = async (coach, c, enforceCap = true) => {
+    const invite = await inviteClient({ coachId: coach.id, email: c.email, enforceCap })
+    return acceptInvite({ inviteCode: invite.invite_code, clientId: c.id, enforceCap })
+  }
+
+  it('counts the clients a coach is carrying, not the ones they have lost', async () => {
+    const coach = await cappedCoach(5)
+    const a = await client(1); const b = await client(2)
+    await join(coach, a)
+    const link = await join(coach, b)
+    expect(await countClients(coach.id)).toBe(2)
+
+    await endLink({ linkId: link.id, byUserId: coach.id })
+    // An ended relationship frees the slot immediately. Nobody pays for coaching that is over.
+    expect(await countClients(coach.id)).toBe(1)
+  })
+
+  it('counts a paused client, who is still a client', async () => {
+    const coach = await cappedCoach(5)
+    const a = await client(1)
+    const link = await join(coach, a)
+    await db()`update coaching_links set status = 'paused' where id = ${link.id}`
+    expect(await countClients(coach.id)).toBe(1)
+  })
+
+  it('does not count an outstanding invitation as a client', async () => {
+    const coach = await cappedCoach(5)
+    await inviteClient({ coachId: coach.id, email: 'nobody@x.test', enforceCap: true })
+    expect(await countClients(coach.id)).toBe(0)
+    // …but it is committed, and issuing another one is checked against that.
+    expect(await countCommitted(coach.id)).toBe(1)
+  })
+
+  it('stops a coach issuing more invitations than they have slots', async () => {
+    const coach = await cappedCoach(2)
+    await inviteClient({ coachId: coach.id, email: 'a@x.test', enforceCap: true })
+    await inviteClient({ coachId: coach.id, email: 'b@x.test', enforceCap: true })
+    // Two slots, two invitations outstanding. A third would be a promise to somebody that
+    // cannot be kept, and they would find out by being turned away.
+    await expect(inviteClient({ coachId: coach.id, email: 'c@x.test', enforceCap: true }))
+      .rejects.toMatchObject({ code: 'coach_at_capacity' })
+  })
+
+  it('frees the slot when an invitation is declined', async () => {
+    const coach = await cappedCoach(1)
+    const inv = await inviteClient({ coachId: coach.id, email: 'a@x.test', enforceCap: true })
+    await declineInvite(inv.invite_code)
+    await expect(inviteClient({ coachId: coach.id, email: 'b@x.test', enforceCap: true }))
+      .resolves.toBeTruthy()
+  })
+
+  it('turns a client away at the door when the coach is full', async () => {
+    const coach = await cappedCoach(1)
+    const a = await client(1); const b = await client(2)
+    await join(coach, a)
+
+    const invite = await inviteClient({ coachId: coach.id, email: b.email, enforceCap: false })
+    await expect(acceptInvite({ inviteCode: invite.invite_code, clientId: b.id, enforceCap: true }))
+      .rejects.toMatchObject({ status: 409, code: 'coach_at_capacity' })
+  })
+
+  it('gives the last slot to exactly one of two clients accepting at once', async () => {
+    const coach = await cappedCoach(1)
+    const a = await client(1); const b = await client(2)
+    const one = await inviteClient({ coachId: coach.id, email: a.email, enforceCap: false })
+    const two = await inviteClient({ coachId: coach.id, email: b.email, enforceCap: false })
+
+    const results = await Promise.allSettled([
+      acceptInvite({ inviteCode: one.invite_code, clientId: a.id, enforceCap: true }),
+      acceptInvite({ inviteCode: two.invite_code, clientId: b.id, enforceCap: true })
+    ])
+
+    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter(r => r.status === 'rejected')).toHaveLength(1)
+    expect(await countClients(coach.id)).toBe(1)
+  })
+
+  it('never severs a link for a coach left over their cap by a downgrade', async () => {
+    const coach = await cappedCoach(5)
+    const a = await client(1); const b = await client(2); const c = await client(3)
+    for (const x of [a, b, c]) await join(coach, x)
+
+    // They drop to a tier smaller than the book they already have.
+    await db()`update subscriptions set tier = 'solo', client_cap = 1 where user_id = ${coach.id}`
+
+    // All three are still active, still readable, still being coached.
+    expect(await countClients(coach.id)).toBe(3)
+    for (const x of [a, b, c]) expect(await activeLink(coach.id, x.id)).toBeTruthy()
+
+    // Only growth is refused.
+    const d = await client(4)
+    await expect(inviteClient({ coachId: coach.id, email: d.email, enforceCap: true }))
+      .rejects.toMatchObject({ code: 'coach_at_capacity' })
+  })
+
+  it('caps nobody when the caller does not ask for it', async () => {
+    // An instance with no gateway sells nothing and should not know capacity is a concept.
+    const coach = await cappedCoach(1)
+    const a = await client(1); const b = await client(2)
+    await join(coach, a, false)
+    await expect(join(coach, b, false)).resolves.toBeTruthy()
+    expect(await countClients(coach.id)).toBe(2)
+  })
+
+  it('caps nobody who has no subscription row', async () => {
+    const coach = await createUser({ name: 'Free', email: 'free@x.test', isCoach: true })
+    const a = await client(1)
+    await expect(join(coach, a)).resolves.toBeTruthy()
+  })
+
+  it('leaves a legacy subscriber uncapped', async () => {
+    const coach = await createUser({ name: 'Old', email: 'old@x.test', isCoach: true })
+    await db()`
+      insert into subscriptions (user_id, paid_through, tier, client_cap)
+      values (${coach.id}, now() + interval '30 days', 'legacy', null)`
+    for (const n of [1, 2, 3]) await join(coach, await client(n))
+    expect(await countClients(coach.id)).toBe(3)
   })
 })

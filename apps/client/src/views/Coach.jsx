@@ -11,7 +11,7 @@ import { Section, Row, Button, TextField, Check } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { t } from '../lib/i18n.js'
 import { fetchRoster, createInvite, SCOPE_INFO, daysSince } from '../lib/coaching.js'
-import { fetchBilling, describeEntitlement, isPaymentRequired } from '../lib/billing.js'
+import { fetchBilling, describeEntitlement, isPaymentRequired, isCapReached } from '../lib/billing.js'
 
 const WINDOW_DAYS = 28
 
@@ -76,7 +76,11 @@ function InviteSheet({ close, nav }) {
       // A refusal for want of payment is not an error to read and dismiss — it is a thing to
       // go and fix. Sending them straight to the screen that fixes it beats a red sentence
       // with no way forward.
-      if (isPaymentRequired(e)) { close(); nav('/billing') }
+      if (isCapReached(e)) {
+        toast(t('Your plan covers {0} clients — upgrade to take on more', e.details?.cap))
+        close(); nav('/billing')
+      }
+      else if (isPaymentRequired(e)) { close(); nav('/billing') }
       else setErr(e.message)
     }
     finally { setBusy(false) }

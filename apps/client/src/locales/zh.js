@@ -641,6 +641,7 @@ export default {
   "Payments": "付款记录",
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "你自己的训练是免费的，而且永远免费——记录、计划、历史和统计从来都不属于订阅。订阅针对的是指导别人。",
   "Renew your subscription to message clients": "续订后即可给客户发消息",
+  "Your plan covers {0} clients — upgrade to take on more": "您的方案包含 {0} 位客户 — 升级后可接收更多",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---
