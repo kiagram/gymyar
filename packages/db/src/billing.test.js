@@ -10,7 +10,7 @@ import {
   subscriptionFor, subscriptionsFor, ensureTrial, startPayment, attachAuthority,
   paymentByAuthority, paymentsFor, credit, settleUnpaid, stalePayments, setPaidThrough
 } from './billing.js'
-import { entitlement, TRIAL_DAYS } from '@gymbuddy/domain/entitlement.js'
+import { entitlement, TRIAL_DAYS, capFor } from '@gymbuddy/domain/entitlement.js'
 
 beforeAll(async () => { await setupDb() })
 beforeEach(async () => { await truncateUsers() })
@@ -19,8 +19,8 @@ afterAll(async () => { await teardownDb() })
 const DAY = 86400000
 const coach = (email = 'coach@x.test') => createUser({ name: 'Coach', email, isCoach: true })
 
-const attempt = async (userId, months = 1, amount = 1_490_000) => {
-  const p = await startPayment({ userId, gateway: 'zarinpal', amount, currency: 'IRR', months })
+const attempt = async (userId, months = 1, amount = 1_490_000, tier = null) => {
+  const p = await startPayment({ userId, gateway: 'zarinpal', amount, currency: 'IRR', months, tier })
   return attachAuthority(p.id, 'A-' + p.id.slice(0, 8))
 }
 
@@ -268,5 +268,124 @@ describe('the schema itself', () => {
     await ensureTrial(u.id)
     const log = await db()`select * from change_log where user_id = ${u.id}`
     expect(log).toHaveLength(0)
+  })
+})
+
+describe('tiers', () => {
+  it('starts a trial uncapped — a trial smaller than the product is not a trial', async () => {
+    const u = await coach()
+    const sub = await ensureTrial(u.id)
+    expect(sub.tier).toBe('legacy')
+    expect(sub.client_cap).toBeNull()
+  })
+
+  it('records what was actually sold on the attempt', async () => {
+    const u = await coach()
+    const p = await attempt(u.id, 3, 9_390_000, 'studio')
+    expect(p.tier).toBe('studio')
+  })
+
+  it('applies the purchased tier and its cap when the payment lands', async () => {
+    const u = await coach()
+    const p = await attempt(u.id, 1, 3_490_000, 'studio')
+
+    const { subscription } = await credit({ paymentId: p.id, refId: 'R-studio' })
+
+    expect(subscription.tier).toBe('studio')
+    expect(subscription.client_cap).toBe(capFor('studio'))
+    expect(entitlement(subscription).state).toBe('active')
+  })
+
+  it('copies the cap onto the row rather than leaving it to be re-derived later', async () => {
+    // The promise lives on the subscription, so reshaping what `pro` means later cannot take
+    // capacity away from somebody who already bought it.
+    const u = await coach()
+    const p = await attempt(u.id, 1, 7_490_000, 'pro')
+    await credit({ paymentId: p.id, refId: 'R-pro' })
+
+    const [row] = await db()`select tier, client_cap from subscriptions where user_id = ${u.id}`
+    expect(row.client_cap).toBe(100)
+  })
+
+  it('moves a coach up a tier on the next purchase, stacking the time', async () => {
+    const u = await coach()
+    const first = await attempt(u.id, 1, 1_490_000, 'solo')
+    await credit({ paymentId: first.id, refId: 'R-1' })
+    const before = (await subscriptionFor(u.id)).paid_through.getTime()
+
+    const second = await attempt(u.id, 1, 3_490_000, 'studio')
+    const { subscription } = await credit({ paymentId: second.id, refId: 'R-2' })
+
+    expect(subscription.tier).toBe('studio')
+    expect(subscription.client_cap).toBe(25)
+    // Paying early is not punished: the second month stacks onto what was left of the first.
+    expect(subscription.paid_through.getTime()).toBeGreaterThan(before)
+  })
+
+  it('lets a coach choose a smaller tier, and says so on the row', async () => {
+    const u = await coach()
+    const big = await attempt(u.id, 1, 7_490_000, 'pro')
+    await credit({ paymentId: big.id, refId: 'R-big' })
+
+    const small = await attempt(u.id, 1, 1_490_000, 'solo')
+    const { subscription } = await credit({ paymentId: small.id, refId: 'R-small' })
+
+    // A downgrade they chose. It only ever costs room to grow — no client is severed by it.
+    expect(subscription.tier).toBe('solo')
+    expect(subscription.client_cap).toBe(5)
+  })
+
+  it('leaves the tier alone for a payment that names none', async () => {
+    // A row written before tiers existed. The months still land; nothing gets reclassified.
+    const u = await coach()
+    const up = await attempt(u.id, 1, 3_490_000, 'studio')
+    await credit({ paymentId: up.id, refId: 'R-up' })
+
+    const untyped = await attempt(u.id, 1, 1_490_000, null)
+    const { subscription } = await credit({ paymentId: untyped.id, refId: 'R-untyped' })
+
+    expect(subscription.tier).toBe('studio')
+    expect(subscription.client_cap).toBe(25)
+  })
+
+  it('does not re-tier on a duplicate receipt', async () => {
+    const u = await coach()
+    const p = await attempt(u.id, 1, 3_490_000, 'studio')
+    await credit({ paymentId: p.id, refId: 'R-dup' })
+    const second = await credit({ paymentId: p.id, refId: 'R-dup' })
+
+    expect(second.credited).toBe(false)
+    const sub = await subscriptionFor(u.id)
+    expect(sub.tier).toBe('studio')
+  })
+
+  it('refuses a tier nobody sells on an attempt', async () => {
+    const u = await coach()
+    await expect(attempt(u.id, 1, 1_000, 'legacy')).rejects.toThrow()
+    await expect(attempt(u.id, 1, 1_000, 'enterprise')).rejects.toThrow()
+  })
+
+  it('refuses a subscription capped at nothing', async () => {
+    const u = await coach()
+    await ensureTrial(u.id)
+    await expect(db()`update subscriptions set client_cap = 0 where user_id = ${u.id}`)
+      .rejects.toThrow()
+  })
+
+  it('refuses a rate that is not a rate', async () => {
+    const u = await coach()
+    await expect(startPayment({
+      userId: u.id, gateway: 'zarinpal', amount: 100, currency: 'IRR', months: 1,
+      tier: 'solo', tomanPerUsd: 0
+    })).rejects.toThrow()
+  })
+
+  it('stores the rate the money changed hands at', async () => {
+    const u = await coach()
+    const p = await startPayment({
+      userId: u.id, gateway: 'zarinpal', amount: 1_490_000, currency: 'IRR', months: 1,
+      tier: 'solo', tomanPerUsd: 203_200
+    })
+    expect(Number(p.toman_per_usd)).toBe(203_200)
   })
 })

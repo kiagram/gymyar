@@ -10,25 +10,55 @@
  * drift apart. Longer terms are cheaper per month because the alternative — the same monthly
  * rate for a year up front — gives nobody a reason to commit.
  */
-import { TERMS } from '@gymbuddy/domain/entitlement.js'
+import { TERMS, PURCHASABLE_TIERS, isPurchasableTier, capFor } from '@gymbuddy/domain/entitlement.js'
 import { zarinpal } from './zarinpal.js'
 
 const bool = v => /^(1|true|yes|on)$/i.test(v || '')
 
 /**
- * Placeholder monthly prices, in **Toman**, per term.
+ * The tier a price is for when nobody said.
+ *
+ * The smallest thing on sale, which is also what the single flat price in the previous version
+ * of this file was — so a deployment that upgrades without touching its environment keeps
+ * charging exactly what it charged yesterday, for the tier that most resembles what it was
+ * selling. Note this is *not* the domain's `DEFAULT_TIER`: that one is `legacy`, which is what
+ * an unbought subscription is, and an unbought subscription has no price by definition.
+ */
+export const ENTRY_TIER = PURCHASABLE_TIERS[0].id
+
+/**
+ * Placeholder monthly prices, in **Toman**, per tier and term.
  *
  * Iranian prices are quoted in Toman even though the gateway settles in Rials, so this is the
  * number a person would recognise; `amountFor` does the conversion once, at the edge.
+ *
+ * Two shapes are deliberate. Across a row, longer terms are cheaper per month, because the
+ * same monthly rate for a year up front gives nobody a reason to commit. Down a column, a tier
+ * costs less per client than the one below it, because a coach with eighty clients who is
+ * charged twenty times the five-client price will go back to a spreadsheet and be right to.
+ *
+ * Still placeholders, and now placeholders in a currency that moved nine percent in the week
+ * they were written. Set real ones before taking a real payment, and see T1.3 for why a number
+ * frozen in Toman is a number that quietly becomes free.
  */
 const DEFAULT_PRICES = {
-  1: 149_000,     // one month
-  3: 399_000,     // ~11% off
-  12: 1_290_000   // ~28% off
+  solo:   { 1: 149_000, 3: 399_000,   12: 1_290_000 },   // 5 clients
+  studio: { 1: 349_000, 3: 939_000,   12: 2_990_000 },   // 25
+  pro:    { 1: 749_000, 3: 1_999_000, 12: 6_490_000 }    // 100
 }
 
-const priceFor = months =>
-  Number(process.env['PRICE_' + months + 'M'] || DEFAULT_PRICES[months])
+/**
+ * Look up one price, most specific environment variable first.
+ *
+ * `PRICE_SOLO_1M` is the tier-aware name. `PRICE_1M` is what deployments configured before
+ * tiers existed already have set, and it still works — for the entry tier only, because that
+ * is the only tier it could possibly have meant.
+ */
+const priceFor = (tier, months) => {
+  const specific = process.env[`PRICE_${tier.toUpperCase()}_${months}M`]
+  const inherited = tier === ENTRY_TIER ? process.env[`PRICE_${months}M`] : undefined
+  return Number(specific || inherited || DEFAULT_PRICES[tier]?.[months])
+}
 
 /** Rials per Toman. Not a rate — a definition, and it has never been anything else. */
 const RIALS_PER_TOMAN = 10
@@ -62,22 +92,44 @@ export function billingEnabled() {
  * Integer by construction: a fractional Rial is not a thing, and a gateway handed a float
  * rounds it somewhere you cannot see.
  */
-export function amountFor(months) {
-  const toman = priceFor(months)
-  if (!Number.isFinite(toman) || toman <= 0) throw new Error('no price configured for ' + months + ' months')
+export function amountFor(months, tier = ENTRY_TIER) {
+  const toman = priceFor(tier, months)
+  if (!Number.isFinite(toman) || toman <= 0) {
+    throw new Error(`no price configured for ${tier} at ${months} months`)
+  }
   return billingConfig().currency === 'IRT' ? Math.round(toman) : Math.round(toman) * RIALS_PER_TOMAN
 }
 
-/** The terms on offer, priced — this is what the upgrade screen renders. */
-export const catalogue = () => TERMS.map(months => ({
+/** The terms on offer for one tier, priced — one row of the upgrade screen's grid. */
+export const catalogue = (tier = ENTRY_TIER) => TERMS.map(months => ({
+  tier,
   months,
-  toman: priceFor(months),
-  amount: amountFor(months),
+  toman: priceFor(tier, months),
+  amount: amountFor(months, tier),
   currency: billingConfig().currency,
-  perMonthToman: Math.round(priceFor(months) / months)
+  perMonthToman: Math.round(priceFor(tier, months) / months)
+}))
+
+/**
+ * Every tier a person can buy, each with its terms priced. The whole grid.
+ *
+ * `clientCap` rides along from the domain rather than being restated here, so the number shown
+ * on the price card is the same number that will be written onto the subscription row and
+ * later enforced. Three copies of that integer is two too many.
+ */
+export const tierCatalogue = () => PURCHASABLE_TIERS.map(t => ({
+  tier: t.id,
+  clientCap: t.clientCap,
+  terms: catalogue(t.id)
 }))
 
 export const isTerm = months => TERMS.includes(Number(months))
+
+/** Can this instance sell `tier`? `legacy` is a tier and is not one of these. */
+export const isSellableTier = tier => isPurchasableTier(String(tier || ''))
+
+/** What a purchase of `tier` promises, copied onto the subscription at credit time. */
+export const capForTier = tier => capFor(tier)
 
 /**
  * The configured gateway, or null when billing is off.

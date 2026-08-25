@@ -11,7 +11,7 @@
  * writes first and treats the unique violation as the success it is.
  */
 import { db } from './index.js'
-import { extend, trialEnd } from '@gymbuddy/domain/entitlement.js'
+import { extend, trialEnd, capFor, DEFAULT_TIER } from '@gymbuddy/domain/entitlement.js'
 
 /** Postgres' unique_violation. The only error `credit()` is allowed to swallow. */
 const UNIQUE_VIOLATION = '23505'
@@ -51,10 +51,13 @@ export async function ensureTrial(userId, s = db(), now = Date.now()) {
  * Written first and deliberately: the row is what a callback is matched against, and a payment
  * we have no record of asking for is one we cannot safely credit.
  */
-export async function startPayment({ userId, gateway, amount, currency, months }, s = db()) {
+export async function startPayment(
+  { userId, gateway, amount, currency, months, tier = null, tomanPerUsd = null },
+  s = db()
+) {
   const [row] = await s`
-    insert into payments (user_id, gateway, amount, currency, months)
-    values (${userId}, ${gateway}, ${amount}, ${currency}, ${months})
+    insert into payments (user_id, gateway, amount, currency, months, tier, toman_per_usd)
+    values (${userId}, ${gateway}, ${amount}, ${currency}, ${months}, ${tier}, ${tomanPerUsd})
     returning *`
   return row
 }
@@ -96,14 +99,36 @@ export async function credit({ paymentId, refId, detail = null, now = Date.now()
       if (!payment) return { credited: false, payment: await byId(paymentId, tx), subscription: null }
 
       const current = await tx`
-        select paid_through from subscriptions where user_id = ${payment.user_id} for update`
+        select paid_through, tier, client_cap from subscriptions
+        where user_id = ${payment.user_id} for update`
       const paidThrough = extend(current[0]?.paid_through ?? null, payment.months, now)
 
+      /* What this purchase makes them, and what it promises.
+       *
+       * The tier comes off the payment; the cap is resolved from the catalogue here and copied
+       * onto the row, so a later reshaping of what `studio` means cannot take capacity away
+       * from somebody who already bought it. See migration 003.
+       *
+       * A payment with no tier leaves both alone. That is a row written before tiers existed,
+       * or by an instance that never sends one, and neither is a request to reclassify a
+       * subscription — the months still land, which is the part the payer cares about.
+       *
+       * Buying a smaller tier than you currently hold applies immediately and downwards. It is
+       * a downgrade the person chose, and the only thing it costs them is room to grow: the
+       * enforcement that follows this refuses *new* clients above the cap and never severs an
+       * existing link, so nobody loses a client over it. Scheduling a downgrade for the end of
+       * the term instead needs a second column and a decision about refunds, and belongs with
+       * the upgrade flow rather than here.
+       */
+      const tier = payment.tier ?? current[0]?.tier ?? DEFAULT_TIER
+      const clientCap = payment.tier ? capFor(payment.tier) : (current[0]?.client_cap ?? null)
+
       const [subscription] = await tx`
-        insert into subscriptions (user_id, paid_through)
-        values (${payment.user_id}, ${paidThrough})
+        insert into subscriptions (user_id, paid_through, tier, client_cap)
+        values (${payment.user_id}, ${paidThrough}, ${tier}, ${clientCap})
         on conflict (user_id) do update
-          set paid_through = ${paidThrough}, updated_at = now()
+          set paid_through = ${paidThrough}, tier = ${tier}, client_cap = ${clientCap},
+              updated_at = now()
         returning *`
       return { credited: true, payment, subscription }
     })
