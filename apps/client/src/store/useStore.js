@@ -3,12 +3,15 @@ import { api } from '../lib/api.js'
 import { localTZ } from '@gymbuddy/domain'
 import { registerCustom } from '@gymbuddy/domain'
 import { DEMO, DEMO_SEEDED } from '../lib/demo.js'
+import { detectLang } from '../lib/i18n.js'
 import { MOBILE, nativeLoad, nativeSave, syncReminder } from '../lib/mobile.js'
 import { sync as syncDelta, mergeChanges, resetSync, getCursor } from '../lib/sync.js'
 
 const KEY = 'gym_state_v1'
 export const DEF = {
-  unit: 'kg', restSec: 90, sound: true, keepAwake: true, lang: 'en',
+  // lang: the device's language on a first run, the profile's own choice on every run after
+  // — saved state is overlaid on this. See detectLang.
+  unit: 'kg', restSec: 90, sound: true, keepAwake: true, lang: detectLang(),
   theme: 'dark', accent: 'red', body: 'male', targetW: null,
   bodyweight: [], routines: [], week: {}, dayPlan: {},
   exWeights: {}, workouts: [], active: null, customEx: [], gifSize: 'full',
