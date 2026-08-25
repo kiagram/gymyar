@@ -16,6 +16,29 @@ export const LANGS = {
  * rules in index.css — so this set is the single switch, not a per-component decision. */
 export const RTL_LANGS = new Set(['fa'])
 export const isRTL = () => RTL_LANGS.has(lang)
+
+/* The language the device is set to, for a profile that has not chosen one.
+ *
+ * A first-run default and nothing more: `DEF` is what saved state is overlaid *on* — local,
+ * server pull and backup import all merge onto a clone of it — so a profile that has ever
+ * chosen a language keeps that choice, and only a tree with no `lang` at all lands here.
+ * (A reset comes back through here too, which is the same answer a fresh install gives.)
+ *
+ * `navigator.languages` is the user's own preference order, most wanted first, and its entries
+ * carry region and script subtags this app has no separate packs for — `fa-IR`, `pt-BR`,
+ * `zh-Hans-CN`. LANGS is keyed by the base subtag, so match on that and take the first one
+ * that ships. Falls back to English when nothing matches, or when there is no `navigator`
+ * at all: the store is imported by tests running in node, and this is evaluated at import.
+ */
+export function detectLang() {
+  if (typeof navigator === 'undefined') return 'en'
+  const prefs = navigator.languages?.length ? navigator.languages : [navigator.language]
+  for (const tag of prefs) {
+    const base = String(tag || '').toLowerCase().split('-')[0]
+    if (LANGS[base]) return base
+  }
+  return 'en'
+}
 export const INSTR_LANGS = ['en', 'es', 'fr', 'it', 'tr', 'ru', 'zh', 'hi', 'pl', 'ko']
 const DATE_LOCALES = {
   en: 'en-GB', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', it: 'it-IT', pt: 'pt-PT',

@@ -10,7 +10,7 @@
  * module touches is documentElement's two attributes.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { setLang, getLang, dateLocale, weekStartsOn, isRTL, t, exName, exSearchText, LANGS, RTL_LANGS, NAME_LANGS } from './i18n.js'
+import { setLang, getLang, dateLocale, weekStartsOn, isRTL, t, exName, exSearchText, detectLang, LANGS, RTL_LANGS, NAME_LANGS } from './i18n.js'
 import { fmtDate, startOfWeek, isoOf, EXIDX } from '@gymbuddy/domain'
 
 const realDocument = globalThis.document
@@ -229,5 +229,66 @@ describe('plural forms', () => {
   it('is the English source string again in English', async () => {
     await setLang('en')
     expect(t('{0} sets', 5)).toBe('5 sets')
+  })
+})
+
+/* The language a first run opens in.
+ *
+ * The bug this exists for is not visible in any screenshot: the app shipped with `lang: 'en'`
+ * as a hard default, so an Iranian user installing the APK on a Persian phone got an English
+ * app — a fully translated product hiding behind a settings screen they had no reason to open.
+ *
+ * `navigator` is faked here the way `document` is above.
+ */
+describe('the language the device asks for', () => {
+  const realNavigator = globalThis.navigator
+  const asDevice = value => Object.defineProperty(globalThis, 'navigator', {
+    value, configurable: true, writable: true
+  })
+  afterAll(() => asDevice(realNavigator))
+
+  it('opens in Persian on a Persian phone', () => {
+    asDevice({ languages: ['fa-IR'] })
+    expect(detectLang()).toBe('fa')
+  })
+
+  it('takes the first language it ships, in the order the user ranked them', () => {
+    // Not "the first tag" — a Farsi speaker who also reads Swedish must not get English.
+    asDevice({ languages: ['sv-SE', 'fa-IR', 'en-US'] })
+    expect(detectLang()).toBe('fa')
+    asDevice({ languages: ['de-AT', 'fa-IR'] })
+    expect(detectLang()).toBe('de')
+  })
+
+  it('matches on the base subtag, whatever region or script rides along', () => {
+    for (const [tag, want] of [['fa-IR', 'fa'], ['pt-BR', 'pt'], ['zh-Hans-CN', 'zh'], ['FA-ir', 'fa']]) {
+      asDevice({ languages: [tag] })
+      expect(detectLang()).toBe(want)
+    }
+  })
+
+  it('falls back to the single `language` when there is no list', () => {
+    // Older WebViews, and every environment that fakes one attribute and not the other.
+    asDevice({ languages: [], language: 'fa' })
+    expect(detectLang()).toBe('fa')
+    asDevice({ language: 'fa-IR' })
+    expect(detectLang()).toBe('fa')
+  })
+
+  it('is English when nothing matches, or when there is nothing to ask', () => {
+    asDevice({ languages: ['sv-SE', 'nl'] })
+    expect(detectLang()).toBe('en')
+    asDevice({ languages: [undefined, null, ''] })
+    expect(detectLang()).toBe('en')
+    asDevice(undefined)   // node, where the store is imported by tests like this one
+    expect(detectLang()).toBe('en')
+  })
+
+  it('can reach every language the picker offers', () => {
+    // A language in LANGS that detection can never return is one no device can land in.
+    for (const lang of Object.keys(LANGS)) {
+      asDevice({ languages: [lang] })
+      expect(detectLang()).toBe(lang)
+    }
   })
 })
