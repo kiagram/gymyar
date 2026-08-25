@@ -641,6 +641,7 @@ export default {
   "Payments": "Ödemeler",
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "Kendi antrenmanınız ücretsiz ve hep öyle kalacak — set kaydı, programlar, geçmiş ve istatistikler hiçbir zaman aboneliğin parçası değil. Bu, başkalarına antrenörlük yapmayı kapsıyor.",
   "Renew your subscription to message clients": "Danışanlara yazmak için aboneliğinizi yenileyin",
+  "Your plan covers {0} clients — upgrade to take on more": "Planınız {0} danışanı kapsıyor — daha fazlası için yükseltin",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

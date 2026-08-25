@@ -17,7 +17,8 @@ import {
 import { pullAll } from '@gymbuddy/db/sync.js'
 import { db } from '@gymbuddy/db'
 import { requireUser } from '../session.js'
-import { requireCoach } from '../entitlement.js'
+import { requireCoach, requireCapacity, capacityFor } from '../entitlement.js'
+import { billingEnabled } from '../payments/pricing.js'
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status })
 
@@ -27,16 +28,29 @@ export default async function coachingRoutes(app) {
   app.get('/api/coach/clients', async req => {
     const user = await requireUser(req)
     const days = Math.min(365, Math.max(7, Number(req.query?.days) || 28))
-    return { clients: await roster(user.id, { days }), windowDays: days }
+    // Capacity rides along with the roster because that is the screen it is about. A coach who
+    // can see "23 of 25" coming is not one who finds out mid-invitation.
+    const [clients, capacity] = await Promise.all([
+      roster(user.id, { days }),
+      capacityFor(user.id)
+    ])
+    return { clients, windowDays: days, capacity }
   })
 
   app.post('/api/coach/invites', async req => {
     const user = await requireUser(req)
     // Also where a first-time coach's trial starts — this is the first coach action there is.
     await requireCoach(user.id, 'takeClients')
+    // …and whether there is room for one more. Separate from the check above because they fail
+    // for different reasons and want different screens: that one means the subscription has
+    // lapsed, this one means it is too small, and only the second has an upgrade at the end of
+    // it. `inviteClient` checks again under a lock — this is the half that can explain itself.
+    await requireCapacity(user.id)
     const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : null
     const scopes = Array.isArray(req.body?.scopes) ? req.body.scopes : undefined
-    const link = await inviteClient({ coachId: user.id, email, scopes })
+    const link = await inviteClient({
+      coachId: user.id, email, scopes, enforceCap: billingEnabled()
+    })
     // The code is the invitation. Returned once, here, for the coach to pass on however they like.
     return { invite: { id: link.id, code: link.invite_code, email: link.invite_email, scopes: link.scopes } }
   })
@@ -96,7 +110,14 @@ export default async function coachingRoutes(app) {
   app.post('/api/invites/:code/accept', async req => {
     const user = await requireUser(req)
     const scopes = Array.isArray(req.body?.scopes) ? req.body.scopes : null
-    return { link: await acceptInvite({ inviteCode: req.params.code, clientId: user.id, scopes }) }
+    // The cap belongs to the coach, and it is checked here because this is where their slot is
+    // taken. What the client sees if it fails is a 409 that says their coach is full — never a
+    // 402, and never anything that reads as a bill they are being handed.
+    return {
+      link: await acceptInvite({
+        inviteCode: req.params.code, clientId: user.id, scopes, enforceCap: billingEnabled()
+      })
+    }
   })
 
   app.post('/api/invites/:code/decline', async req => {

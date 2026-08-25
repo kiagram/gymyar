@@ -641,6 +641,7 @@ export default {
   "Payments": "भुगतान",
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "आपकी अपनी ट्रेनिंग मुफ़्त है और हमेशा रहेगी — सेट दर्ज करना, प्रोग्राम, इतिहास और आँकड़े कभी सदस्यता का हिस्सा नहीं हैं। यह दूसरों को कोच करने के लिए है।",
   "Renew your subscription to message clients": "क्लाइंट को संदेश भेजने के लिए सदस्यता नवीनीकृत करें",
+  "Your plan covers {0} clients — upgrade to take on more": "आपके प्लान में {0} क्लाइंट शामिल हैं — और लेने के लिए अपग्रेड करें",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

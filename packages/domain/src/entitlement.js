@@ -101,6 +101,42 @@ export const tierFor = id => TIERS.find(t => t.id === id) ?? null
  */
 export const capFor = id => (tierFor(id)?.clientCap ?? null)
 
+/** The next tier up, for an error that wants to offer a way out rather than just a wall. */
+export function nextTierAfter(id) {
+  const cap = capFor(id)
+  if (cap == null) return null            // already unlimited — there is nothing above it
+  return PURCHASABLE_TIERS.find(t => t.clientCap != null && t.clientCap > cap) ?? null
+}
+
+/**
+ * How much room a subscription has left, given how many clients it is already carrying.
+ *
+ * The cap is read off the subscription row rather than looked up from the tier, because the
+ * row is where the promise lives — see migration 003. A null cap is unlimited, which covers
+ * three real cases and not one of them is an error: a coach who bought before tiers existed,
+ * a coach still in their trial, and an instance with no gateway configured at all.
+ *
+ * This is separate from `CAN` on purpose. Whether a coach may take clients *at all* is a
+ * property of their subscription state and nothing else, which is what makes `CAN` a plain
+ * lookup table. How many they may take is a property of the state *and* a count that has to
+ * be gone and fetched. Folding the second into the first would mean every capability check
+ * anywhere paid for a `count(*)` it did not need.
+ */
+export function capacity(sub, used = 0) {
+  const cap = sub?.client_cap ?? null
+  const unlimited = cap == null
+  return {
+    cap,
+    used,
+    tier: sub?.tier ?? DEFAULT_TIER,
+    remaining: unlimited ? null : Math.max(0, cap - used),
+    /* At the cap counts as full, not over it. A coach holding exactly their five may not take
+     * a sixth — and `>=` rather than `===` is what keeps that true for somebody who is over
+     * the line already, which is what a downgrade leaves behind. */
+    full: !unlimited && used >= cap
+  }
+}
+
 const ms = v => (v == null ? null : v instanceof Date ? v.getTime() : new Date(v).getTime())
 const latest = (a, b) => (a == null ? b : b == null ? a : Math.max(a, b))
 

@@ -641,6 +641,7 @@ export default {
   "Payments": "Pagos",
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "Tu propio entrenamiento es gratis y siempre lo será: registrar series, programas, historial y estadísticas nunca forman parte de una suscripción. Esto cubre entrenar a otras personas.",
   "Renew your subscription to message clients": "Renueva tu suscripción para escribir a tus clientes",
+  "Your plan covers {0} clients — upgrade to take on more": "Tu plan cubre {0} clientes: mejóralo para aceptar más",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

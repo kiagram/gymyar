@@ -641,6 +641,7 @@ export default {
   "Payments": "Платежи",
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "Ваши собственные тренировки бесплатны и всегда будут — записи подходов, программы, история и статистика никогда не входят в подписку. Она нужна для работы с другими людьми.",
   "Renew your subscription to message clients": "Продлите подписку, чтобы писать клиентам",
+  "Your plan covers {0} clients — upgrade to take on more": { one: "Ваш тариф рассчитан на {0} клиента — перейдите на больший, чтобы взять ещё", few: "Ваш тариф рассчитан на {0} клиента — перейдите на больший, чтобы взять ещё", many: "Ваш тариф рассчитан на {0} клиентов — перейдите на больший, чтобы взять ещё", other: "Ваш тариф рассчитан на {0} клиентов — перейдите на больший, чтобы взять ещё" },
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   entitlement, allows, extend, addMonths, trialEnd, TRIAL_DAYS, GRACE_DAYS,
-  TIERS, PURCHASABLE_TIERS, DEFAULT_TIER, isTier, isPurchasableTier, tierFor, capFor
+  TIERS, PURCHASABLE_TIERS, DEFAULT_TIER, isTier, isPurchasableTier, tierFor, capFor,
+  capacity, nextTierAfter
 } from './entitlement.js'
 
 const DAY = 86400000
@@ -189,5 +190,62 @@ describe('tiers', () => {
       expect(typeof t.clientCap).toBe('number')
       expect(capFor(t.id)).toBe(t.clientCap)
     }
+  })
+})
+
+describe('client capacity', () => {
+  const sub = (client_cap, tier = 'solo') => ({ client_cap, tier })
+
+  it('is unlimited when the row carries no cap', () => {
+    // A pre-tier subscriber, a trialling coach, an instance with no gateway. None are capped.
+    const c = capacity(sub(null, 'legacy'), 40)
+    expect(c.cap).toBeNull()
+    expect(c.remaining).toBeNull()
+    expect(c.full).toBe(false)
+  })
+
+  it('is unlimited for a coach with no subscription at all', () => {
+    expect(capacity(null, 3).full).toBe(false)
+    expect(capacity(undefined, 3).cap).toBeNull()
+  })
+
+  it('counts down as clients are taken on', () => {
+    expect(capacity(sub(5), 0).remaining).toBe(5)
+    expect(capacity(sub(5), 3).remaining).toBe(2)
+    expect(capacity(sub(5), 4).full).toBe(false)
+  })
+
+  it('is full at the cap, not one past it', () => {
+    expect(capacity(sub(5), 5).full).toBe(true)
+    expect(capacity(sub(5), 5).remaining).toBe(0)
+  })
+
+  it('stays full for a coach left over the line by a downgrade', () => {
+    const over = capacity(sub(5), 30)
+    expect(over.full).toBe(true)
+    // Never negative — this number is rendered, and "-25 remaining" helps nobody.
+    expect(over.remaining).toBe(0)
+    expect(over.used).toBe(30)
+  })
+
+  it('reports the tier it was measured against', () => {
+    expect(capacity(sub(25, 'studio'), 1).tier).toBe('studio')
+    expect(capacity(null, 0).tier).toBe(DEFAULT_TIER)
+  })
+})
+
+describe('the way out of a full tier', () => {
+  it('offers the next size up', () => {
+    expect(nextTierAfter('solo').id).toBe('studio')
+    expect(nextTierAfter('studio').id).toBe('pro')
+  })
+
+  it('has nothing to offer above the largest', () => {
+    expect(nextTierAfter('pro')).toBeNull()
+  })
+
+  it('has nothing to offer somebody who is already unlimited', () => {
+    expect(nextTierAfter('legacy')).toBeNull()
+    expect(nextTierAfter('enterprise')).toBeNull()
   })
 })

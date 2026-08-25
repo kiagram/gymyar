@@ -17,15 +17,101 @@ export const SCOPES = ['programmes', 'workouts', 'bodyweight']
 
 const code = () => crypto.randomBytes(9).toString('base64url')
 
+/* ------------------------------------------------------------ capacity ---- */
+
+/* What counts against a coach's client cap, and what does not.
+ *
+ * A client being coached takes a slot, and a paused one still does — pausing is a break in the
+ * training, not the end of the relationship, and a coach who could pause their way under the
+ * cap and take on somebody new would have found a way to buy five seats and use ten. The pair
+ * index in 001 already treats `paused` as live for exactly the same reason.
+ *
+ * `ended` and `declined` free the slot immediately. Nobody should be paying for a coaching
+ * relationship that is over.
+ *
+ * `pending` is the interesting one and it appears in only one of these two counts. An
+ * outstanding invitation is not a client — it may be declined, or ignored forever — so it does
+ * not consume capacity at the moment that matters, which is acceptance. But a coach with one
+ * slot left who sends out ten invitations has promised something to nine people they cannot
+ * deliver to, and they find out one at a time as those people are turned away. So issuing an
+ * invitation counts what is already committed, including the ones still outstanding.
+ */
+const HOLDS_A_SLOT = ['active', 'paused']
+const COMMITTED = ['active', 'paused', 'pending']
+
+const countBy = async (coachId, statuses, s) => {
+  const [row] = await s`
+    select count(*)::int as n from coaching_links
+    where coach_id = ${coachId} and status = any(${statuses})`
+  return row.n
+}
+
+/** Clients this coach is actually carrying. The number the cap is enforced against. */
+export const countClients = (coachId, s = db()) => countBy(coachId, HOLDS_A_SLOT, s)
+
+/** Clients plus invitations still outstanding. What issuing another one is checked against. */
+export const countCommitted = (coachId, s = db()) => countBy(coachId, COMMITTED, s)
+
+/**
+ * The cap on this coach's subscription, locked for the rest of the transaction.
+ *
+ * Null means unlimited and is the answer for a coach with no subscription row at all — an
+ * instance with no gateway, or an account that has never coached. Neither is a capped state.
+ *
+ * The lock is the whole point of doing this inside the caller's transaction. Two clients
+ * accepting the last slot in the same instant would otherwise both count four, both see room,
+ * and both be let in; taking `for update` on the one row they have in common serialises them,
+ * so the second one counts five and is refused. A read-then-write check without it is a race
+ * that only shows up in production, and only on the coaches who are growing fastest.
+ */
+async function lockedCap(coachId, tx) {
+  const [sub] = await tx`
+    select client_cap from subscriptions where user_id = ${coachId} for update`
+  return sub?.client_cap ?? null
+}
+
+/** Thrown when a coach is full. Not the client's fault, and phrased so nobody thinks it is. */
+const atCapacity = (cap, used) => Object.assign(
+  new Error('this coach has reached the number of clients their plan allows'),
+  { status: 409, code: 'coach_at_capacity', details: { cap, used } }
+)
+
 /* ------------------------------------------------------------- invites ---- */
 
-export async function inviteClient({ coachId, email = null, scopes = ['programmes', 'workouts'] }, s = db()) {
+/**
+ * Invite somebody to be coached.
+ *
+ * `enforceCap` defaults to off, and that direction is deliberate: an instance with no payment
+ * gateway sells nothing, caps nobody, and should not have to know that capacity is a concept.
+ * The API turns it on exactly when this deployment is billing (see routes/coaching.js), so a
+ * self-hosted GymBuddy behaves the way it did before tiers existed.
+ *
+ * The route ahead of this one checks capacity too, and does it so the coach gets an answer
+ * that offers the next tier up rather than a bare refusal. This one is the backstop for the
+ * race that check cannot win on its own — two tabs, one slot — and it holds because the count
+ * happens under the same lock as the write.
+ */
+export async function inviteClient(
+  { coachId, email = null, scopes = ['programmes', 'workouts'], enforceCap = false },
+  s = db()
+) {
   const clean = scopes.filter(x => SCOPES.includes(x))
-  const [link] = await s`
+  const insert = tx => tx`
     insert into coaching_links (coach_id, invite_email, invite_code, scopes)
     values (${coachId}, ${email}, ${code()}, ${clean})
     returning *`
-  return link
+
+  if (!enforceCap) return insert(s).then(r => r[0])
+
+  return s.begin(async tx => {
+    const cap = await lockedCap(coachId, tx)
+    if (cap != null) {
+      const used = await countCommitted(coachId, tx)
+      if (used >= cap) throw atCapacity(cap, used)
+    }
+    const [link] = await insert(tx)
+    return link
+  })
 }
 
 export const findLinkByCode = (invite, s = db()) =>
@@ -35,7 +121,7 @@ export const findLinkByCode = (invite, s = db()) =>
  * Accept an invitation. The client chooses what the coach may see; an invite that asked for
  * bodyweight does not get it because the client clicked through quickly.
  */
-export async function acceptInvite({ inviteCode, clientId, scopes = null }, s = db()) {
+export async function acceptInvite({ inviteCode, clientId, scopes = null, enforceCap = false }, s = db()) {
   return s.begin(async tx => {
     const [link] = await tx`
       select * from coaching_links where invite_code = ${inviteCode} for update`
@@ -48,6 +134,26 @@ export async function acceptInvite({ inviteCode, clientId, scopes = null }, s = 
       where coach_id = ${link.coach_id} and client_id = ${clientId}
         and status in ('pending','active','paused')`
     if (existing.length) throw Object.assign(new Error('already linked to this coach'), { status: 409 })
+
+    /* The authoritative cap check, and the only one that has to be right.
+     *
+     * It is here rather than at the route because this is the moment a slot is actually taken,
+     * and because a coach can be full for reasons that had nothing to do with them: they
+     * downgraded after sending the invitation, or somebody else accepted first. Counting under
+     * the lock taken above is what makes the last slot go to exactly one of two simultaneous
+     * arrivals.
+     *
+     * Note what is *not* happening: nothing here touches a link that already exists. A coach
+     * over their cap after a downgrade keeps every client they have — the refusal is only ever
+     * about growth, and a person's training is never taken away over somebody else's billing.
+     */
+    if (enforceCap) {
+      const cap = await lockedCap(link.coach_id, tx)
+      if (cap != null) {
+        const used = await countClients(link.coach_id, tx)
+        if (used >= cap) throw atCapacity(cap, used)
+      }
+    }
 
     const granted = (scopes ?? link.scopes).filter(x => link.scopes.includes(x))
     const [updated] = await tx`
