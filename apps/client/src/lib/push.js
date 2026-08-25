@@ -1,6 +1,7 @@
 // Web Push subscribe/unsubscribe — requires a signed-in profile (subscriptions are stored
 // server-side per user, same as everything else under /api).
 import { api } from './api.js'
+import { t } from './i18n.js'
 
 export const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 export const pushPermission = () => (pushSupported() ? Notification.permission : 'unsupported')
@@ -30,4 +31,6 @@ export async function disablePush() {
   await api('/api/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {})
 }
 
-export const sendTestPush = () => api('/api/push/test', { method: 'POST', body: '{}' })
+// The sentence travels with the request — see the note on the rest timer in store/useUI.js.
+export const sendTestPush = () =>
+  api('/api/push/test', { method: 'POST', body: JSON.stringify({ body: t('Notifications are working.') }) })

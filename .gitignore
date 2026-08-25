@@ -24,3 +24,7 @@ apps/client/android/app/build/
 apps/client/android/keystore.properties
 *.keystore
 *.jks
+
+# Built APKs. `assembleDebug` drops a 6 MB artifact into the tree on every build, and a
+# signed release one is a shippable binary that belongs on the site, not in the history.
+*.apk

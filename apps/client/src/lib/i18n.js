@@ -53,9 +53,38 @@ export const getLang = () => lang
 export const dateLocale = () => DATE_LOCALES[lang] || 'en-GB'
 export const weekStartsOn = () => WEEK_STARTS[lang] ?? 1
 
+/* Which grammatical form a number takes, for the languages where "the plural" is not one form.
+ *
+ * Call sites choose their key the way English works — `t(n === 1 ? '{0} set' : '{0} sets', n)` —
+ * so by the time a locale is asked, the plural key is carrying 0, 2, 5, 21 and everything else.
+ * German and Spanish are content with that: one form covers all of them. Russian and Polish are
+ * not — 2 подхода, 5 подходов, 21 подход — and no amount of translating a single string fixes
+ * it, because the string is the wrong shape.
+ *
+ * So a locale may give an object keyed by CLDR plural category instead of a string, and this
+ * picks the category the number actually falls in. Nothing changes at the call sites, and a
+ * locale that needs only one form still writes a plain string.
+ *
+ * `n` names which argument the noun agrees with, because it is not always the first: in
+ * "{0} of {1} sessions" the noun follows {1}. It defaults to 0, which is nearly always right.
+ */
+const pluralRules = new Map()
+const categoryOf = (count, l) => {
+  if (!pluralRules.has(l)) pluralRules.set(l, new Intl.PluralRules(l))
+  return pluralRules.get(l).select(count)
+}
+function pickForm(forms, args) {
+  const count = Number(args[forms.n ?? 0])
+  // A non-number means the caller did not pass the count it promised. 'other' is the form
+  // every locale has to define, so it is the one thing that cannot be missing.
+  const category = Number.isFinite(count) ? categoryOf(count, lang) : 'other'
+  return forms[category] ?? forms.other ?? ''
+}
+
 // Translate a source string; {0},{1}… are replaced with args (also on the English fallback).
 export function t(s, ...args) {
-  let v = dict[s] || s
+  const entry = dict[s]
+  let v = typeof entry === 'object' && entry ? pickForm(entry, args) : (entry || s)
   for (let i = 0; i < args.length; i++) v = v.replaceAll('{' + i + '}', args[i])
   return v
 }

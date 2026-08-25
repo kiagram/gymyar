@@ -31,6 +31,7 @@ const SQUARE = 'gymbuddy-icon-square.svg'        // square field — iOS masks i
 const MASKABLE = 'gymbuddy-icon-maskable.svg'    // pulled-in mark — Android adaptive, maskable
 const MARK = 'gymbuddy-mark-white.svg'           // mark alone — adaptive foreground layer
 const MARK_RED = 'gymbuddy-mark.svg'             // mark alone, brand red — served to the app
+const LOCKUP = 'gymbuddy-lockup-white.svg'       // figure above wordmark — the full logo, on ink
 
 /* Android's adaptive layers are PNGs whose sizes were fixed when the project was
  * generated; read them off disk rather than restating the density table here. */
@@ -61,6 +62,13 @@ const SPLASH_SHARE = 0.26
 const SPLASH_SHARE_SQUARE = 0.14
 
 const rel = p => p.slice(ROOT.length + 1).split(sep).join('/')
+
+/* The social card. Its only consumer is the marketing site's og:image, which is why it is a
+ * PNG and 1200×630: that is the size every scraper crops to, and none of them take an SVG.
+ * It is the sanctioned stacked lockup on the brand's off black, not a second arrangement of
+ * the logo — assets/ used to carry its own hand-drawn wordmark, which is exactly the drift
+ * this script exists to prevent. Nothing else composes it, so it lives here with the rest. */
+add(LOCKUP, 'assets/banner.png', 1200, 630, { field: SPLASH_FIELD, fill: 0.72 })
 
 add(ICON, 'apps/client/public/icon-180.png', 180, 180)
 add(ICON, 'apps/client/public/icon-512.png', 512, 512)

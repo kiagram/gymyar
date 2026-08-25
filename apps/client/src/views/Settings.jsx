@@ -76,14 +76,14 @@ export default function Settings() {
     <Section title={MOBILE ? t('Your data') : DEMO ? t('Demo') : t('Account')}>
       {MOBILE ? <>
         <Row icon="lock" iconTint="var(--acc)" title={t('All data stays on this phone')} subtitle={t('No account, no cloud — back it up anytime with Export below.')} />
-        <Row icon="rocket" iconTint="var(--indigo)" title={t('Self-host GymBuddy')} subtitle={t('Passkey sign-in, sync across your devices, your own data.')} accessory="chevron"
-          onClick={() => window.open(REPO, '_blank', 'noopener')} />
+        {REPO && <Row icon="rocket" iconTint="var(--indigo)" title={t('Self-host GymBuddy')} subtitle={t('Passkey sign-in, sync across your devices, your own data.')} accessory="chevron"
+          onClick={() => window.open(REPO, '_blank', 'noopener')} />}
       </> : DEMO ? <>
         <Row icon="sparkles" iconTint="var(--acc)" title={t('You’re in the demo')} subtitle={t('Example data, stored only in this browser — change anything you like.')} />
         <Row icon="reset" iconTint="var(--blue)" title={t('Reset demo data')} accessory="chevron"
           onClick={() => confirmSheet({ title: t('Reset demo data?'), message: t('Puts the example plan, workouts and weigh-ins back the way they started.'), confirmText: t('Reset'), onConfirm: () => { resetDemo(); nav('/home'); toast(t('Demo data reset')) } })} />
-        <Row icon="rocket" iconTint="var(--indigo)" title={t('Self-host GymBuddy')} subtitle={t('Passkey sign-in, sync across your devices, your own data.')} accessory="chevron"
-          onClick={() => window.open(REPO, '_blank', 'noopener')} />
+        {REPO && <Row icon="rocket" iconTint="var(--indigo)" title={t('Self-host GymBuddy')} subtitle={t('Passkey sign-in, sync across your devices, your own data.')} accessory="chevron"
+          onClick={() => window.open(REPO, '_blank', 'noopener')} />}
       </> : user ? <>
         <Row icon="personCircle" iconTint="var(--grey)" title={user.name} subtitle={t('Signed in with passkey — data syncs to this profile.')} />
         {user.isCoach && <Row icon="clipboard" iconTint="var(--accent)" title={t('Your clients')} subtitle={t('Rosters, adherence and programme proposals')} accessory="chevron" onClick={() => nav('/coach')} />}

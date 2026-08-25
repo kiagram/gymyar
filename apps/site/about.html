@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>About — openGym</title>
-<meta name="description" content="The story behind openGym: a gym tracker that started as a tiny personal app on a homelab server and grew into an open-source project.">
+<title>About — GymBuddy</title>
+<meta name="description" content="GymBuddy is a fork of openGym, rebuilt so a coach and a client can work on the same training without overwriting each other. What changed, and why.">
 <meta name="theme-color" content="#0c0e12">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="icon" type="image/png" sizes="180x180" href="icon-180.png">
@@ -16,90 +16,119 @@
 <nav><div class="wrap nav-in">
   <a class="brand" href="/">
     <img src="icon-180.png" alt="" width="26" height="26" style="border-radius:6px">
-    openGym
+    GymBuddy
   </a>
   <div class="nav-links">
+    <a href="/#coaching" class="hide-s">Coaching</a>
     <a href="/#features" class="hide-s">Features</a>
     <a href="/#screens" class="hide-s">Screenshots</a>
-    <a href="/#demo" class="hide-s">Demo</a>
+    <a href="/#pricing" class="hide-s">Pricing</a>
     <a href="docs.html">Docs</a>
     <a href="about.html" class="hide-s">About</a>
-    <a href="https://github.com/DuarteSantos8/openGym" rel="noopener"><span data-gh="stars">GitHub</span></a>
-    <a class="cta" href="/#download">Download</a>
+    <a href="#" data-repo="" hidden>Source</a>
+    <a class="cta" href="/#download">Get it</a>
   </div>
 </div></nav>
 
 <main class="wrap prose">
-  <h1>About openGym</h1>
-  <p class="lead">openGym wasn't planned as a product. It started as a tiny app I built for
-     one user: me.</p>
+  <h1>About GymBuddy</h1>
+  <p class="lead">GymBuddy is a fork of <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a>,
+     rebuilt so that two people — a coach and a client — can work on the same training without
+     one of them silently overwriting the other.</p>
 
-  <p>I wanted three things at the gym: log my workouts, track my body weight, and see whether
-     any of it was going anywhere. Every app I tried wanted a subscription, an account, or my
-     training data on someone else's servers — usually all three. So I did the homelab thing:
-     built a small mobile web page, put it on my own server, and started logging.</p>
+  <h2>What openGym was</h2>
+  <p>openGym is a self-hosted gym and body-weight tracker by Duarte Santos, and it is very good
+     at what it set out to do: log your workouts and your weight, on your own server, with no
+     subscription and no account on someone else's machine. Guided sessions, 1,324 exercises
+     with animations, a muscle map, progression that follows an actual rule, 12 languages. It
+     was built by someone standing in a gym with the thing in their hand, and it shows.</p>
+  <p>Everything in GymBuddy's <a href="/#features">features list</a> that concerns tracking
+     came from there. None of it was rewritten for the sake of rewriting it.</p>
 
-  <p>It turns out a tracker you build for yourself gets sharpened in a way products don't.
-     Every awkward tap at the squat rack became that evening's fix. The guided workout flow,
-     the weight pre-fills, the rest timer, the "ask my body weight before the first set"
-     ritual — none of that came from a feature list. It came from actually standing in the
-     gym with the thing in my hand.</p>
+  <h2>The one thing that had to change</h2>
+  <p>openGym stored a user's entire account as a single JSON document and synced it with a
+     whole-state <code>PUT</code> — last write wins. For one person on their own server that
+     is an elegant design: no schema to migrate, no merge logic, nothing to get wrong.</p>
+  <p>It is fatal for coaching. If a coach edits a programme while their client is mid-session,
+     one of those two edits is destroyed and nobody is told. And a server that never parses
+     what it stores can never answer a question about it — so "which of my clients has
+     stalled?" is not a query, it is a thing that cannot be asked.</p>
+  <p>So GymBuddy stores rows. Every write bumps a per-user counter and records what changed at
+     that value; a client remembers the last counter it saw and asks for whatever came after
+     it. The app still holds the whole state in memory — that part was never the problem, and
+     it is what keeps the app working with no signal in a basement gym — but the wire format
+     and the database underneath are relational.</p>
+  <p>One mapper sits between the two worlds, imported by both the client and the server, so
+     there is one of it rather than two that drift apart.</p>
 
-  <p>Then friends wanted in. That brought passkey profiles — sign in with your fingerprint,
-     no passwords, everyone's data separate — and sync, so the log survives any phone.
-     Somewhere along the way the little page got rewritten into a proper React app, learned
-     12 languages, grew a muscle map, importers for FitNotes, Strong, Hevy and Apple Health,
-     and finally became a native Android app you can install from this site.</p>
+  <h2>The rule that makes coaching safe</h2>
+  <p><b>A coach never writes a client's rows.</b> A proposed programme lands in its own table
+     and becomes real only when the client accepts it — at which point it is written as the
+     client's own row, through the ordinary sync path. There is only ever one writer per row,
+     so there is nothing to merge, and a client's own edit cannot be erased by a coach's sync.</p>
+  <p>Scopes are the other half of it. Sharing a programme does not share what you weigh. Every
+     coach-side read is checked against the scope that client granted, section by section.</p>
 
-  <p>In July 2026 I open-sourced the whole thing under the <b>AGPL</b>. The license is the
-     point, not a footnote: your training data should be yours, the software that holds it
-     should be inspectable, and nobody — including me — should be able to take a closed,
-     paid version of it away from the community.</p>
+  <h2>What the AI layer is, and is not</h2>
+  <p>The domain owns every number. Sets, reps, loads, progression policies and exercise
+     selection are computed against the real library and the same progression rules the app
+     already runs on. A language model is asked to do exactly two things: turn free text into
+     a structured brief, and write the note explaining a change. Both have a deterministic
+     implementation underneath them.</p>
+  <p>Which model does that is configuration — a hosted provider, or one on your own hardware
+     as the failover underneath it, which is what an outage, a lapsed key and a blocked route
+     all look like from here. With no key set at all, GymBuddy builds the same plans, finds the
+     same stalls and parses the same logs; it phrases things from a template instead of writing
+     prose, in whichever language the person is using, and the app says so plainly.</p>
+  <p>That is what makes it safe to expose. Nothing can invent a lift that is not in the
+     library, or put 140&nbsp;kg on a beginner's bar.</p>
 
-  <p>openGym still runs on the same homelab server it started on, and I still log every
-     session with it. That's the quality bar: I'm the first user of every release.</p>
-
-  <p class="who" style="color:var(--faint)">— <a href="https://duarte-santos.ch" rel="noopener">Duarte Santos</a></p>
-
-  <h2>Milestones</h2>
-  <!-- The releases below are a static fallback: site.js replaces them with the live list
-       of published GitHub releases, so this page never needs manual updating. Only the
-       first entry (pre-GitHub) is permanent. -->
-  <ul class="tl" id="milestones">
-    <li><b>The personal app</b><span class="when">early summer 2026</span>
-      <p>A hand-written vanilla-JS page on my own server. One user, zero ambitions.</p></li>
-    <li data-fallback><b>v1.0.0 — open-sourced</b><span class="when">July 20, 2026</span>
-      <p>Docker-Compose self-hosting, passkey profiles, guided workouts, 1,324-exercise
-         library. AGPL from day one.</p></li>
-    <li data-fallback><b>Every release since</b><span class="when">ongoing</span>
-      <p>See the full list on <a href="https://github.com/DuarteSantos8/openGym/releases" rel="noopener">GitHub → Releases</a>.</p></li>
-  </ul>
+  <h2>Three products, one codebase</h2>
+  <p>The web app is the whole thing: accounts, sync, coaching, subscriptions. The native builds
+     are a <a href="/#download">different product on purpose</a> — an offline single-user
+     tracker with no accounts, no backend and nothing to buy. Training data lives in a file on
+     the phone, and the network layer throws if anything tries to reach a server, so the
+     privacy declaration those builds ship with is enforced rather than promised.</p>
 
   <h2>Principles</h2>
   <ul>
     <li><b>Your data is yours.</b> Local-first, one-file backups, no lock-in — leaving
-        openGym must always be one export away.</li>
-    <li><b>No telemetry, ever.</b> If a feature needs analytics to justify itself, it
-        doesn't ship.</li>
-    <li><b>Dependency-light.</b> The backend is one Node file with a single dependency;
-        the frontend is React, a router and a store. Small enough to actually audit.</li>
-    <li><b>Open source that stays open.</b> AGPL-3.0, so every fork and every hosted
-        version owes its code back to everyone.</li>
+        GymBuddy must always be one export away.</li>
+    <li><b>A client is never the product.</b> Training is free and ungated. The only thing a
+        subscription can ever gate is a coach taking on new work.</li>
+    <li><b>No telemetry, ever.</b> If a feature needs analytics to justify itself, it does not
+        ship.</li>
+    <li><b>The model never has the last word.</b> Anything it produces is a draft that a person
+        confirms, and there is a deterministic path underneath it that works with no model at
+        all.</li>
+    <li><b>Open source that stays open.</b> AGPL-3.0, so every fork and every hosted version
+        owes its code back to everyone — this one included.</li>
   </ul>
 
+  <h2>Licence and credit</h2>
+  <p>GymBuddy is licensed <b>AGPL-3.0-or-later</b>, inherited from openGym and kept
+     deliberately. Section 13 means anyone using a hosted instance is entitled to its source,
+     which is the correct outcome for software that holds other people's training.</p>
+  <p>Copyright in the parts derived from openGym remains with Duarte Santos, and the full
+     licence chain — including the app-store additional permission granted under section 7,
+     and the separate terms covering the exercise images and animations — is recorded in the
+     project's <code>NOTICE.md</code>. The exercise media is <b>not</b> covered by the AGPL and
+     is not ours to sublicense; see the <a href="docs.html#faq">FAQ</a>.</p>
+
   <div class="hero-btns" style="justify-content:flex-start;margin:30px 0 10px">
-    <a class="btn" href="/#download">Get openGym</a>
-    <a class="btn ghost" href="https://github.com/DuarteSantos8/openGym" rel="noopener">Star it on GitHub</a>
+    <a class="btn" href="/#download">Get GymBuddy</a>
+    <a class="btn ghost" href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym, upstream</a>
+    <a class="btn ghost" href="#" data-repo="" hidden>GymBuddy source</a>
   </div>
 </main>
 
 <footer><div class="wrap foot">
-  <span>openGym · AGPL-3.0 · © 2026 <a href="https://duarte-santos.ch" rel="noopener">Duarte Santos</a></span>
+  <span>GymBuddy · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
   <div class="links">
     <a href="docs.html">Docs</a>
     <a href="about.html" class="hide-s">About</a>
-    <a href="https://github.com/DuarteSantos8/openGym" rel="noopener">GitHub</a>
-    <a href="https://duartesantos8.github.io/openGym/" rel="noopener">Live demo</a>
+    <a href="/#pricing">Pricing</a>
+    <a href="#" data-repo="" hidden>Source</a>
   </div>
 </div></footer>
 

@@ -1,8 +1,12 @@
-/* openGym project site — matches the app: dark, lime accent, cards, system font. */
+/* GymBuddy project site — matches the app: dark, brand red, cards, system font. */
 :root {
   --bg: #0c0e12; --card: #16181d; --card2: #1c1f26; --line: #23262d;
   --fg: #f2f2f7; --dim: #8e8e93; --faint: #6e6e73;
-  --acc: #30d158; --acc-dim: rgba(48, 209, 88, .12);
+  --acc: #e63935; --acc-dim: rgba(230, 57, 53, .12);
+  /* Brand red carries text at 4.6:1 on --bg, but white on it is only 4.2:1. Filled
+   * controls therefore sit one step darker so their white label clears AA. Same red
+   * to the eye; the difference is only there to make the contrast legal. */
+  --acc-fill: #d42e2a;
   color-scheme: dark;
 }
 * { margin: 0; box-sizing: border-box; }
@@ -30,7 +34,7 @@ nav {
 .nav-links { display: flex; gap: 18px; margin-left: auto; align-items: center; flex-wrap: wrap; }
 .nav-links a { color: var(--dim); font-size: 14.5px; font-weight: 500; }
 .nav-links a:hover { color: var(--fg); text-decoration: none; }
-.nav-links a.cta { color: #0c0e12; background: var(--acc); padding: 7px 14px; border-radius: 10px; font-weight: 600; }
+.nav-links a.cta { color: #fff; background: var(--acc-fill); padding: 7px 14px; border-radius: 10px; font-weight: 600; }
 .icn { fill: none; stroke: var(--acc); stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ---------- hero ---------- */
@@ -38,7 +42,7 @@ header.hero { text-align: center; padding: 74px 0 30px; }
 .hero .logo {
   width: 108px; height: 108px; margin: 0 auto 22px; border-radius: 26px;
   background: var(--card); display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 90px rgba(48, 209, 88, .14);
+  box-shadow: 0 0 90px rgba(230, 57, 53, .16);
 }
 .hero .logo svg { width: 66px; height: 66px; }
 .hero h1 { font-size: clamp(38px, 7vw, 56px); letter-spacing: -.03em; }
@@ -48,11 +52,11 @@ header.hero { text-align: center; padding: 74px 0 30px; }
 
 .btn {
   display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 13px;
-  background: var(--acc); color: #0c0e12; font-weight: 600; font-size: 16px;
+  background: var(--acc-fill); color: #fff; font-weight: 600; font-size: 16px;
 }
 .btn:hover { text-decoration: none; filter: brightness(1.08); }
 .btn.ghost { background: var(--card2); color: var(--fg); }
-.btn .ct { background: rgba(0, 0, 0, .18); border-radius: 7px; padding: 1px 8px; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.btn .ct { background: rgba(0, 0, 0, .22); border-radius: 7px; padding: 1px 8px; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .btn.ghost .ct { background: rgba(255, 255, 255, .08); }
 
 /* ---------- sections ---------- */
@@ -80,14 +84,7 @@ h2 { font-size: clamp(26px, 4.5vw, 34px); letter-spacing: -.02em; margin: 6px 0 
 }
 .shots figcaption { color: var(--faint); font-size: 13px; margin-top: 8px; }
 
-/* ---------- embedded live demo ---------- */
-.demo-wrap { display: flex; justify-content: center; padding: 10px 0 6px; }
-.phone {
-  width: 384px; max-width: 92vw; height: min(720px, 78vh); border-radius: 42px;
-  border: 10px solid #1c1f26; overflow: hidden; background: #000;
-  box-shadow: 0 34px 90px rgba(0, 0, 0, .55);
-}
-.phone iframe { width: 100%; height: 100%; border: 0; display: block; }
+/* ---------- demo-seed note ---------- */
 .demo-note { text-align: center; color: var(--faint); font-size: 13.5px; margin-top: 14px; }
 
 /* ---------- flavors ---------- */
@@ -95,7 +92,7 @@ h2 { font-size: clamp(26px, 4.5vw, 34px); letter-spacing: -.02em; margin: 6px 0 
 .card {
   background: var(--card); border-radius: 18px; padding: 24px; border: 1px solid transparent;
 }
-.card.hl { border-color: rgba(48, 209, 88, .35); }
+.card.hl { border-color: rgba(230, 57, 53, .35); }
 .card h3 { font-size: 20px; margin-bottom: 4px; display: flex; gap: 9px; align-items: center; }
 .card .for { color: var(--faint); font-size: 13.5px; margin-bottom: 14px; }
 .card ul { list-style: none; padding: 0; margin: 0 0 18px; }
@@ -142,18 +139,6 @@ p code, li code { background: var(--card2); border-radius: 6px; padding: 1.5px 6
 .toc { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0 6px; }
 .toc a { background: var(--card); border-radius: 999px; padding: 7px 15px; font-size: 13.5px; color: var(--dim); }
 .toc a:hover { color: var(--fg); text-decoration: none; }
-
-/* ---------- timeline ---------- */
-.tl { list-style: none; padding: 0; margin: 26px 0; position: relative; }
-.tl::before { content: ""; position: absolute; left: 7px; top: 6px; bottom: 6px; width: 2px; background: var(--line); }
-.tl li { position: relative; padding: 0 0 26px 34px; }
-.tl li::before {
-  content: ""; position: absolute; left: 0; top: 6px; width: 12px; height: 12px;
-  border-radius: 50%; background: var(--bg); border: 3px solid var(--acc);
-}
-.tl b { display: block; font-size: 16.5px; color: var(--fg); }
-.tl .when { color: var(--faint); font-size: 13px; }
-.tl p { margin-top: 4px; }
 
 /* ---------- footer ---------- */
 footer { border-top: 1px solid var(--line); margin-top: 70px; padding: 30px 0 46px; }
