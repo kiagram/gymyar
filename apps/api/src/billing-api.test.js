@@ -572,3 +572,67 @@ describe('the price index, end to end', () => {
     expect(r.body.priceIndex).not.toHaveProperty('multiplier')
   })
 })
+
+describe('the billing screen’s data', () => {
+  const setCap = (id, cap, tier = 'solo') => db()`
+    update subscriptions set tier = ${tier}, client_cap = ${cap} where user_id = ${id}`
+
+  it('carries the whole grid, each tier with its terms and its ceiling', async () => {
+    const { coach } = await linked()
+    const r = await coach.get('/api/billing/status')
+
+    expect(r.body.tiers.map(x => x.tier)).toEqual(['solo', 'studio', 'pro'])
+    expect(r.body.tiers.map(x => x.clientCap)).toEqual([5, 25, 100])
+    for (const x of r.body.tiers) expect(x.terms.map(term => term.months)).toEqual([1, 3, 12])
+  })
+
+  it('costs more for a bigger plan, and less per month for a longer one', async () => {
+    const { coach } = await linked()
+    const [solo, studio, pro] = (await coach.get('/api/billing/status')).body.tiers
+    expect(solo.terms[0].toman).toBeLessThan(studio.terms[0].toman)
+    expect(studio.terms[0].toman).toBeLessThan(pro.terms[0].toman)
+    for (const x of [solo, studio, pro]) {
+      expect(x.terms[2].perMonthToman).toBeLessThan(x.terms[0].perMonthToman)
+    }
+  })
+
+  it('says how full the plan is, so the screen can pick one that fits', async () => {
+    const { coach, coachUser } = await linked()
+    await setCap(coachUser.id, 25, 'studio')
+    const r = await coach.get('/api/billing/status')
+    expect(r.body.capacity).toMatchObject({ cap: 25, used: 1, remaining: 24, tier: 'studio' })
+  })
+
+  it('charges the tier that was chosen, not the cheapest one', async () => {
+    const { coach, coachUser } = await linked()
+    const r = await coach.post('/api/billing/checkout', { months: 1, tier: 'pro' })
+
+    expect(r.status).toBe(200)
+    expect(r.body.tier).toBe('pro')
+    expect(r.body.amount).toBe(7_490_000)          // 749,000 Toman in Rials
+    const [p] = await db()`select * from payments where user_id = ${coachUser.id}`
+    expect(p.tier).toBe('pro')
+  })
+
+  it('tells the payer at the gateway how many clients they are buying', async () => {
+    const { coach } = await linked()
+    await coach.post('/api/billing/checkout', { months: 3, tier: 'studio' })
+    // The last thing they read before paying, on a bank page where "studio" means nothing.
+    expect(gw.request).toHaveBeenCalledWith(
+      expect.objectContaining({ description: expect.stringContaining('25 clients') })
+    )
+  })
+
+  it('refuses a tier that is not for sale', async () => {
+    const { coach } = await linked()
+    expect((await coach.post('/api/billing/checkout', { months: 1, tier: 'legacy' })).status).toBe(400)
+    expect((await coach.post('/api/billing/checkout', { months: 1, tier: 'enterprise' })).status).toBe(400)
+  })
+
+  it('still sells the entry tier to a client that never heard of tiers', async () => {
+    const { coach } = await linked()
+    const r = await coach.post('/api/billing/checkout', { months: 1 })
+    expect(r.status).toBe(200)
+    expect(r.body.tier).toBe('solo')
+  })
+})

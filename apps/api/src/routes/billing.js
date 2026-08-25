@@ -31,7 +31,7 @@ import { entitlement } from '@gymbuddy/domain/entitlement.js'
 import { requireUser } from '../session.js'
 import { config } from '../config.js'
 import { limit } from '../rate-limit.js'
-import { entitlementFor } from '../entitlement.js'
+import { entitlementFor, capacityFor } from '../entitlement.js'
 import {
   billingEnabled, billingConfig, catalogue, tierCatalogue, amountFor, isOfferedTerm,
   isSellableTier, capForTier, ENTRY_TIER, gatewayFromEnv, priceIndex
@@ -56,12 +56,15 @@ export default async function billingRoutes(app, opts = {}) {
    */
   app.get('/api/billing/status', async req => {
     const user = await requireUser(req)
-    const ent = await entitlementFor(user.id)
+    const [ent, capacity] = await Promise.all([entitlementFor(user.id), capacityFor(user.id)])
     return {
       enabled: billingEnabled(),
       currency: billingConfig().currency,
       sandbox: billingConfig().sandbox,
       entitlement: ent,
+      // How full they are, so this screen can pick a sensible tier for them and warn when the
+      // one they picked is smaller than the roster they already have.
+      capacity,
       // The whole grid, tier by tier. `terms` stays beside it, priced at the entry tier, so a
       // client built before tiers existed keeps rendering something true rather than nothing.
       tiers: billingEnabled() ? tierCatalogue() : [],

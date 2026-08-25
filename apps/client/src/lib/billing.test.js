@@ -5,7 +5,7 @@
  * lapsing, a payment that came back unconfirmed.
  */
 import { describe, it, expect } from 'vitest'
-import { describeEntitlement, readOutcome, isPaymentRequired, termLabel, CHECKOUT_OUTCOMES, isCapReached} from './billing.js'
+import { describeEntitlement, readOutcome, isPaymentRequired, termLabel, CHECKOUT_OUTCOMES, isCapReached, tierLabel, capacityLabel, extendedTo} from './billing.js'
 
 const DAY = 86400000
 const inDays = n => new Date(Date.now() + n * DAY).toISOString()
@@ -138,5 +138,51 @@ describe('spotting a full plan', () => {
 
   it('is still a payment refusal, so the existing routing keeps working', () => {
     expect(isPaymentRequired({ status: 402, code: 'client_cap_reached' })).toBe(true)
+  })
+})
+
+describe('naming a tier', () => {
+  it('names it by what it lets you do, not by what we call it internally', () => {
+    // "Studio" means nothing to somebody choosing between three cards.
+    expect(tierLabel(25)).toBe('Up to 25 clients')
+    expect(tierLabel(5)).toBe('Up to 5 clients')
+  })
+
+  it('has a word for the plans with no ceiling', () => {
+    expect(tierLabel(null)).toBe('Unlimited clients')
+    expect(tierLabel(undefined)).toBe('Unlimited clients')
+  })
+})
+
+describe('how full a plan is', () => {
+  it('counts towards the ceiling', () => {
+    expect(capacityLabel({ used: 12, cap: 25 })).toBe('12 of 25 clients')
+  })
+
+  it('says nothing when there is no ceiling to count towards', () => {
+    expect(capacityLabel({ used: 40, cap: null })).toBeNull()
+    expect(capacityLabel(null)).toBeNull()
+  })
+})
+
+describe('what a term buys', () => {
+  /* Local parts, not the ISO string. `addMonths` walks the calendar in local time — deliberately,
+   * since a subscription runs out on a date the subscriber recognises — so comparing UTC would
+   * be asserting the runner's timezone rather than the arithmetic. */
+  const ymd = d => [d.getFullYear(), d.getMonth() + 1, d.getDate()]
+
+  it('stacks onto time already paid for rather than burning it', () => {
+    const until = new Date(2026, 9, 1)          // 1 October 2026, local
+    expect(ymd(extendedTo(until, 1))).toEqual([2026, 11, 1])
+    expect(ymd(extendedTo(until, 12))).toEqual([2027, 10, 1])
+  })
+
+  it('starts from now for somebody who has never paid', () => {
+    expect(extendedTo(null, 1).getTime()).toBeGreaterThan(Date.now())
+  })
+
+  it('does not stack onto a date that has already gone', () => {
+    // That time is spent. A lapsed coach buys a month from today, not a month from 2020.
+    expect(extendedTo(new Date(2020, 0, 1), 1).getFullYear()).toBeGreaterThan(2020)
   })
 })

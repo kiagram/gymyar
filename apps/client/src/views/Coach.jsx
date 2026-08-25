@@ -11,7 +11,7 @@ import { Section, Row, Button, TextField, Check } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { t } from '../lib/i18n.js'
 import { fetchRoster, createInvite, SCOPE_INFO, daysSince } from '../lib/coaching.js'
-import { fetchBilling, describeEntitlement, isPaymentRequired, isCapReached } from '../lib/billing.js'
+import { fetchBilling, describeEntitlement, isPaymentRequired, isCapReached, capacityLabel } from '../lib/billing.js'
 
 const WINDOW_DAYS = 28
 
@@ -78,7 +78,9 @@ function InviteSheet({ close, nav }) {
       // with no way forward.
       if (isCapReached(e)) {
         toast(t('Your plan covers {0} clients — upgrade to take on more', e.details?.cap))
-        close(); nav('/billing')
+        // The size they need, carried to the screen that sells it. Being told what is wrong and
+        // then having to work out which card fixes it is two steps where one will do.
+        close(); nav(e.details?.nextTier ? `/billing?tier=${e.details.nextTier}` : '/billing')
       }
       else if (isPaymentRequired(e)) { close(); nav('/billing') }
       else setErr(e.message)
@@ -139,15 +141,20 @@ function InviteSheet({ close, nav }) {
  *
  * Hidden entirely on an instance with no gateway — `describeEntitlement` answers null for
  * `unbilled`, and a self-hosted GymBuddy should have no idea subscriptions exist. */
-function SubscriptionRow({ billing, nav }) {
+function SubscriptionRow({ billing, capacity, nav }) {
   const status = describeEntitlement(billing?.entitlement)
   if (!status) return null
   const tint = status.tone === 'stop' ? 'var(--red)' : status.tone === 'warn' ? 'var(--orange)' : undefined
+  /* How full the plan is, beside how long is left on it. A coach who can see 23 of 25 coming is
+   * not one who finds the ceiling halfway through inviting somebody. Absent on an uncapped
+   * plan, where there is no number to count towards. */
+  const used = capacityLabel(capacity)
   return (
     <Section>
       <Row
         icon="star" iconTint={tint}
         title={status.title} subtitle={status.detail}
+        value={used || undefined}
         accessory="chevron" onClick={() => nav('/billing')}
       />
     </Section>
@@ -160,11 +167,15 @@ export default function Coach() {
   const user = useStore(s => s.user)
   const [params] = useSearchParams()
   const [clients, setClients] = useState(null)
+  const [capacity, setCapacity] = useState(null)
   const [billing, setBilling] = useState(null)
   const [err, setErr] = useState(null)
 
   const load = async () => {
-    try { setClients((await fetchRoster(WINDOW_DAYS)).clients); setErr(null) }
+    try {
+      const r = await fetchRoster(WINDOW_DAYS)
+      setClients(r.clients); setCapacity(r.capacity); setErr(null)
+    }
     catch (e) { setErr(e.message) }
   }
   useEffect(() => { load() }, [])
@@ -227,7 +238,7 @@ export default function Coach() {
             <Button variant="primary" icon="plus" onClick={invite}>{t('Invite a client')}</Button>
           </div>
         </Section>
-        <SubscriptionRow billing={billing} nav={nav} />
+        <SubscriptionRow billing={billing} capacity={capacity} nav={nav} />
         </>
       ) : (
         <>
@@ -249,7 +260,7 @@ export default function Coach() {
           <Section>
             <Row icon="plus" title={t('Invite a client')} accessory="chevron" onClick={invite} />
           </Section>
-          <SubscriptionRow billing={billing} nav={nav} />
+          <SubscriptionRow billing={billing} capacity={capacity} nav={nav} />
         </>
       )}
       <div style={{ height: 24 }} />
