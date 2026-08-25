@@ -642,6 +642,15 @@ export default {
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "Kendi antrenmanınız ücretsiz ve hep öyle kalacak — set kaydı, programlar, geçmiş ve istatistikler hiçbir zaman aboneliğin parçası değil. Bu, başkalarına antrenörlük yapmayı kapsıyor.",
   "Renew your subscription to message clients": "Danışanlara yazmak için aboneliğinizi yenileyin",
   "Your plan covers {0} clients — upgrade to take on more": "Planınız {0} danışanı kapsıyor — daha fazlası için yükseltin",
+  "Revenue": "Gelir",
+  "Prices are indexed at {0} Toman to the dollar, read {1}.": "Fiyatlar dolar başına {0} tümen üzerinden endeksleniyor, {1} tarihinde alındı.",
+  "The rate is out of date, so only the shortest term is on sale. Last read {0}.": "Kur güncel değil, bu yüzden yalnızca en kısa süre satışta. Son kayıt: {0}.",
+  "Prices are not indexed, so they lose value as the rial does. Set TOMAN_PER_USD to hold it.": "Fiyatlar endekslenmiyor, bu yüzden riyalle birlikte değer kaybediyor. Korumak için TOMAN_PER_USD ayarlayın.",
+  "Nothing collected yet": "Henüz tahsilat yok",
+  "{0} payment": "{0} ödeme",
+  "{0} payment recorded no rate, so it is missing from the dollar column": "{0} ödemede kur yok, dolar sütununda görünmüyor",
+  "{0} payments": "{0} ödeme",
+  "{0} payments recorded no rate, so they are missing from the dollar column": "{0} ödemede kur yok, dolar sütununda görünmüyorlar",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---
