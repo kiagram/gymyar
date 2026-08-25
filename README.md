@@ -149,7 +149,12 @@ the App Store and Google Play are not available on this path at all, and which c
 - [x] **Phase 4** — programme generation, training review, logging by typing
 - [x] **Phase 5** — Persian and RTL, locale-aware weeks, rate limits, provider choice
 - [x] **Phase 6** — subscriptions end to end; release engineering and store metadata
+- [x] **Phase 7** — the visual identity, every icon cut from one vector and checked in CI
 - [ ] **Launch** — exercise media licence, legal review, a public repository
+
+See [CHANGELOG.md](CHANGELOG.md) for what all of that actually amounts to, and for the
+known gaps — the exercise media is not licensed for a paid deployment, and there is no
+public repository yet.
 
 ## Before launch
 

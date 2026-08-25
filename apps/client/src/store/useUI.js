@@ -5,9 +5,17 @@ import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
 import { useStore } from './useStore.js'
 
-// Fire-and-forget: lets the server push a "rest over" alert if this tab gets suspended
-// before the local timer completes. No-ops for guests / offline.
-const pushRestTimer = sec => { if (useStore.getState().user) api('/api/push/rest-timer', { method: 'POST', body: JSON.stringify({ seconds: sec }) }).catch(() => {}) }
+/* Fire-and-forget: lets the server push a "rest over" alert if this tab gets suspended
+ * before the local timer completes. No-ops for guests / offline.
+ *
+ * The words go with the request. The server has no language for a user — nothing stores one,
+ * and the locale packs are in this bundle — so the side that knows is the side that has to
+ * say, or a Persian app buzzes in English. */
+const pushRestTimer = sec => {
+  if (!useStore.getState().user) return
+  const body = JSON.stringify({ seconds: sec, title: t('Rest over'), body: t('Next set.') })
+  api('/api/push/rest-timer', { method: 'POST', body }).catch(() => {})
+}
 const cancelPushRestTimer = () => { if (useStore.getState().user) api('/api/push/rest-timer/cancel', { method: 'POST', body: '{}' }).catch(() => {}) }
 
 let toastTm = null

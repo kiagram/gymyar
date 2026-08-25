@@ -1,5 +1,356 @@
 # Changelog
 
+Two projects live in this file. GymBuddy's own releases come first; under
+[openGym, before the fork](#opengym-before-the-fork) is the history of the project this one
+was forked from, kept as it was written.
+
+**About the version number.** GymBuddy starts again at 1.0.0. openGym had reached v1.2.4 by
+the time of the fork, so the first version below is a lower number than the ones further
+down the page — those are a different product's version line, not a release this one
+regressed from. The reset is also load-bearing: Android's `versionCode` must strictly
+increase or the OS refuses an update, and the fork inherited openGym's `versionCode 5`.
+1.0.0 stamps as build 10000 and clears it.
+
+---
+
+## v1.0.0 — unreleased
+
+GymBuddy is openGym with a second person in it. Everything openGym did for one person
+tracking their own training is here, and none of it is gated. What is new is a coach on the
+other side of it — and the storage rewrite that had to happen first, because two people
+could not touch the same training without one of them silently erasing the other.
+
+### Rows instead of one JSON document
+
+openGym stored a user's entire account as a single JSON document and synced it with a
+whole-state `PUT`, last write wins. For one person on their own server that is an elegant
+design: no schema, no merge logic, nothing to get wrong. For coaching it is fatal. A coach
+editing a programme while their client is mid-session destroys one of those two edits and
+tells nobody, and a server that never parses what it stores can never answer a question
+about it — so "which of my clients has stalled?" is not a slow query, it is a question that
+cannot be asked.
+
+- 🗄️ **Postgres, and a delta sync.** Every write to a syncable row goes through
+  `log_change()`, which bumps a per-user counter and records what changed at that value. A
+  client remembers the last counter it saw and asks for what came after it, instead of
+  sending its whole account and hoping.
+- The app still holds the entire state in memory as its working copy — that part was never
+  the problem, and it is what keeps training working with no signal. One mapper
+  (`packages/domain/src/statemap.js`) sits between the two worlds and is imported by both
+  sides, so there is one of it rather than two that drift.
+- 🧱 **One `exercises` table** with a nullable owner replaces the library/custom split, so
+  every set carries a real foreign key and the exercise media sits behind swappable URLs.
+  A licence refusal on the artwork becomes an `UPDATE` rather than a migration.
+- 📥 **An openGym account comes across.** The code that turns an openGym state file into
+  rows is part of the project rather than a one-off script, and the demo seeder runs through
+  the same path — so the migration is exercised every time anyone seeds.
+
+### Coaching: a coach proposes, a client accepts
+
+The whole design rests on one rule, and it is a property of the schema rather than a promise
+in a settings screen.
+
+- 🤝 **A coach never writes a client's rows.** A proposed programme lands in
+  `routine_revisions` and becomes real only when the client accepts it — at which point it
+  is written as the client's own row, through the ordinary sync path. There is exactly one
+  writer per row, so there is nothing to merge, and a client's own edit cannot be erased by
+  a coach's sync.
+- 🔒 **Scopes gate every coach-side read**, section by section. Sharing a programme does not
+  share what you weigh, and a scope can be withdrawn later.
+- 📊 **A roster sorted by what needs attention**, not by name: adherence per client, who has
+  gone quiet, whose loads have stalled.
+- 📨 **An inbox that shows the diff.** A client sees sets and reps before and after, so
+  accepting a proposal is a decision rather than a click.
+- 💬 **Messaging** attached to the client and the week it concerns.
+- 🔑 **Email and password sign-in alongside passkeys.** Passkey-only is a dead end for a
+  mainstream signup — "create an account" cannot fail on a device whose browser will not do
+  WebAuthn.
+- 🐳 `docker compose up` really is the only command: the API container migrates and seeds on
+  boot, and both are idempotent. `SEED_DEMO` creates a coach and three clients with twelve
+  weeks of training each — including one who shares only programmes and one who stopped
+  turning up, because a roster where everybody is at 100% demonstrates nothing.
+
+### Programmes, review, and logging by typing
+
+The division of labour matters more than the feature list: **the domain owns every number, a
+language model owns language.**
+
+- 🧮 **Sets, reps, loads, progression policies and exercise selection are computed** by
+  `packages/domain/src/planner.js`, against the real library and the same progression rules
+  the app already runs on. A model is asked to do exactly two things — turn free text into a
+  structured brief, and write the note explaining a change — and both have deterministic
+  implementations underneath.
+- **With no API key configured, GymBuddy builds the same plans, finds the same stalls and
+  parses the same logs.** It phrases things from a template instead of writing prose, in
+  whichever language the person is using, and `/api/ai/status` says so. Nothing here can
+  invent a lift that is not in the library, or put 140 kg on a beginner's bar.
+- 🔍 **Selection resolves patterns by name against the live data** and requires a named
+  match rather than treating one as a tie-break. Going by target muscle alone was putting
+  "left hook. boxing" into overhead-press slots and "rear deltoid stretch" into rear-delt
+  slots — the dataset tags both as delts. Heavy compounds vary across the week, so a
+  four-day split no longer prescribes barbell deadlift 5×5 twice; accessories do not vary,
+  because reaching for variety there finds "dumbbell biceps curl squat".
+- 📉 **Training review reads logged sets only**, never self-report. Stalls come from the same
+  `stallCount` the progression policies use, attendance counts finished sessions, and "this
+  is too easy" needs four rated sessions before it will say so.
+- ✍️ **Nothing is ever applied for you.** A review's worst finding becomes a routine in the
+  app's own shape — which is exactly the payload the propose endpoint takes — so a coach
+  reviews a filled-in composer and sends it. Nothing reaches a client that a coach did not
+  send, and there is no endpoint that writes training.
+- ⌨️ **Log a session by typing it.** "deadlift 100x5" is one set of five at a hundred, not a
+  hundred sets. A model only ever rewrites phrasing the parser could not read; the parser
+  still does the naming, so a model cannot put an exercise into a log that is not in the
+  library.
+
+### Persian, and a week that starts where your locale starts it
+
+Farsi is the twelfth locale and the first that is not written left to right. Adding it turned
+up three things that were never about translation.
+
+- 🗓️ **The week grid was anchored to Monday.** Iran's week starts on Saturday, and a Monday
+  anchor does not fail visibly — it shifts every heatmap cell, every streak and every "this
+  week" count by two days. `weekKey` is now the start of the week as a calendar day, computed
+  from the locale, so a cell and the offset that positions it cannot disagree.
+- 🌍 **The domain was building user-facing sentences out of English fragments** the client had
+  no way to translate. Those moved to `domain/messages.js`, behind the adapter the rest of the
+  domain already used.
+- ↔️ **The layout mirrors under `[dir="rtl"]`.** Two things cannot be mirrored by CSS logical
+  properties alone — a transform and a directional glyph — and those are handled explicitly
+  rather than left to look almost right.
+- 🏋️ **Exercise names are translated for the 66 the planner can actually emit**, found by
+  sweeping `buildProgramme` across the brief space rather than by guessing. The generator
+  refuses to write the file if the planner ever reaches one that is missing; everything
+  outside that set falls back to its English name.
+- 🌐 **The whole app is translated, not just the parts a solo lifter sees.** 204 strings — the
+  roster, client detail, the proposal composer, the inbox, the plan builder, the training
+  review, typed logging, sign-in and the admin screen — called `t()` correctly and had no
+  entry in any of the twelve locale files, so they rendered in English everywhere, worst in
+  Farsi where the layout mirrors around them. They are translated now, in all twelve.
+- 🔎 **The check that missed it, fixed.** `scripts/check-locales.mjs` only ever compared the
+  locales against each other, which is why 204 strings missing from *all* of them passed
+  every run. It now also reads the source: a `t('…')` with no entry anywhere fails CI, so
+  the next screen cannot ship the same way.
+- 🔢 **Plurals, for the languages where "the plural" is not one form.** Call sites pick their
+  key the way English works — `t(n === 1 ? '{0} set' : '{0} sets', n)` — which quietly hands
+  Russian and Polish a single string to cover 2, 5 and 21. It is not a translation that was
+  missing, it is a shape: 2 подхода, 5 подходов, 21 подход. A locale can now give an object
+  keyed by CLDR category instead of a string and `t()` selects through `Intl.PluralRules`,
+  with `n` naming which argument the noun agrees with when it is not the first ("{0} of {1}
+  sessions" follows the second). No call site changed; 68 entries across `ru.js` and `pl.js`
+  did, and `check-locales.mjs` fails a plural object that is missing a category its language
+  distinguishes, drops a placeholder, or appears in a language that has only one form.
+- 🔔 **Push notifications speak the reader's language too** — inherited from openGym, where
+  the text was written server-side and shipped English to everyone. Nothing stores a
+  language for a user, and the locale packs live in the client bundle, so the fix is not a
+  second dictionary on the server: the client sends the words with the request that schedules
+  the timer, at the one moment it is awake and knows both. English is what the server sends
+  if a client omits them, which is what an older build looks like from there.
+
+### A choice of model, and limits that do not punish a neighbourhood
+
+- 🔌 **The model layer stopped being Anthropic-shaped.** One OpenAI-compatible adapter covers
+  DeepSeek, Ollama and the rest, in two tiers: the fast one answers the jobs the domain
+  re-validates anyway, the deep one writes the note a person reads verbatim. A local model is
+  the failover, since an outage, a lapsed key and a blocked route are indistinguishable from
+  inside the process.
+- 🚦 **Rate limiting is on by default and keyed by account, not by address.** Users behind
+  carrier-grade NAT share an address, so an IP-keyed limit lets one abuser lock out a
+  neighbourhood. Sign-in is keyed by the identifier being tried, so failing to guess one
+  person's password cannot lock anyone else out.
+
+### Subscriptions, on the coach and never on a client
+
+Training is free and stays free — logging, programmes, history, stats, all ungated. What a
+subscription buys is the coach side: taking on clients, proposing programmes to them, and
+messaging them.
+
+- 🙅 **A client is never gated.** Not to accept a proposal, not to answer their coach, not to
+  change a scope. They are not the customer, and a coach whose payment lapses cannot take
+  their clients' training away — it was never the coach's to take, since a client's rows are
+  written through their own sync.
+- 👀 **Reading survives every state.** A lapsed coach still opens the roster they built and
+  the conversations they had. What stops is growth and authorship. Grace keeps messaging on,
+  because the week somebody's payment fails is the week they most need to explain it.
+- 🏠 **No merchant id means no billing.** A self-hosted instance gets coaching free and never
+  writes a subscription row; `describeEntitlement` answers null, so the roster grows no
+  subscription row and the app has no idea the concept exists. The paid tier is a property of
+  a *deployment*, not of the software — which is the only honest reading of a licence that
+  lets us charge for hosting rather than for code.
+- 💳 **Zarinpal**, because Stripe and Paddle are available to neither Iranian merchants nor
+  Iranian cardholders. It has no recurring billing, so a subscription is a **paid-through
+  date** that a purchase extends — stacked onto whatever is left, so paying early is never
+  punished — rather than a state machine something upstream drives.
+- 🔁 **It cannot bill twice.** There are no webhooks either, so payment is confirmed when the
+  payer's browser returns — and browsers come back twice: a refresh, a retry, a link opened
+  on two devices. The unique index on `ref_id` is what stops a second verify being credited,
+  and `credit()` writes first and treats the violation as the success it is, because a
+  read-then-check loses that race and an index cannot. Verifying always sends the *stored*
+  amount, so a tampered callback is a rejection from the gateway rather than a cheap year.
+- 🔎 **The ones that never come back are found, not hoped for.** `stalePayments()` and
+  `unverified()` exist to find people who paid and got nothing.
+- 🧾 **A subscription screen at `/billing`** that says what you have, what it costs to keep
+  it, and what you have paid. Its wording is a decision table in `lib/billing.js` rather than
+  a conditional per screen, because the same five states are described in three places and
+  three screens disagreeing about whether a trial has "ended" or "run out" reads as three
+  bugs.
+  - **A 402 is a destination, not an error message.** Proposing a change or messaging a
+    client on a lapsed subscription sends the coach to the screen that fixes it. A red
+    sentence with no way forward is how you lose a customer who was trying to pay you.
+  - **Nobody's training is ever implied to be at risk.** The expired state leads with the
+    fact that clients keep their training and lose nothing. A paywall that leaves the reader
+    unsure whether their own logged sets are hostage deserves to lose the sale.
+  - `pending` gets its own wording and its own tone. We asked the gateway and could not get
+    an answer, so calling it a failure would be a lie about their money — it says we are
+    checking, and not to pay again.
+
+### Two products from one codebase
+
+The native builds were always a different product. This makes that deliberate rather than
+incidental.
+
+- 📱 **The mobile build has no accounts, no backend, no coaching and nothing to buy.**
+  Training data lives in a file in the app's private storage.
+- 🚫 **`api()` now throws in the native build.** Every caller was already behind a check, but
+  "should never run" is not what you want underneath a privacy declaration that says the app
+  transmits nothing. A screen that forgets the check now fails loudly in development instead
+  of quietly reaching out. `/billing` is routed away in mobile and demo builds rather than
+  left to fail against a server that is not there.
+- ✅ **A check standing behind that declaration.** `infra/scripts/check-mobile-hosts.mjs`
+  builds the mobile bundle and fails on any host not accounted for, with a written reason for
+  each of the seven that are. Six are link targets, error-message URLs and an SVG namespace;
+  exactly one — jsDelivr — is actually fetched.
+- 🌐 **Coaching is a web product.** Anyone who wants it uses the PWA, which is also the whole
+  answer to every store's rules about who may take money for digital goods: a build with no
+  accounts and no payment surface raises none of them.
+
+### A visual identity, cut from one vector
+
+- 🔴 **The mark**: the figure with its arms crossed, one silhouette with the muscle contours
+  cut out of it as negative space. On the red field it reads white with red lines; on paper,
+  red with white lines. One shape, two colourways, no second piece of artwork. It is a real
+  vector traced from the brand artwork rather than upscaled from it.
+- 🎨 **GymBuddy red `#E63935`** (Pantone 185 C), read off the brand system's own colour sheet
+  rather than sampled by eye. It is a token of its own, `--brand`, identical in both themes —
+  `--red` stays Apple's, because that is the *error* colour and a destructive action should
+  look the way the platform says it looks.
+- 🏭 **One source, twenty-odd outputs.** `infra/scripts/render-logo.mjs` cuts every raster
+  from the vectors — PWA icons, the SVG favicon, twenty-four Android mipmaps, the iOS app
+  icon, both platforms' launch screens. Nobody edits a PNG by hand, so they cannot drift, and
+  CI fails a build where a committed one has. `--check` compares per-pixel with a tolerance
+  rather than byte-for-byte, because a PNG rendered by Chromium on Linux is not the same file
+  as one rendered on Windows, and a check that fails on the developer's own operating system
+  is a check that gets deleted.
+- 🖼️ **The launch screen is a layout rule, not a drawing**: the icon tile centred on off
+  black at 26% of the shorter side, with night variants, since the app is dark whichever way
+  the system is set and a light launch screen would flash white before the first paint.
+- ✒️ **The wordmark and lockups are vectors too**, traced off the hero render's alpha channel
+  — a letterform is exactly its alpha, so the shading inside it stops mattering. `BUDDY` is
+  red in every colourway; only `GYM` and the tagline change.
+
+### Release engineering
+
+- 🔢 **One version, four files.** They had drifted to three answers: the workspace said 0.1.0,
+  Android said 1.2.4 with openGym's `versionCode 5`, and iOS said 1.0. `infra/scripts/version.mjs`
+  stamps one version into the workspace packages, the Gradle file, the Xcode project and the
+  PWA manifest; `--check` fails on drift, and CI runs it.
+- 🔐 **Release signing**, reading a gitignored `keystore.properties` or `GYMBUDDY_KEYSTORE_*`
+  from the environment — and building unsigned with a warning when it has neither, so a
+  contributor can check the release build compiles without holding a key.
+- 📄 **Store listings in English and Persian**, written separately rather than translated, and
+  both describing the offline app — a listing that promises coaching the binary does not have
+  is a rejection. Plus privacy answers for Play Data safety, Apple's labels and Cafe Bazaar.
+- 📸 **The screenshots are generated, not collected.** `infra/scripts/screenshots.mjs` drives a
+  real browser over a seeded demo stack and captures the five screens the listings are written
+  around, at 1170×2532. Both languages: `--fa` switches the app to Persian through its own
+  settings and asserts the layout actually mirrored before shooting anything, because a
+  silently-failed language switch produces an English set under a Persian filename. Shooting
+  against the seed rather than a fresh account is what keeps a store from rejecting the set as
+  placeholder data — and the Persian home screen is also the clearest evidence the
+  locale-aware week works, since it starts on Saturday.
+- 🌏 **The store situation is stated plainly.** The Apple Developer Program and Google Play
+  Console are not available to Iranian developers or Iranian companies. That is not a step
+  that was skipped — it is not a step that exists on this path, and `docs/RELEASING.md` says
+  so rather than leaving the next person to discover it at signup. What exists instead: a
+  signed APK, Cafe Bazaar and Myket, and the PWA on iOS.
+- CI gained the version check, the locale check, the release-tooling suite and the mobile host
+  check, ordered so the *web* bundle is what is left in `dist/` rather than the backend-less
+  one.
+
+### Under the hood
+
+- **Fastify** replaces openGym's 554-line hand-rolled HTTP server. Passkey registration and
+  login carry across unchanged in substance; sessions keep openGym's signed-cookie scheme,
+  including the `session_version` bump that revokes every device at once. Routes throw
+  `{ status }` and one error handler turns that into a response, so permission rules read as
+  rules and a 500 logs its detail instead of leaking it.
+- **The tree is an npm workspace**: `apps/client`, `apps/api`, `apps/site`, `packages/domain`,
+  `packages/db`, `packages/ai`, `infra`.
+- **`packages/domain` is runtime-agnostic** — no DOM, no React, no Vite-only syntax — so the
+  same code that computes a prescription on a phone in a basement computes it on the server
+  when a coach or the planner proposes a programme. Translation goes through an i18n adapter
+  seam that the client registers its runtime into and that falls back to English elsewhere.
+- **The exercise library is served, not only bundled**, since a coach picking movements for
+  someone else has no local catalogue for them.
+- **The app id** moved from `ch.duartesantos.opengym` to `com.gymbuddy.app` across Capacitor,
+  the Android package and the iOS project.
+
+### Known limitations
+
+- 🖼️ **The exercise media is not licensed for a commercial deployment.** The 1,324 animations
+  are © [Gym visual](https://gymvisual.com/) and the dataset grants us nothing; they are
+  fetched from upstream on first run rather than redistributed here. Exercise rows carry
+  `image_url` and `animation_url`, so replacing the source is an `UPDATE` — but until that
+  happens or a licence is obtained, this cannot ship as a paid product.
+- 📦 **There is no public repository yet**, and the AGPL requires one before a hosted instance
+  takes payment. See `docs/PUBLISHING.md`. Until there is one, the app's "self-host GymBuddy"
+  links are hidden rather than pointed somewhere, `SECURITY.md` has no private reporting
+  channel to name, and `CONTRIBUTING.md` has no issue tracker to send anyone to.
+
+### Fixed, inherited from openGym
+
+- 🪟 **`npm run build:mobile` had never worked on Windows.** It used a `VAR=value cmd` prefix,
+  which is shell syntax, and npm runs scripts through `cmd.exe` — where it is a syntax error.
+  Documented in two places and broken the whole time. The environment moved to
+  `apps/client/.env.mobile` and `vite build --mode mobile`.
+- 🔢 **Android's `versionCode` was 5**, inherited at the fork and never reset. It must strictly
+  increase or Android refuses to install an update at all.
+- 🧩 **`exercises.js` read `import.meta.env`**, which is Vite-only, so the extracted domain
+  package threw on import in plain Node. Media bases now go through a setter, and a test runs
+  the package in a real Node process — vitest's transform would have hidden it.
+- 📚 **`truncate users cascade` took the shared exercise library with it**, because
+  `exercises` has an FK to `users`. Deletes cascade properly; there is now a test that fails
+  if anyone reintroduces it.
+- 🔴 **`.err` was used by every view that can fail to load and had never been given a colour**,
+  so a failure rendered as ordinary body copy.
+- 📖 **`docs/MOBILE.md` was still entirely openGym's** — `frontend/` paths,
+  `opengym-state.json`, and a download link to somebody else's site.
+
+### Security
+
+- 🚨 **`data/` and `media/` were dropped from the tree and gitignored.** The GitHub re-upload
+  this code was read from had committed a live instance's **session signing secret, VAPID
+  private key and user records**, along with 2,649 Gym visual media files that upstream
+  deliberately does not ship. If you are running anything derived from that re-upload, rotate
+  those secrets.
+- The remote it came from is named `source` rather than `origin`, so a reflexive `git push`
+  cannot send this work to a stranger's public tree.
+
+### Licence
+
+GymBuddy is **AGPL-3.0-or-later**, inherited from openGym and kept deliberately. `NOTICE.md`
+carries openGym's attribution and its AGPL section 7 App Store permission verbatim, with a
+note that the permission travels to this work — and that its condition, corresponding source
+available under the AGPL, binds us too.
+
+---
+
+# openGym, before the fork
+
+Everything below is openGym's changelog as it stood at the fork, by Duarte Santos. Canonical
+upstream: <https://gitea.com/DuarteSantos/openGym>. It describes openGym, not GymBuddy — the
+storage model, the sign-in options and the distribution channels it refers to have all since
+changed. It is kept for provenance and for the attribution trail.
+
 ## v1.2.4 — 2026-08-01
 
 The effort ratings you have been recording since v1.2.3 now answer questions, and bodyweight

@@ -1,50 +1,76 @@
-# Self-hosting openGym
+# Self-hosting GymBuddy
 
-openGym is two small containers (a web server and an API) plus a folder of your data.
-This guide takes you from "just cloned it" to "using it from my phone over the internet".
+Three containers and a Postgres volume: nginx serving the built app, the Fastify API, and the
+database. This guide takes you from "just cloned it" to "using it from my phone over the
+internet".
+
+If you only want the offline single-user tracker, none of this applies — that build has no
+backend at all. See [MOBILE.md](MOBILE.md).
 
 ## 1. Run it locally (5 minutes)
 
-Requirements: [Docker](https://docs.docker.com/get-docker/) with the Compose plugin.
+Requirements: [Docker](https://docs.docker.com/get-docker/) with the Compose plugin. No Node
+needed — the images build the app for you.
 
 ```bash
-git clone https://github.com/DuarteSantos8/gym-app opengym
-cd opengym
+git clone <your-repo> gymbuddy
+cd gymbuddy
 cp .env.example .env
-docker compose pull   # prebuilt images from ghcr.io (amd64 + arm64) — or skip and build from source
-docker compose up -d
+docker compose up -d --build
 ```
 
-- First start downloads the exercise images/GIFs (~140 MB) once into `app/img` and `app/gif`.
-- Open **http://localhost:8080** and create a profile with a passkey.
-- Rather build from source than pull prebuilt images? Skip `docker compose pull` and run
-  `docker compose up -d --build` instead — no Node needed locally either way.
+- First start downloads the exercise images and GIFs (~140 MB) once into `./media/img` and
+  `./media/gif`, then migrates the schema and seeds the 1,324-exercise library.
+- With `SEED_DEMO=1` — the default in `.env.example` — it also creates a demo coach and three
+  clients with twelve weeks of training each. The accounts are listed in the
+  [README](../README.md).
+- Open **http://localhost:8080** and create a profile.
 
 Check it's healthy:
 
 ```bash
 docker compose ps
-curl http://localhost:8080/api/health      # {"ok":true,...}
+curl http://localhost:8080/api/health      # {"ok":true,"users":4}
 ```
 
-Logs: `docker compose logs -f`. Stop: `docker compose down`.
+Logs: `docker compose logs -f`. Stop: `docker compose down` — the database volume survives that;
+`down -v` destroys it.
 
-## 2. Understand the passkey requirement (important)
+## 2. What is actually running
 
-openGym signs you in with **passkeys** (WebAuthn). Browsers enforce two rules:
+| Service | What it does | State |
+|---|---|---|
+| `web` | nginx: serves the built React app **and** proxies `/api` to the API, so everything is one origin — which WebAuthn requires. Also serves the exercise media. | none |
+| `api` | Fastify on :3000, internal only. Migrates and seeds on every boot; both are idempotent, so every boot after the first is a no-op. | none |
+| `db` | Postgres 16. **Every account and every set ever logged.** | `gymbuddy_db` volume |
+| `media` | One-shot: clones the exercise dataset into `./media`, then exits. Skipped if the files are already there. | `./media` |
 
-1. Passkeys are bound to an exact **hostname** (`RP_ID`).
+The exercise media is © [Gym visual](https://gymvisual.com/) and licensed separately from this
+code — see [NOTICE.md](../NOTICE.md). Fine for a personal instance; a commercial deployment needs
+its own licence or its own assets.
+
+## 3. Sign-in, and why HTTPS matters
+
+GymBuddy signs you in two ways: **passkeys** (WebAuthn) and **email + password**. Passkeys are
+what the UI leads with; the password path exists because "sign up" cannot be a dead end on a
+device whose browser will not do passkeys.
+
+Browsers enforce two rules on passkeys:
+
+1. They are bound to an exact **hostname** (`RP_ID`).
 2. They only work over **HTTPS** — with one exception: `http://localhost`.
 
-So `http://localhost:8080` works on the machine running Docker, but **another device (your
-phone) cannot use `http://<your-LAN-ip>:8080`** — that's neither localhost nor HTTPS, so the
-passkey prompt won't appear. To use openGym from your phone you need a real HTTPS hostname.
+So `http://localhost:8080` works on the machine running Docker, but **another device cannot use
+`http://<your-LAN-ip>:8080`** — that is neither localhost nor HTTPS, so the passkey prompt never
+appears. Email and password work over plain HTTP, but sending a password in clear text across
+your network is not a plan, and the session cookie is only marked `Secure` when `ORIGIN` is
+`https:`. To use GymBuddy from your phone, get a real HTTPS hostname.
 
-(You can still open it over LAN in **guest mode**, which stores data only in that browser.)
+(You can also open it over LAN in **guest mode**, which keeps data in that browser only.)
 
-## 3. Expose it over HTTPS on your own domain
+## 4. Expose it over HTTPS on your own domain
 
-Put openGym behind something that terminates TLS for a hostname you control, then point it at
+Put GymBuddy behind something that terminates TLS for a hostname you control, then point it at
 the `web` container. Pick whichever you already run:
 
 ### Option A — Cloudflare Tunnel (no open ports)
@@ -63,7 +89,7 @@ gym.example.com {
 ### Option C — Traefik / nginx / Nginx Proxy Manager
 
 Route `gym.example.com` (HTTPS) → `web:80` (or `<docker-host>:8080`). Any reverse proxy works —
-openGym only needs the browser to reach it over `https://gym.example.com`.
+GymBuddy only needs the browser to reach it over `https://gym.example.com`.
 
 Then set your domain in `.env` and restart:
 
@@ -71,8 +97,8 @@ Then set your domain in `.env` and restart:
 # .env
 RP_ID=gym.example.com
 ORIGIN=https://gym.example.com
+RP_NAME=GymBuddy
 WEB_PORT=8080
-RP_NAME=openGym
 ```
 
 ```bash
@@ -82,88 +108,135 @@ docker compose up -d
 Visit `https://gym.example.com`, create your profile, and add it to your home screen
 (iOS: Share → Add to Home Screen · Android: ⋮ → Add to Home screen).
 
-> Changing `RP_ID` later invalidates existing passkeys (they were bound to the old hostname).
+> Changing `RP_ID` later invalidates existing passkeys — they were bound to the old hostname.
 > Pick your domain before people register.
 
-## 4. Multiple users
+## 5. Before you call it production
 
-Anyone who can reach the URL can create their own profile — each gets isolated data. That's the
-default: open signup, no admin.
-
-If you'd rather control who gets in, two optional settings in `.env` turn that around:
+Four settings, and the first one is not optional:
 
 ```bash
-ADMIN_UIDS=youruserid      # comma-separated; these users get the admin dashboard
-INVITE_ONLY=1              # new profiles need an invite code
+SESSION_SECRET=          # openssl rand -hex 32
+SEED_DEMO=               # empty — you do not want demo accounts on a real instance
+RATE_LIMIT=on            # counted per account, not per IP address
+SESSION_DAYS=90
 ```
 
-Register your own passkey profile first, then find your id in `./data/db.json` under `users[].id`
-and put it in `ADMIN_UIDS`. You'll get an **Admin dashboard** link in Settings: who's training
-right now, each user's workout history and body weight, the ability to disable an account (signed
-out and locked out everywhere until you re-enable it), and — with `INVITE_ONLY=1` — generating and
-revoking invite codes. Existing accounts keep working when you switch invite-only on. Admin access
-is gated by your passkey and enforced server-side, so it needs no separate login.
+**`SESSION_SECRET` is required.** The API image runs with `NODE_ENV=production`, and the API
+refuses to start without a secret rather than inventing one — a generated secret changes when the
+container is replaced, which signs every user out on every deploy.
 
-Prefer to keep the whole thing off the open internet? A VPN or an auth proxy (Authelia, Cloudflare
-Access…) in front still works, and composes with the above.
+Leave `RATE_LIMIT` on for anything reachable from the internet: the drafting endpoints call a
+language model, so an unthrottled loop spends your money. Requests are counted against the
+signed-in account rather than the IP address, because many users share one carrier address and
+counting by address lets one of them lock out the rest.
 
-## 5. Backups
+Two optional subsystems are configured entirely in `.env`, and both are documented inline in
+[`.env.example`](../.env.example): the **language model** — fully optional, and with no key set
+plans, reviews and text logging all still work, in template wording rather than prose — and
+**billing**, which is off unless you set a merchant id, in which case coaching is free on your
+instance and no subscription row is ever written.
 
-Everything is in `./data`:
+## 6. Who can join
+
+By default anyone who can reach the URL can create their own profile, and each gets isolated
+data: open signup, no admin.
+
+To control who gets in, turn on invite-only and promote yourself to admin:
 
 ```bash
-tar czf opengym-backup-$(date +%F).tar.gz data/
+# .env
+INVITE_ONLY=true
 ```
 
-That archive contains all profiles, passkeys and workout history. Restore by unpacking it back
-into the project folder. (Individual users can also export their own data as JSON from Settings.)
+Admin is a column on the user row rather than an environment variable, so there is no way to be
+admin of an instance you have not registered on. Register first, then:
 
-## 6. Notifications
+```bash
+docker compose exec db psql -U gymbuddy -d gymbuddy -c "update users set is_admin = true where email = 'you@example.com'"
+```
 
-openGym can push two kinds of alert to your phone/desktop, even when the app isn't open:
-rest-timer-over, and a reminder on days you have a workout planned but haven't logged one yet.
-Turn it on per-profile in **Settings → Notifications** (requires a signed-in passkey profile and
-HTTPS — see section 3).
+Sign out and back in, and Settings grows an **Admin dashboard**: everyone on the instance with
+their session count and when they last trained, the ability to disable an account — signed out
+and locked out until you re-enable it — and generating and revoking invite codes. It is gated
+server-side on `is_admin`, so it needs no separate login. Existing accounts keep working when you
+switch invite-only on.
 
-No setup needed server-side, and nothing to configure per timezone: VAPID keys are generated on
-first run and saved to `./data/vapid.json`, and each user's browser reports its own timezone
-automatically when they turn the reminder on — it fires at their local time, and follows them if
-they travel, regardless of what timezone the server itself runs in.
+Prefer to keep the whole thing off the open internet? A VPN or an auth proxy (Authelia,
+Cloudflare Access…) in front still works, and composes with the above.
+
+## 7. Backups
+
+**The database is the backup.** `./media` is 140 MB of files that can be re-downloaded, and the
+containers hold nothing.
+
+```bash
+docker compose exec -T db pg_dump -U gymbuddy gymbuddy | gzip > gymbuddy-$(date +%F).sql.gz
+```
+
+Restore into an empty database:
+
+```bash
+gunzip -c gymbuddy-2026-08-23.sql.gz | docker compose exec -T db psql -U gymbuddy -d gymbuddy
+```
+
+That dump holds every profile, passkey credential, coaching relationship and set ever logged.
+Take it on a schedule and keep it somewhere that is not the same disk. Individual users can also
+export their own training as JSON from **Settings → Data**, which is a per-user convenience and
+not an instance backup — it carries no other accounts, no credentials and no coaching state.
+
+## 8. Notifications
+
+GymBuddy can push a rest-timer-over alert to your phone or desktop even when the app is not open.
+Turn it on per-profile in **Settings → Notifications** — it needs a signed-in profile and HTTPS,
+see section 4.
+
+This one needs server-side setup. Generate a VAPID pair **once** and keep it:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+```bash
+# .env
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:you@example.com
+```
+
+Changing the pair later silently breaks every existing subscription, and nobody finds out until
+their rest timer stops firing. With the keys unset the API reports notifications as unconfigured
+and nothing is sent.
 
 **Keep screen awake** (Settings → *During a workout*) has the same transport requirement: the
 Wake Lock API is only available over HTTPS or on `http://localhost`, so on a plain-LAN-IP
 instance the switch shows as unsupported. Nothing to configure server-side either way, and iOS
 refuses the lock while the phone is in Low Power Mode.
 
-## 7. Updating
-
-Running prebuilt images:
-
-```bash
-git pull                    # picks up compose/config changes
-docker compose pull
-docker compose up -d
-```
-
-Building from source instead:
+## 9. Updating
 
 ```bash
 git pull
 docker compose up -d --build
 ```
 
-The app shell is versioned (`?v=N`) so clients pick up changes on next load. Your `./data` and the
-downloaded media are untouched.
+Schema migrations run on boot, in order, and are recorded — so an upgrade is the same command as
+a first install. `./media` and the database volume are untouched. The app shell is versioned, so
+clients pick up the new build on their next load.
+
+Take a backup before an upgrade that carries a migration (section 7). Migrations do not roll back.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| No passkey prompt on my phone | You're on `http://` or an IP, not HTTPS. Set up a domain (section 3). |
-| "verification failed" on login | `RP_ID`/`ORIGIN` don't match the URL in the address bar. Make them exact, restart. |
-| Media didn't download | `docker compose logs media`. Re-run `docker compose up -d`, or run `./scripts/fetch-media.sh`. |
-| Port 8080 already used | Set `WEB_PORT=9090` in `.env` (and update `ORIGIN` for local testing). |
-| No "Notifications" option in Settings | Requires a signed-in profile and HTTPS (or `localhost`) — guest mode and plain HTTP over LAN can't subscribe. |
-| Day reminder fires at the wrong time | Toggle it off and on in Settings so it re-detects your browser's timezone (also happens automatically on every app load — see section 6). |
-| Want to reset a stuck login | Delete the cookie in your browser; sessions are just signed cookies. |
-| `docker compose pull` fails with "denied" / "unauthorized" | The prebuilt images aren't published yet, or need to be, or the GHCR package is still private — build from source instead (`docker compose up -d --build`). |
+| No passkey prompt on my phone | You are on `http://` or an IP, not HTTPS. Set up a domain (section 4). |
+| "verification failed" on login | `RP_ID`/`ORIGIN` do not match the URL in the address bar. Make them exact, restart. |
+| The api container exits immediately | Read `docker compose logs api`. Most often `SESSION_SECRET must be set in production` (section 5). |
+| Media did not download | `docker compose logs media`. Re-run `docker compose up -d`, or run `./infra/scripts/fetch-media.sh` on the host. |
+| Port 8080 already in use | Set `WEB_PORT=9090` in `.env`, and update `ORIGIN` for local testing. |
+| No "Notifications" option in Settings | Needs a signed-in profile, HTTPS (or `localhost`), and VAPID keys on the server (section 8). Guest mode cannot subscribe. |
+| Everyone signed out after a deploy | `SESSION_SECRET` was not set, so a new one was generated. Set it and it stops. |
+| A stuck login | Delete the cookie in your browser; sessions are just signed cookies. |
+| Demo accounts on a real instance | `SEED_DEMO` was set on first boot. Clear it *first*, restart, then delete the four accounts — the seed skips only while `coach@gymbuddy.test` exists, so deleting them with `SEED_DEMO` still set recreates them on the next boot. |
+| Signed-in users see an app with no sign-in | You deployed the *mobile* bundle. `npm run sync:mobile` leaves a backend-less build in `apps/client/dist`; deploy with `npm run build`. See [RELEASING.md](RELEASING.md). |

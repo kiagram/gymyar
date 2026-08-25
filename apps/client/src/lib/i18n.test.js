@@ -142,3 +142,92 @@ describe('exercise names', () => {
     expect(exSearchText(bench)).toBe('barbell bench press')
   })
 })
+
+/* The coaching UI, in a language that is not English.
+ *
+ * These strings called `t()` correctly from the day they were written and had no entry in
+ * any locale file, so every one of the twelve languages rendered them in English — worst in
+ * Farsi, where the layout mirrors around them. The gap was invisible to the locale checker
+ * of the time, which only compared locales against each other, and invisible to the app,
+ * which falls back by design. A few of the load-bearing ones are pinned here; the rest are
+ * covered by scripts/check-locales.mjs, which now reads the source too.
+ */
+describe('the coaching UI speaks the reader\'s language', () => {
+  it('translates what a coach sees', async () => {
+    await setLang('fa')
+    expect(t('Clients')).toBe('شاگردان')
+    expect(t('Propose a change')).toBe('پیشنهاد تغییر')
+    expect(t('Send proposal')).toBe('فرستادن پیشنهاد')
+  })
+
+  it('translates what a client sees, including the sentence that says what accepting does', async () => {
+    await setLang('fa')
+    expect(t('Coaching')).toBe('مربی‌گری')
+    expect(t('Your plan is unchanged until you accept.')).toBe('تا نپذیرید، برنامه‌تان دست‌نخورده می‌ماند.')
+  })
+
+  it('keeps the placeholder through the translation', async () => {
+    await setLang('fa')
+    // A locale that drops {0} loses the coach's name and reads as a sentence about nobody.
+    expect(t('{0} wants to coach you', 'سارا')).toBe('سارا می‌خواهد مربی شما باشد')
+    expect(t('{0} of {1} sessions', 3, 5)).toBe('3 از 5 جلسه')
+  })
+
+  it('is English again in English', async () => {
+    await setLang('en')
+    expect(t('Propose a change')).toBe('Propose a change')
+  })
+})
+
+/* Plural forms, where "the plural" is more than one form.
+ *
+ * Call sites pick their key the English way — singular for 1, plural for everything else — so
+ * Russian and Polish were being handed 2, 5 and 21 with a single translated string to cover
+ * them all. It reads as "5 подход" to a native speaker and as nothing at all to everyone else,
+ * which is why it survived twelve locales and a locale checker.
+ */
+describe('plural forms', () => {
+  it('picks the Russian form the number actually takes', async () => {
+    await setLang('ru')
+    expect(t('{0} sets', 1)).toBe('1 подход')
+    expect(t('{0} sets', 2)).toBe('2 подхода')
+    expect(t('{0} sets', 5)).toBe('5 подходов')
+    expect(t('{0} sets', 21)).toBe('21 подход')     // back to `one`, which is the whole point
+    expect(t('{0} sets', 0)).toBe('0 подходов')
+  })
+
+  it('picks the Polish form, which splits 2–4 from 5+', async () => {
+    await setLang('pl')
+    expect(t('{0} workouts', 1)).toBe('1 trening')
+    expect(t('{0} workouts', 3)).toBe('3 treningi')
+    expect(t('{0} workouts', 8)).toBe('8 treningów')
+    expect(t('{0} workouts', 22)).toBe('22 treningi')
+  })
+
+  it('agrees with the argument the noun belongs to, not always the first', async () => {
+    await setLang('ru')
+    // "{0} reps in reserve across {1} sessions" — {0} is an average, {1} is the count.
+    const key = 'Even the hardest set is averaging {0} reps in reserve across {1} sessions. The load is climbing slower than the person is.'
+    expect(t(key, '1.5', 2)).toContain('за 2 тренировки')
+    expect(t(key, '1.5', 7)).toContain('за 7 тренировок')
+  })
+
+  it('leaves languages with one plural form as plain strings', async () => {
+    await setLang('de')
+    expect(t('{0} sets', 2)).toBe('2 Sätze')
+    await setLang('zh')
+    expect(t('{0} sets', 5)).toBe('5 组')
+  })
+
+  it('falls back to `other` when the count is not a number', async () => {
+    await setLang('ru')
+    // Nothing should render a bare category name or an empty string if a caller slips.
+    expect(t('{0} sets')).toBe('{0} подхода')
+    expect(t('{0} sets', 'many')).toBe('many подхода')
+  })
+
+  it('is the English source string again in English', async () => {
+    await setLang('en')
+    expect(t('{0} sets', 5)).toBe('5 sets')
+  })
+})

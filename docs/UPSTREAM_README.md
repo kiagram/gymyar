@@ -1,51 +1,30 @@
-<div align="center">
+# openGym's README, archived
 
-<img src="assets/banner.png" alt="openGym" width="720">
-
-<br>
+> **This describes openGym, not GymBuddy. Nothing in it is instructions for this project.**
+>
+> It is the README of the upstream project as it stood when GymBuddy forked it, kept here for
+> provenance: GymBuddy is an AGPL derivative work, and [NOTICE.md](../NOTICE.md) carries the
+> licence chain and the App Store additional permission inherited along with the code. Canonical
+> upstream: <https://gitea.com/DuarteSantos/openGym>.
+>
+> Much of what follows is no longer true of this codebase. openGym stored each account as JSON
+> files under `./data`, signed in with passkeys only, and ran without a database server;
+> GymBuddy replaced all three — see [ARCHITECTURE.md](ARCHITECTURE.md) for why. So the
+> configuration table, the `./data` layout, `ADMIN_UIDS`, the auto-generated push keys and the
+> `docker compose pull` step below all belong to openGym. For GymBuddy, read the
+> [README](../README.md) and [SELF_HOSTING.md](SELF_HOSTING.md).
+>
+> The original header — banner, badges, screenshots and demo links — is dropped rather than
+> repointed: those image paths now resolve to GymBuddy's own assets, and the badges reported
+> live counts from a repository that is not this one. The text below is otherwise unedited,
+> except that its relative links, which pointed at files in openGym's tree, are given as plain
+> text so they do not resolve to files here that say something different.
 
 **A self-hosted gym & body-weight tracker you actually own.**
 
 Plan your week, run guided workouts, track every set and your body weight over time —
 on your phone, synced across devices, behind your own passkey login.
 No account on someone else's server, no subscription, no ads. Just `docker compose up`.
-
-<br>
-
-[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-a3e635?style=flat-square)](LICENSE)
-![Self-hosted](https://img.shields.io/badge/self--hosted-%F0%9F%8F%A0-60a5fa?style=flat-square)
-![PWA](https://img.shields.io/badge/PWA-installable-a78bfa?style=flat-square)
-![React](https://img.shields.io/badge/React-19-38bdf8?style=flat-square&logo=react&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-compose-2496ED?style=flat-square&logo=docker&logoColor=white)
-![No tracking](https://img.shields.io/badge/telemetry-none-f472b6?style=flat-square)
-<br>
-![GitHub last commit](https://img.shields.io/github/last-commit/DuarteSantos8/openGym?style=flat-square)
-[![GitHub stars](https://img.shields.io/github/stars/DuarteSantos8/openGym?style=flat-square)](https://github.com/DuarteSantos8/openGym/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/DuarteSantos8/openGym?style=flat-square)](https://github.com/DuarteSantos8/openGym/issues)
-
-</div>
-
-<br>
-
-<div align="center">
-<table>
-<tr>
-<td align="center"><img src="assets/screenshots/home.png" alt="Home" width="230"><br><sub><b>Home</b> — today's workout & weight</sub></td>
-<td align="center"><img src="assets/screenshots/workout.png" alt="Workout" width="230"><br><sub><b>Guided workout</b> — animated demos & sets</sub></td>
-<td align="center"><img src="assets/screenshots/stats.png" alt="Stats" width="230"><br><sub><b>Stats</b> — heatmap, charts & PRs</sub></td>
-</tr>
-</table>
-</div>
-
-<div align="center">
-
-### [🌐 opengym.duarte-santos.ch](https://opengym.duarte-santos.ch) · [▶ Try the live demo](https://duartesantos8.github.io/openGym/)
-
-No signup, nothing to install — it runs entirely in your browser on example data.<br>
-<sub>There's no server behind the demo, so passkey sign-in, sync across devices and the
-admin dashboard only exist in a self-hosted instance.</sub>
-
-</div>
 
 ## Why
 
@@ -101,7 +80,7 @@ the exercise media (~140 MB) once. Prefer building the images yourself instead o
 a build step locally either way.
 
 > Want it reachable from your phone over the internet with passkeys? You'll need an HTTPS
-> domain — a two-line change in `.env`. See **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)**.
+> domain — a two-line change in `.env`. See **`docs/SELF_HOSTING.md`** (upstream).
 
 ## Mobile app (no server at all)
 
@@ -111,10 +90,10 @@ backups. Self-hosting gets you multi-device sync and profiles for friends & fami
 mobile app is the install-and-done flavor.
 
 - **Android:** [**download the APK**](https://opengym.duarte-santos.ch) and sideload it —
-  openGym is deliberately not on the Play Store. Or build it yourself: **[docs/MOBILE.md](docs/MOBILE.md)**.
+  openGym is deliberately not on the Play Store. Or build it yourself: **`docs/MOBILE.md`** (upstream).
 - **iPhone:** Apple doesn't allow installing apps outside the App Store, so there is no iOS
   download. Self-host and add it to your home screen from Safari (it's a full PWA), or build
-  the native app onto your own device from Xcode — see **[docs/MOBILE.md](docs/MOBILE.md)**.
+  the native app onto your own device from Xcode — see **`docs/MOBILE.md`** (upstream).
 
 ## How it works
 
@@ -198,7 +177,7 @@ React, the router and Zustand.
 
 ## Contributing
 
-Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Good first issues: more starter
+Issues and PRs welcome — see `CONTRIBUTING.md` (upstream). Good first issues: more starter
 plans, exercise-data languages, import from other trackers. **A ⭐ helps more people find it.**
 
 openGym is free and stays free: AGPL, no subscription, no paid tier, nothing held back for
@@ -207,8 +186,8 @@ top of the page is there — a star, a bug report or a PR is worth just as much.
 
 ## License
 
-[GNU AGPL v3.0](LICENSE) — free and open source. You can self-host, use, modify and share it;
+[GNU AGPL v3.0](../LICENSE) — free and open source. You can self-host, use, modify and share it;
 if you run a modified version as a network service, you must offer that version's source under
 the same license. Nobody can turn openGym into a closed, proprietary product.
 
-Exercise images/GIFs are fetched from the upstream dataset and keep their own terms — see [NOTICE.md](NOTICE.md).
+Exercise images/GIFs are fetched from the upstream dataset and keep their own terms — see [NOTICE.md](../NOTICE.md).
