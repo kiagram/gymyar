@@ -6,6 +6,8 @@
  * the moment of asking anyway.
  */
 import { api } from './api.js'
+import { extend } from '@gymbuddy/domain/entitlement.js'
+import { fmtNum } from '@gymbuddy/domain'
 import { t, getLang, dateLocale } from './i18n.js'
 
 export const fetchBilling = () => api('/api/billing/status')
@@ -19,9 +21,9 @@ export const startTrial = () => api('/api/billing/trial', { method: 'POST', body
  * break out of frames, and a popup on iOS Safari is a blocked window and a person who thinks
  * the button is broken.
  */
-export async function checkout(months) {
+export async function checkout(months, tier) {
   const { startUrl } = await api('/api/billing/checkout', {
-    method: 'POST', body: JSON.stringify({ months })
+    method: 'POST', body: JSON.stringify({ months, tier })
   })
   window.location.href = startUrl
 }
@@ -113,6 +115,33 @@ export const CHECKOUT_OUTCOMES = {
 
 export const readOutcome = key => (CHECKOUT_OUTCOMES[key] ? CHECKOUT_OUTCOMES[key]() : null)
 
+/* ---------------------------------------------------------------- tiers ---- */
+
+/**
+ * What a tier is called on screen.
+ *
+ * Its capacity, not its internal name. "Studio" means nothing to somebody choosing between
+ * three cards, and it would need translating into twelve languages to still mean nothing; the
+ * number of clients is the thing they are actually picking between, and it needs translating
+ * once. Null is the uncapped case — a subscriber from before tiers existed, or a trial.
+ */
+export const tierLabel = clientCap =>
+  clientCap == null ? t('Unlimited clients') : t('Up to {0} clients', fmtNum(clientCap))
+
+/** How full a coach's plan is, for the roster. Null cap has no ceiling to count towards. */
+export const capacityLabel = cap =>
+  !cap || cap.cap == null ? null : t('{0} of {1} clients', fmtNum(cap.used), fmtNum(cap.cap))
+
+/**
+ * The date a purchase would move the subscription to.
+ *
+ * Computed here from the same `extend` the server credits with, so the promise on the button
+ * and the row written afterwards cannot disagree. It stacks onto whatever is left rather than
+ * burning it, which is the part worth showing: a coach with three weeks in hand who is
+ * wondering whether to wait should be able to see that waiting buys them nothing.
+ */
+export const extendedTo = (until, months) => extend(until ?? null, months)
+
 /** Did this request fail because nobody has paid? */
 export const isPaymentRequired = err => err?.status === 402 || err?.code === 'payment_required'
 
@@ -133,6 +162,12 @@ export const PAYMENT_STATUS = {
   abandoned: () => t('Cancelled')
 }
 
-/** How long a term is, said the way a person would say it. */
+/**
+ * How long a term is, said the way a person would say it.
+ *
+ * Through `fmtNum` like every other number on this screen. A raw `3` beside a formatted
+ * ۱۶۲٬۰۰۰ reads as ۳ ماه everywhere else in the app and as "3 ماه" here, which looks like
+ * something failed to load rather than like a choice.
+ */
 export const termLabel = months =>
-  months === 1 ? t('1 month') : months === 12 ? t('1 year') : t('{0} months', months)
+  months === 1 ? t('1 month') : months === 12 ? t('1 year') : t('{0} months', fmtNum(months))

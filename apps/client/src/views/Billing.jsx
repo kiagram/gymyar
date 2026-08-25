@@ -16,7 +16,7 @@ import Icon from '../components/Icon.jsx'
 import { t } from '../lib/i18n.js'
 import {
   fetchBilling, checkout, describeEntitlement, readOutcome,
-  fmtToman, fmtUntil, termLabel, PAYMENT_STATUS
+  fmtToman, fmtUntil, termLabel, tierLabel, extendedTo, PAYMENT_STATUS
 } from '../lib/billing.js'
 
 function Notice({ tone = 'ok', title, detail }) {
@@ -29,17 +29,24 @@ function Notice({ tone = 'ok', title, detail }) {
 }
 
 /** One purchasable term. The saving is stated rather than left as arithmetic for the reader. */
-function Term({ term, cheapestPerMonth, busy, onBuy }) {
+function Term({ term, cheapestPerMonth, until, busy, onBuy }) {
   const saving = cheapestPerMonth && term.perMonthToman > cheapestPerMonth
     ? null
     : term.months > 1 ? t('best value') : null
 
+  /* What the money actually buys, as a date. A per-month figure answers "is this good value";
+   * this answers "what do I get", which is the question somebody about to pay is asking. It
+   * stacks onto whatever is left, so a coach with three weeks in hand can see for themselves
+   * that waiting until they run out buys them nothing. */
+  const lines = [
+    term.months > 1 ? t('{0} per month', fmtToman(term.perMonthToman)) : null,
+    t('Extends your subscription to {0}', fmtUntil(extendedTo(until, term.months)))
+  ].filter(Boolean)
+
   return (
     <Row
       title={termLabel(term.months)}
-      subtitle={term.months > 1
-        ? t('{0} per month', fmtToman(term.perMonthToman))
-        : null}
+      subtitle={lines.join(' · ')}
       onClick={busy ? undefined : () => onBuy(term.months)}
       accessory="chevron"
     >
@@ -51,9 +58,45 @@ function Term({ term, cheapestPerMonth, busy, onBuy }) {
   )
 }
 
+/**
+ * Which size of plan, before which length of it.
+ *
+ * Two decisions rather than a nine-cell grid: a grid of tier × term is nine prices to compare
+ * at once on a phone, and the two choices are not the same kind of choice. How many clients you
+ * coach is a fact about your business; how long you pay for at a time is a preference. Picking
+ * the fact first leaves three prices on screen instead of nine.
+ */
+function TierPicker({ tiers, selected, capacity, onSelect }) {
+  return (
+    <Section title={t('How many clients')}>
+      {tiers.map(x => {
+        const cheapest = Math.min(...x.terms.map(term => term.perMonthToman))
+        const tooSmall = capacity?.used > x.clientCap
+        return (
+          <Row
+            key={x.tier}
+            icon={x.tier === selected ? 'checkCircle' : 'dot'}
+            iconTint={tooSmall ? 'var(--orange)' : undefined}
+            title={tierLabel(x.clientCap)}
+            subtitle={tooSmall
+              ? t('This plan is smaller than your roster, so you could not take on anyone new.')
+              /* "from", because this is the cheapest term's rate and the shortest term costs
+               * more. Quoting the annual rate as "per month" beside a monthly price that is
+               * half as much again is the kind of thing a reader notices at the moment they
+               * were deciding whether to trust the number. */
+              : t('from {0} per month', fmtToman(cheapest))}
+            onClick={() => onSelect(x.tier)}
+          />
+        )
+      })}
+    </Section>
+  )
+}
+
 export default function Billing() {
   const [params, setParams] = useSearchParams()
   const [data, setData] = useState(null)
+  const [tier, setTier] = useState(null)
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(false)
 
@@ -67,13 +110,35 @@ export default function Billing() {
   }
   useEffect(() => { load() }, [])
 
+  /* Which size of plan this screen opens on.
+   *
+   * In order: the one they were sent here to buy — the cap refusal in the roster puts it on the
+   * URL, and landing on anything else would make them find it again after being told exactly
+   * what they needed. Then whatever they are already on, because a renewal is the common case
+   * and it should be one tap. Then the smallest one that would actually fit the clients they
+   * have, because offering somebody with twelve clients a five-client plan by default is
+   * offering them something that cannot work.
+   */
+  useEffect(() => {
+    if (!data?.tiers?.length || tier) return
+    const asked = params.get('tier')
+    const has = id => data.tiers.some(x => x.tier === id)
+    const fits = data.tiers.find(x => x.clientCap >= (data.capacity?.used ?? 0))
+    setTier(
+      (asked && has(asked) && asked) ||
+      (has(data.capacity?.tier) && data.capacity.tier) ||
+      fits?.tier ||
+      data.tiers[data.tiers.length - 1].tier
+    )
+  }, [data, tier, params])
+
   const buy = async months => {
     setBusy(true); setErr(null)
     // Clearing the outcome first: the next thing that happens is a full navigation to the
     // gateway, and coming back to a stale "payment cancelled" from the previous attempt would
     // be the app contradicting itself.
     if (outcome) { params.delete('billing'); setParams(params, { replace: true }) }
-    try { await checkout(months) }
+    try { await checkout(months, tier) }
     catch (e) { setErr(e.message); setBusy(false) }
   }
 
@@ -94,9 +159,13 @@ export default function Billing() {
   )
 
   const status = describeEntitlement(data.entitlement)
-  const cheapest = data.terms.length
-    ? Math.min(...data.terms.map(x => x.perMonthToman))
-    : null
+  const tiers = data.tiers || []
+  const chosen = tiers.find(x => x.tier === tier) || tiers[0]
+  // `data.terms` is the pre-tier shape and still arrives; it is the fallback for an instance
+  // whose API is older than this screen, not the normal path.
+  const terms = chosen?.terms || data.terms || []
+  const cheapest = terms.length ? Math.min(...terms.map(x => x.perMonthToman)) : null
+  const capOf = id => tiers.find(x => x.tier === id)?.clientCap
 
   return (
     <div className="view">
@@ -129,13 +198,17 @@ export default function Billing() {
             />
           )}
 
+          {tiers.length > 1 && (
+            <TierPicker tiers={tiers} selected={tier} capacity={data.capacity} onSelect={setTier} />
+          )}
+
           <Section
             title={data.entitlement.state === 'active' ? t('Extend') : t('Choose a term')}
             footer={t('Longer terms cost less per month. Time you have already paid for is never lost — a renewal is added on top of it.')}
           >
-            {data.terms.map(term => (
+            {terms.map(term => (
               <Term key={term.months} term={term} cheapestPerMonth={cheapest}
-                    busy={busy} onBuy={buy} />
+                    until={data.entitlement?.until} busy={busy} onBuy={buy} />
             ))}
           </Section>
 
@@ -147,7 +220,8 @@ export default function Billing() {
                 <Row
                   key={p.id}
                   title={termLabel(p.months)}
-                  subtitle={fmtUntil(p.at)}
+                  subtitle={[fmtUntil(p.at), p.tier && capOf(p.tier) != null
+                    ? tierLabel(capOf(p.tier)) : null].filter(Boolean).join(' · ')}
                 >
                   <span className="lrow-v dim" style={{ fontVariantNumeric: 'tabular-nums' }}>
                     {(PAYMENT_STATUS[p.status] || (() => p.status))()}
