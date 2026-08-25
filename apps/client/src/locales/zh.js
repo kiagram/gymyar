@@ -642,6 +642,15 @@ export default {
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "你自己的训练是免费的，而且永远免费——记录、计划、历史和统计从来都不属于订阅。订阅针对的是指导别人。",
   "Renew your subscription to message clients": "续订后即可给客户发消息",
   "Your plan covers {0} clients — upgrade to take on more": "您的方案包含 {0} 位客户 — 升级后可接收更多",
+  "Revenue": "收入",
+  "Prices are indexed at {0} Toman to the dollar, read {1}.": "价格按每美元 {0} 土曼计价，记录于 {1}。",
+  "The rate is out of date, so only the shortest term is on sale. Last read {0}.": "汇率已过期，因此仅出售最短周期。最后记录于 {0}。",
+  "Prices are not indexed, so they lose value as the rial does. Set TOMAN_PER_USD to hold it.": "价格未做指数化，会随里亚尔一起贬值。设置 TOMAN_PER_USD 可保值。",
+  "Nothing collected yet": "尚未收到款项",
+  "{0} payment": "{0} 笔付款",
+  "{0} payment recorded no rate, so it is missing from the dollar column": "{0} 笔付款未记录汇率，因此不在美元列中",
+  "{0} payments": "{0} 笔付款",
+  "{0} payments recorded no rate, so they are missing from the dollar column": "{0} 笔付款未记录汇率，因此不在美元列中",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

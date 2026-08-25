@@ -723,6 +723,15 @@ export default {
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "تمرین خودتان رایگان است و همیشه خواهد بود — ثبت تمرین، برنامه‌ها، تاریخچه و آمار هیچ‌وقت بخشی از اشتراک نیستند. این اشتراک برای مربی‌گری دیگران است.",
   "Renew your subscription to message clients": "برای پیام دادن به شاگردان، اشتراک را تمدید کنید",
   "Your plan covers {0} clients — upgrade to take on more": "اشتراک شما {0} شاگرد را پوشش می‌دهد — برای گرفتن شاگرد بیشتر ارتقا بدهید",
+  "Revenue": "درآمد",
+  "Prices are indexed at {0} Toman to the dollar, read {1}.": "قیمت‌ها بر پایه {0} تومان به ازای هر دلار تنظیم شده‌اند، ثبت‌شده در {1}.",
+  "The rate is out of date, so only the shortest term is on sale. Last read {0}.": "نرخ به‌روز نیست، بنابراین فقط کوتاه‌ترین دوره به فروش می‌رسد. آخرین ثبت: {0}.",
+  "Prices are not indexed, so they lose value as the rial does. Set TOMAN_PER_USD to hold it.": "قیمت‌ها شاخص‌گذاری نشده‌اند و همراه با ریال ارزش خود را از دست می‌دهند. برای حفظ ارزش، TOMAN_PER_USD را تنظیم کنید.",
+  "Nothing collected yet": "هنوز چیزی دریافت نشده",
+  "{0} payment": "{0} پرداخت",
+  "{0} payment recorded no rate, so it is missing from the dollar column": "{0} پرداخت بدون نرخ ثبت شده و در ستون دلار نیامده است",
+  "{0} payments": "{0} پرداخت",
+  "{0} payments recorded no rate, so they are missing from the dollar column": "{0} پرداخت بدون نرخ ثبت شده و در ستون دلار نیامده‌اند",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

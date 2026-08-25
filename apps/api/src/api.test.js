@@ -301,4 +301,41 @@ describe('admin', () => {
     expect(r.status).toBe(200)
     expect(r.body.users[0].name).toBe('Root')
   })
+
+  it('keeps revenue behind the same door', async () => {
+    const { c } = await signUp('Ada', 'ada@x.test')
+    expect((await c.get('/api/admin/revenue')).status).toBe(403)
+  })
+
+  it('counts settled payments in Toman, and in dollars where a rate was recorded', async () => {
+    const { c, user } = await signUp('Root', 'root@x.test')
+    await db()`update users set is_admin = true where id = ${user.id}`
+
+    // Two settled payments in the same month: one taken with a rate on it, one without.
+    await db()`
+      insert into payments (user_id, gateway, amount, currency, months, tier, toman_per_usd,
+                            status, ref_id, settled_at)
+      values (${user.id}, 'zarinpal', 2032000, 'IRR', 1, 'solo', 203200, 'paid', 'R-a', now()),
+             (${user.id}, 'zarinpal', 1000000, 'IRR', 1, 'solo', null,   'paid', 'R-b', now())`
+
+    const r = await c.get('/api/admin/revenue')
+    expect(r.status).toBe(200)
+    const [month] = r.body.months
+    expect(month.payments).toBe(2)
+    // Rials to Toman at the edge: 2,032,000 + 1,000,000 Rials → 303,200 Toman.
+    expect(month.toman).toBeCloseTo(303_200, 0)
+    // Only the rated one reaches the dollar column — 203,200 T at 203,200 T/$ is one dollar.
+    expect(month.usd).toBeCloseTo(1, 6)
+    // …and the screen is told how much it is missing rather than left to assume none.
+    expect(month.unrated).toBe(1)
+  })
+
+  it('ignores attempts that never became money', async () => {
+    const { c, user } = await signUp('Root', 'root@x.test')
+    await db()`update users set is_admin = true where id = ${user.id}`
+    await db()`
+      insert into payments (user_id, gateway, amount, currency, months, status)
+      values (${user.id}, 'zarinpal', 9999000, 'IRR', 12, 'abandoned')`
+    expect((await c.get('/api/admin/revenue')).body.months).toEqual([])
+  })
 })

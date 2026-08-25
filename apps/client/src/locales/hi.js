@@ -642,6 +642,15 @@ export default {
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "आपकी अपनी ट्रेनिंग मुफ़्त है और हमेशा रहेगी — सेट दर्ज करना, प्रोग्राम, इतिहास और आँकड़े कभी सदस्यता का हिस्सा नहीं हैं। यह दूसरों को कोच करने के लिए है।",
   "Renew your subscription to message clients": "क्लाइंट को संदेश भेजने के लिए सदस्यता नवीनीकृत करें",
   "Your plan covers {0} clients — upgrade to take on more": "आपके प्लान में {0} क्लाइंट शामिल हैं — और लेने के लिए अपग्रेड करें",
+  "Revenue": "राजस्व",
+  "Prices are indexed at {0} Toman to the dollar, read {1}.": "कीमतें {0} तोमान प्रति डॉलर पर आधारित हैं, {1} को दर्ज।",
+  "The rate is out of date, so only the shortest term is on sale. Last read {0}.": "दर पुरानी है, इसलिए केवल सबसे छोटी अवधि बिक्री पर है। अंतिम रिकॉर्ड: {0}।",
+  "Prices are not indexed, so they lose value as the rial does. Set TOMAN_PER_USD to hold it.": "कीमतें अनुक्रमित नहीं हैं, इसलिए रियाल के साथ उनका मूल्य घटता है। इसे बनाए रखने के लिए TOMAN_PER_USD सेट करें।",
+  "Nothing collected yet": "अभी तक कुछ प्राप्त नहीं हुआ",
+  "{0} payment": "{0} भुगतान",
+  "{0} payment recorded no rate, so it is missing from the dollar column": "{0} भुगतान में दर दर्ज नहीं है, इसलिए वह डॉलर कॉलम में नहीं है",
+  "{0} payments": "{0} भुगतान",
+  "{0} payments recorded no rate, so they are missing from the dollar column": "{0} भुगतानों में दर दर्ज नहीं है, इसलिए वे डॉलर कॉलम में नहीं हैं",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

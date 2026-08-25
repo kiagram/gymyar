@@ -12,6 +12,7 @@
  */
 import { TERMS, PURCHASABLE_TIERS, isPurchasableTier, capFor } from '@gymbuddy/domain/entitlement.js'
 import { zarinpal } from './zarinpal.js'
+import { priceIndex, indexed, offeredTerms } from './rate.js'
 
 const bool = v => /^(1|true|yes|on)$/i.test(v || '')
 
@@ -54,11 +55,15 @@ const DEFAULT_PRICES = {
  * tiers existed already have set, and it still works — for the entry tier only, because that
  * is the only tier it could possibly have meant.
  */
-const priceFor = (tier, months) => {
+const writtenPrice = (tier, months) => {
   const specific = process.env[`PRICE_${tier.toUpperCase()}_${months}M`]
   const inherited = tier === ENTRY_TIER ? process.env[`PRICE_${months}M`] : undefined
   return Number(specific || inherited || DEFAULT_PRICES[tier]?.[months])
 }
+
+/* The written price, moved by whatever the rial has done since it was written. With no index
+ * configured this is the written price unchanged — see rate.js for why that is the default. */
+const priceFor = (tier, months) => indexed(writtenPrice(tier, months))
 
 /** Rials per Toman. Not a rate — a definition, and it has never been anything else. */
 const RIALS_PER_TOMAN = 10
@@ -100,8 +105,14 @@ export function amountFor(months, tier = ENTRY_TIER) {
   return billingConfig().currency === 'IRT' ? Math.round(toman) : Math.round(toman) * RIALS_PER_TOMAN
 }
 
-/** The terms on offer for one tier, priced — one row of the upgrade screen's grid. */
-export const catalogue = (tier = ENTRY_TIER) => TERMS.map(months => ({
+/**
+ * The terms on offer for one tier, priced — one row of the upgrade screen's grid.
+ *
+ * `offeredTerms` and not `TERMS`, because a stale rate withdraws the long ones. A term that is
+ * not sellable must not be rendered as a price card: the refusal belongs at the point where
+ * the list is built, not as an error after somebody has chosen.
+ */
+export const catalogue = (tier = ENTRY_TIER) => offeredTerms(TERMS).map(months => ({
   tier,
   months,
   toman: priceFor(tier, months),
@@ -123,7 +134,21 @@ export const tierCatalogue = () => PURCHASABLE_TIERS.map(t => ({
   terms: catalogue(t.id)
 }))
 
+/** Is this one of the terms the domain will credit? Says nothing about whether we sell it. */
 export const isTerm = months => TERMS.includes(Number(months))
+
+/**
+ * Is this a term this instance will sell *right now*?
+ *
+ * The gate at checkout, and deliberately narrower than `isTerm`. A stale rate takes the annual
+ * term off the price list; without this it would still be buyable by anybody who posted
+ * `months: 12` at the endpoint directly, which is the whole exposure the withdrawal exists to
+ * close.
+ */
+export const isOfferedTerm = months => offeredTerms(TERMS).includes(Number(months))
+
+/** What the price list is currently indexed at, for the billing screen and the admin one. */
+export { priceIndex }
 
 /** Can this instance sell `tier`? `legacy` is a tier and is not one of these. */
 export const isSellableTier = tier => isPurchasableTier(String(tier || ''))

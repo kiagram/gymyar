@@ -642,6 +642,15 @@ export default {
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "Twój własny trening jest darmowy i zawsze będzie — zapisywanie serii, plany, historia i statystyki nigdy nie są częścią subskrypcji. To dotyczy prowadzenia innych osób.",
   "Renew your subscription to message clients": "Odnów subskrypcję, żeby pisać do podopiecznych",
   "Your plan covers {0} clients — upgrade to take on more": { one: "Twój plan obejmuje {0} klienta — ulepsz go, aby przyjąć więcej", few: "Twój plan obejmuje {0} klientów — ulepsz go, aby przyjąć więcej", many: "Twój plan obejmuje {0} klientów — ulepsz go, aby przyjąć więcej", other: "Twój plan obejmuje {0} klientów — ulepsz go, aby przyjąć więcej" },
+  "Revenue": "Przychód",
+  "Prices are indexed at {0} Toman to the dollar, read {1}.": "Ceny są indeksowane po {0} tomanów za dolara, odczyt z {1}.",
+  "The rate is out of date, so only the shortest term is on sale. Last read {0}.": "Kurs jest nieaktualny, więc w sprzedaży jest tylko najkrótszy okres. Ostatni odczyt: {0}.",
+  "Prices are not indexed, so they lose value as the rial does. Set TOMAN_PER_USD to hold it.": "Ceny nie są indeksowane, więc tracą wartość razem z rialem. Ustaw TOMAN_PER_USD, aby ją utrzymać.",
+  "Nothing collected yet": "Nic jeszcze nie wpłynęło",
+  "{0} payment": "{0} płatność",
+  "{0} payment recorded no rate, so it is missing from the dollar column": "{0} płatność nie zapisała kursu, więc brakuje jej w kolumnie dolarowej",
+  "{0} payments": { one: "{0} płatność", few: "{0} płatności", many: "{0} płatności", other: "{0} płatności" },
+  "{0} payments recorded no rate, so they are missing from the dollar column": { one: "{0} płatność nie zapisała kursu, więc brakuje jej w kolumnie dolarowej", few: "{0} płatności nie zapisały kursu, więc brakuje ich w kolumnie dolarowej", many: "{0} płatności nie zapisało kursu, więc brakuje ich w kolumnie dolarowej", other: "{0} płatności nie zapisało kursu, więc brakuje ich w kolumnie dolarowej" },
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

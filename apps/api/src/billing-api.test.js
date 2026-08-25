@@ -4,7 +4,7 @@
  * below can reach: that money and entitlement meet correctly at the callback, and that the
  * gate lands on the coach and never on the client.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest'
 import { build } from './app.js'
 import { client } from './test-client.js'
 import { db, close } from '@gymbuddy/db'
@@ -503,5 +503,72 @@ describe('the client cap', () => {
     const r = await coach.post('/api/coach/invites', { email: 'another@x.test' })
     expect(r.status).toBe(200)
     expect((await coach.get('/api/coach/clients')).body.capacity.cap).toBeNull()
+  })
+})
+
+describe('the price index, end to end', () => {
+  const RATE_KEYS = ['TOMAN_PER_USD', 'TOMAN_PER_USD_AT', 'PRICE_BASELINE_TOMAN_PER_USD']
+  afterEach(() => { for (const k of RATE_KEYS) delete process.env[k] })
+
+  const rate = (toman, baseline, days = 0) => {
+    process.env.TOMAN_PER_USD = String(toman)
+    process.env.PRICE_BASELINE_TOMAN_PER_USD = String(baseline)
+    process.env.TOMAN_PER_USD_AT = new Date(Date.now() - days * DAY).toISOString()
+  }
+
+  it('says nothing is indexed on an instance that never set a rate', async () => {
+    const { coach } = await linked()
+    const r = await coach.get('/api/billing/status')
+    expect(r.body.priceIndex).toMatchObject({ usable: false, stale: false, tomanPerUsd: null })
+    expect(r.body.terms.map(t => t.months)).toEqual([1, 3, 12])
+  })
+
+  it('charges the indexed price, not the written one', async () => {
+    const { coach } = await linked()
+    rate(220_000, 200_000)
+    const r = await coach.post('/api/billing/checkout', { months: 1, tier: 'solo' })
+    expect(r.status).toBe(200)
+    expect(r.body.amount).toBe(1_640_000)          // 164,000 Toman in Rials
+    expect(gw.request).toHaveBeenCalledWith(expect.objectContaining({ amount: 1_640_000 }))
+  })
+
+  it('writes the rate onto the attempt, where it can never be recovered later', async () => {
+    const { coach, coachUser } = await linked()
+    rate(203_200, 200_000)
+    await coach.post('/api/billing/checkout', { months: 1, tier: 'solo' })
+    const [p] = await db()`select * from payments where user_id = ${coachUser.id}`
+    expect(Number(p.toman_per_usd)).toBe(203_200)
+  })
+
+  it('leaves the rate null when there is none to record', async () => {
+    const { coach, coachUser } = await linked()
+    await coach.post('/api/billing/checkout', { months: 1, tier: 'solo' })
+    const [p] = await db()`select * from payments where user_id = ${coachUser.id}`
+    // Never invented. A rate that was not known then is not knowable now.
+    expect(p.toman_per_usd).toBeNull()
+  })
+
+  it('stops selling a year on a rate nobody has refreshed', async () => {
+    const { coach } = await linked()
+    rate(220_000, 200_000, 30)
+
+    const r = await coach.get('/api/billing/status')
+    expect(r.body.priceIndex.stale).toBe(true)
+    // The card is gone from the screen…
+    expect(r.body.terms.map(t => t.months)).toEqual([1])
+    // …and posting it anyway does not work either.
+    expect((await coach.post('/api/billing/checkout', { months: 12, tier: 'solo' })).status).toBe(400)
+    // A month is still fine. The exposure is capped, not the business.
+    expect((await coach.post('/api/billing/checkout', { months: 1, tier: 'solo' })).status).toBe(200)
+  })
+
+  it('does not hand the payer this instance’s margins', async () => {
+    const { coach } = await linked()
+    rate(220_000, 200_000)
+    const r = await coach.get('/api/billing/status')
+    // The rate is public; what the price list was written at is nobody's business but ours.
+    expect(r.body.priceIndex.tomanPerUsd).toBe(220_000)
+    expect(r.body.priceIndex).not.toHaveProperty('baseline')
+    expect(r.body.priceIndex).not.toHaveProperty('multiplier')
   })
 })

@@ -33,8 +33,8 @@ import { config } from '../config.js'
 import { limit } from '../rate-limit.js'
 import { entitlementFor } from '../entitlement.js'
 import {
-  billingEnabled, billingConfig, catalogue, tierCatalogue, amountFor, isTerm,
-  isSellableTier, capForTier, ENTRY_TIER, gatewayFromEnv
+  billingEnabled, billingConfig, catalogue, tierCatalogue, amountFor, isOfferedTerm,
+  isSellableTier, capForTier, ENTRY_TIER, gatewayFromEnv, priceIndex
 } from '../payments/pricing.js'
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status })
@@ -66,6 +66,9 @@ export default async function billingRoutes(app, opts = {}) {
       // client built before tiers existed keeps rendering something true rather than nothing.
       tiers: billingEnabled() ? tierCatalogue() : [],
       terms: billingEnabled() ? catalogue() : [],
+      // Why the annual term may be missing from the grid above. Without this the screen has no
+      // way to say "back shortly" rather than looking like it lost a price.
+      priceIndex: billingEnabled() ? publicIndex() : null,
       payments: billingEnabled()
         ? (await paymentsFor(user.id, 10)).map(publicPayment)
         : []
@@ -85,7 +88,9 @@ export default async function billingRoutes(app, opts = {}) {
     if (!gw) throw bad('this instance does not take payments', 409)
 
     const months = Number(req.body?.months)
-    if (!isTerm(months)) throw bad('months must be one of the offered terms')
+    // `isOfferedTerm`, not `isTerm`: a term withdrawn because the rate went stale must not be
+    // buyable by posting it here directly, which is the whole exposure the withdrawal closes.
+    if (!isOfferedTerm(months)) throw bad('months must be one of the offered terms')
 
     // Absent means the entry tier, which is what a client that predates tiers is asking for
     // and the only tier its single price could have meant. A named tier has to be one we
@@ -96,7 +101,11 @@ export default async function billingRoutes(app, opts = {}) {
 
     const amount = amountFor(months, tier)
     const payment = await startPayment({
-      userId: user.id, gateway: gw.name, amount, currency: gw.currency, months, tier
+      userId: user.id, gateway: gw.name, amount, currency: gw.currency, months, tier,
+      // What a Toman was worth when this was charged. Revenue in a currency that moved nine
+      // percent in a week is not a series that can be compared with itself; this is what makes
+      // it one, and it has to be written now because it is unknowable afterwards.
+      tomanPerUsd: priceIndex().toman
     })
 
     try {
@@ -196,6 +205,13 @@ export default async function billingRoutes(app, opts = {}) {
 
 /* A payment as its payer may see it. The gateway's raw `detail` never leaves the server: it is
  * there for whoever is debugging a settlement, and it carries card fragments. */
+const publicIndex = () => {
+  const { usable, stale, at, ageDays, toman } = priceIndex()
+  // The rate itself is not a secret — it is printed in newspapers — but `baseline` is a
+  // statement about this instance's margins, and nobody buying a subscription needs it.
+  return { usable, stale, at, ageDays, tomanPerUsd: toman }
+}
+
 const publicPayment = p => ({
   id: p.id,
   months: p.months,

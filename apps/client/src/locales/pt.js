@@ -642,6 +642,15 @@ export default {
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "O teu próprio treino é gratuito e será sempre — registar séries, programas, histórico e estatísticas nunca fazem parte de uma subscrição. Isto cobre acompanhar outras pessoas.",
   "Renew your subscription to message clients": "Renova a subscrição para escreveres aos clientes",
   "Your plan covers {0} clients — upgrade to take on more": "O seu plano cobre {0} clientes — faça upgrade para aceitar mais",
+  "Revenue": "Receita",
+  "Prices are indexed at {0} Toman to the dollar, read {1}.": "Os preços estão indexados a {0} tomans por dólar, registados a {1}.",
+  "The rate is out of date, so only the shortest term is on sale. Last read {0}.": "A taxa está desatualizada, por isso só o prazo mais curto está à venda. Último registo: {0}.",
+  "Prices are not indexed, so they lose value as the rial does. Set TOMAN_PER_USD to hold it.": "Os preços não estão indexados, por isso perdem valor com o rial. Defina TOMAN_PER_USD para o manter.",
+  "Nothing collected yet": "Ainda não foi cobrado nada",
+  "{0} payment": "{0} pagamento",
+  "{0} payment recorded no rate, so it is missing from the dollar column": "{0} pagamento sem taxa — falta na coluna em dólares",
+  "{0} payments": "{0} pagamentos",
+  "{0} payments recorded no rate, so they are missing from the dollar column": "{0} pagamentos sem taxa — faltam na coluna em dólares",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

@@ -4,12 +4,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   amountFor, catalogue, tierCatalogue, billingEnabled, billingConfig, isTerm,
-  isSellableTier, capForTier, ENTRY_TIER, gatewayFromEnv
+  isSellableTier, capForTier, ENTRY_TIER, isOfferedTerm, gatewayFromEnv
 } from './pricing.js'
 
 const KEYS = ['ZARINPAL_MERCHANT_ID', 'ZARINPAL_SANDBOX', 'BILLING_CURRENCY', 'PAYMENT_GATEWAY',
   'PRICE_1M', 'PRICE_3M', 'PRICE_12M',
-  ...['SOLO', 'STUDIO', 'PRO'].flatMap(t => [1, 3, 12].map(m => `PRICE_${t}_${m}M`))]
+  ...['SOLO', 'STUDIO', 'PRO'].flatMap(t => [1, 3, 12].map(m => `PRICE_${t}_${m}M`)),
+  // The index lives in rate.js but reaches every price here, so it has to be isolated too.
+  'TOMAN_PER_USD', 'TOMAN_PER_USD_AT', 'PRICE_BASELINE_TOMAN_PER_USD', 'RATE_MAX_AGE_DAYS']
 let saved
 
 beforeEach(() => {
@@ -216,5 +218,63 @@ describe('tiers', () => {
 
   it('defaults to the entry tier when nobody says which', () => {
     expect(catalogue().every(t => t.tier === 'solo')).toBe(true)
+  })
+})
+
+describe('prices held against the rial', () => {
+  const rate = (toman, baseline, days = 0) => {
+    process.env.TOMAN_PER_USD = String(toman)
+    process.env.PRICE_BASELINE_TOMAN_PER_USD = String(baseline)
+    process.env.TOMAN_PER_USD_AT = new Date(Date.now() - days * 86400000).toISOString()
+  }
+
+  it('charges the written price when nothing is indexed', () => {
+    expect(catalogue('solo').find(t => t.months === 1).toman).toBe(149_000)
+  })
+
+  it('moves every tier and every term together', () => {
+    rate(220_000, 200_000)
+    for (const { terms } of tierCatalogue()) {
+      for (const term of terms) expect(term.toman % 1000).toBe(0)
+    }
+    // 149,000 × 1.1 = 163,900 → 164,000.
+    expect(catalogue('solo').find(t => t.months === 1).toman).toBe(164_000)
+    // 6,490,000 × 1.1 = 7,139,000.
+    expect(catalogue('pro').find(t => t.months === 12).toman).toBe(7_139_000)
+  })
+
+  it('carries the index through to what the gateway is sent', () => {
+    rate(220_000, 200_000)
+    expect(amountFor(1, 'solo')).toBe(1_640_000)   // Toman → Rials, ten to one
+  })
+
+  it('keeps the shape of the price list intact as it moves', () => {
+    rate(203_200, 186_500)
+    for (const { terms } of tierCatalogue()) {
+      const [one, three, year] = terms
+      expect(three.perMonthToman).toBeLessThan(one.perMonthToman)
+      expect(year.perMonthToman).toBeLessThan(three.perMonthToman)
+    }
+  })
+
+  it('takes the long terms off the price list when the rate goes stale', () => {
+    rate(220_000, 200_000, 30)
+    expect(catalogue('solo').map(t => t.months)).toEqual([1])
+    expect(tierCatalogue().every(t => t.terms.length === 1)).toBe(true)
+  })
+
+  it('refuses a withdrawn term even when it is posted directly', () => {
+    rate(220_000, 200_000, 30)
+    // The domain would still credit twelve months. This instance will not sell them today.
+    expect(isTerm(12)).toBe(true)
+    expect(isOfferedTerm(12)).toBe(false)
+    expect(isOfferedTerm(1)).toBe(true)
+  })
+
+  it('sells everything again once the rate is refreshed', () => {
+    rate(220_000, 200_000, 30)
+    expect(isOfferedTerm(12)).toBe(false)
+    rate(220_000, 200_000, 0)
+    expect(isOfferedTerm(12)).toBe(true)
   })
 })

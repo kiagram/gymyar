@@ -642,6 +642,15 @@ export default {
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "본인 운동은 무료이며 앞으로도 그렇습니다 — 기록, 프로그램, 히스토리, 통계는 구독에 포함된 적이 없습니다. 구독은 다른 사람을 코칭하는 데 필요합니다.",
   "Renew your subscription to message clients": "회원에게 메시지를 보내려면 구독을 갱신하세요",
   "Your plan covers {0} clients — upgrade to take on more": "현재 플랜은 클라이언트 {0}명까지입니다 — 더 받으려면 업그레이드하세요",
+  "Revenue": "수익",
+  "Prices are indexed at {0} Toman to the dollar, read {1}.": "가격은 달러당 {0} 토만 기준이며, {1}에 기록되었습니다.",
+  "The rate is out of date, so only the shortest term is on sale. Last read {0}.": "환율이 오래되어 가장 짧은 기간만 판매됩니다. 마지막 기록: {0}.",
+  "Prices are not indexed, so they lose value as the rial does. Set TOMAN_PER_USD to hold it.": "가격이 지수화되어 있지 않아 리알과 함께 가치가 떨어집니다. TOMAN_PER_USD를 설정해 유지하세요.",
+  "Nothing collected yet": "아직 수금 내역이 없습니다",
+  "{0} payment": "결제 {0}건",
+  "{0} payment recorded no rate, so it is missing from the dollar column": "{0}건의 결제에 환율이 없어 달러 열에서 빠져 있습니다",
+  "{0} payments": "결제 {0}건",
+  "{0} payments recorded no rate, so they are missing from the dollar column": "{0}건의 결제에 환율이 없어 달러 열에서 빠져 있습니다",
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---

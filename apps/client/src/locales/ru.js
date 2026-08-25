@@ -642,6 +642,15 @@ export default {
   "Your own training is free and always will be — logging, programmes, history and stats are never part of a subscription. This covers coaching other people.": "Ваши собственные тренировки бесплатны и всегда будут — записи подходов, программы, история и статистика никогда не входят в подписку. Она нужна для работы с другими людьми.",
   "Renew your subscription to message clients": "Продлите подписку, чтобы писать клиентам",
   "Your plan covers {0} clients — upgrade to take on more": { one: "Ваш тариф рассчитан на {0} клиента — перейдите на больший, чтобы взять ещё", few: "Ваш тариф рассчитан на {0} клиента — перейдите на больший, чтобы взять ещё", many: "Ваш тариф рассчитан на {0} клиентов — перейдите на больший, чтобы взять ещё", other: "Ваш тариф рассчитан на {0} клиентов — перейдите на больший, чтобы взять ещё" },
+  "Revenue": "Выручка",
+  "Prices are indexed at {0} Toman to the dollar, read {1}.": "Цены привязаны к курсу {0} туманов за доллар, зафиксирован {1}.",
+  "The rate is out of date, so only the shortest term is on sale. Last read {0}.": "Курс устарел, поэтому продаётся только самый короткий срок. Последняя запись: {0}.",
+  "Prices are not indexed, so they lose value as the rial does. Set TOMAN_PER_USD to hold it.": "Цены не привязаны к курсу и обесцениваются вместе с риалом. Задайте TOMAN_PER_USD, чтобы сохранить их стоимость.",
+  "Nothing collected yet": "Пока ничего не получено",
+  "{0} payment": "{0} платёж",
+  "{0} payment recorded no rate, so it is missing from the dollar column": "{0} платёж не записал курс, поэтому его нет в долларовой колонке",
+  "{0} payments": { one: "{0} платёж", few: "{0} платежа", many: "{0} платежей", other: "{0} платежей" },
+  "{0} payments recorded no rate, so they are missing from the dollar column": { one: "{0} платёж не записал курс, поэтому его нет в долларовой колонке", few: "{0} платежа не записали курс, поэтому их нет в долларовой колонке", many: "{0} платежей не записали курс, поэтому их нет в долларовой колонке", other: "{0} платежей не записали курс, поэтому их нет в долларовой колонке" },
 
   // --- coaching, the plan builder, sign-in and admin (phase 8) ---
   // --- sign-in, account creation, the demo ---
