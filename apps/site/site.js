@@ -1,9 +1,13 @@
-// The repository this project lives in. GymBuddy has no public repo yet — see
-// docs/PUBLISHING.md — so every source link on the site is hidden until this is set.
-// Set it to the repo root with no trailing slash, e.g. 'https://github.com/you/gymbuddy',
-// and the links below reveal themselves. That is the only edit needed.
-const REPO = ''
+// The repository this project lives in — the repo root, no trailing slash. Every source
+// link on the site is hidden while this is empty, so a fork that has not published yet
+// shows no dead links rather than links into somebody else's tree. See docs/PUBLISHING.md.
+const REPO = 'https://github.com/kiagram/gymbuddy'
 
+// Paths use /blob/HEAD/, which GitHub resolves to whatever the default branch is. Not
+// /blob/main/: the main branch here is the openGym import, kept as the attribution trail,
+// so a link into it serves openGym's CHANGELOG rather than this project's. HEAD also
+// survives the default branch being renamed, which a hardcoded name does not.
+//
 // Anything carrying data-repo is a link into the repository: the attribute is the path to
 // append. Empty attribute means the repo root. With REPO unset they stay hidden rather than
 // pointing somewhere wrong — a dead link to a repository that does not exist yet is worse

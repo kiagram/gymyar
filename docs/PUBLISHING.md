@@ -12,6 +12,10 @@ re-upload is the one carrying [a leaked session secret](../NOTICE.md).
 
 ## Setting up your own
 
+**Done for this tree:** `origin` is <https://github.com/kiagram/gymbuddy>, public, with both
+`gymbuddy` and `main` pushed and `gymbuddy` as the default branch. What follows is what was
+run, and what a fork of this project would run in turn.
+
 Create an empty repository wherever you want this to live, then:
 
 ```bash

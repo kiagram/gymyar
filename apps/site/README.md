@@ -17,9 +17,10 @@ Not in this folder (added at deploy time):
 - **Set the domain.** `index.html` carries `https://gymbuddy.example/` in its Open Graph
   `og:url` and `og:image` and in the JSON-LD `url`. Open Graph needs absolute URLs, so these
   cannot be made relative — they have to be edited.
-- **Set the repository.** `REPO` at the top of `site.js` is empty, and every link marked
-  `data-repo` stays hidden while it is. Fill it in once the repo is public
-  (`docs/PUBLISHING.md`) and they appear — nav, footer, and the open-source button row.
+- ~~**Set the repository.**~~ Done: `REPO` in `site.js` points at
+  `github.com/kiagram/gymbuddy`, so the `data-repo` links are live — nav, footer, and the
+  open-source button row, in both languages. Paths use `/blob/HEAD/`, which resolves to the
+  default branch; `/blob/main/` would serve openGym's files, since `main` is the import.
 - **The screenshots are current.** `../../assets/screenshots/` holds the English set and
   `fa/` the Persian one, captured off the demo seed at 1170×2532 — the dimensions this
   site's `<img>` tags already declare. Retake them after any UI change with
