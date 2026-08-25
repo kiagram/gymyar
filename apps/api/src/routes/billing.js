@@ -32,7 +32,10 @@ import { requireUser } from '../session.js'
 import { config } from '../config.js'
 import { limit } from '../rate-limit.js'
 import { entitlementFor } from '../entitlement.js'
-import { billingEnabled, billingConfig, catalogue, amountFor, isTerm, gatewayFromEnv } from '../payments/pricing.js'
+import {
+  billingEnabled, billingConfig, catalogue, tierCatalogue, amountFor, isTerm,
+  isSellableTier, capForTier, ENTRY_TIER, gatewayFromEnv
+} from '../payments/pricing.js'
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status })
 
@@ -59,6 +62,9 @@ export default async function billingRoutes(app, opts = {}) {
       currency: billingConfig().currency,
       sandbox: billingConfig().sandbox,
       entitlement: ent,
+      // The whole grid, tier by tier. `terms` stays beside it, priced at the entry tier, so a
+      // client built before tiers existed keeps rendering something true rather than nothing.
+      tiers: billingEnabled() ? tierCatalogue() : [],
       terms: billingEnabled() ? catalogue() : [],
       payments: billingEnabled()
         ? (await paymentsFor(user.id, 10)).map(publicPayment)
@@ -81,24 +87,32 @@ export default async function billingRoutes(app, opts = {}) {
     const months = Number(req.body?.months)
     if (!isTerm(months)) throw bad('months must be one of the offered terms')
 
-    const amount = amountFor(months)
+    // Absent means the entry tier, which is what a client that predates tiers is asking for
+    // and the only tier its single price could have meant. A named tier has to be one we
+    // actually sell — `legacy` is a tier and is not for sale, so it is refused here like any
+    // other word somebody could type into a request body.
+    const tier = req.body?.tier == null ? ENTRY_TIER : String(req.body.tier)
+    if (!isSellableTier(tier)) throw bad('tier must be one of the offered tiers')
+
+    const amount = amountFor(months, tier)
     const payment = await startPayment({
-      userId: user.id, gateway: gw.name, amount, currency: gw.currency, months
+      userId: user.id, gateway: gw.name, amount, currency: gw.currency, months, tier
     })
 
     try {
       const { authority, startUrl } = await gw.request({
         amount,
         // Shown on the gateway's own page — the last thing they read before paying, so it says
-        // what they are buying rather than naming an internal plan.
-        description: months === 1
-          ? 'GymBuddy coaching — 1 month'
-          : `GymBuddy coaching — ${months} months`,
+        // what they are buying rather than naming an internal plan. The client count is in it
+        // for the same reason: "studio" means nothing to somebody staring at a bank page, and
+        // the number is the thing they are actually choosing between.
+        description: `GymBuddy coaching, up to ${capForTier(tier)} clients — ` +
+          (months === 1 ? '1 month' : `${months} months`),
         callbackUrl: `${config.origin}/api/billing/callback`,
         email: user.email || null
       })
       await attachAuthority(payment.id, authority)
-      return { startUrl, paymentId: payment.id, amount, currency: gw.currency, months }
+      return { startUrl, paymentId: payment.id, amount, currency: gw.currency, months, tier }
     } catch (err) {
       // The attempt never became a redirect. Close the row now rather than leaving it for
       // reconciliation to puzzle over — nobody was ever sent anywhere to pay.
@@ -185,6 +199,7 @@ export default async function billingRoutes(app, opts = {}) {
 const publicPayment = p => ({
   id: p.id,
   months: p.months,
+  tier: p.tier,
   amount: Number(p.amount),
   currency: p.currency,
   status: p.status,

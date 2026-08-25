@@ -2,10 +2,14 @@
  * a factor of ten. That is what these check.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { amountFor, catalogue, billingEnabled, billingConfig, isTerm, gatewayFromEnv } from './pricing.js'
+import {
+  amountFor, catalogue, tierCatalogue, billingEnabled, billingConfig, isTerm,
+  isSellableTier, capForTier, ENTRY_TIER, gatewayFromEnv
+} from './pricing.js'
 
 const KEYS = ['ZARINPAL_MERCHANT_ID', 'ZARINPAL_SANDBOX', 'BILLING_CURRENCY', 'PAYMENT_GATEWAY',
-  'PRICE_1M', 'PRICE_3M', 'PRICE_12M']
+  'PRICE_1M', 'PRICE_3M', 'PRICE_12M',
+  ...['SOLO', 'STUDIO', 'PRO'].flatMap(t => [1, 3, 12].map(m => `PRICE_${t}_${m}M`))]
 let saved
 
 beforeEach(() => {
@@ -130,5 +134,87 @@ describe('billingConfig', () => {
   it('upper-cases a currency given in lower case', () => {
     process.env.BILLING_CURRENCY = 'irt'
     expect(billingConfig().currency).toBe('IRT')
+  })
+})
+
+describe('tiers', () => {
+  it('sells the three tiers and refuses the one that is not for sale', () => {
+    expect(tierCatalogue().map(t => t.tier)).toEqual(['solo', 'studio', 'pro'])
+    expect(isSellableTier('solo')).toBe(true)
+    // `legacy` is a real tier — it is just not one anybody can buy.
+    expect(isSellableTier('legacy')).toBe(false)
+    expect(isSellableTier('enterprise')).toBe(false)
+    expect(isSellableTier(undefined)).toBe(false)
+  })
+
+  it('entry tier is the smallest thing on sale', () => {
+    expect(ENTRY_TIER).toBe('solo')
+  })
+
+  it('quotes the cap from the domain, so the card and the enforcement cannot disagree', () => {
+    expect(tierCatalogue().map(t => t.clientCap)).toEqual([5, 25, 100])
+    expect(capForTier('studio')).toBe(25)
+  })
+
+  it('prices every tier at every term', () => {
+    for (const { tier, terms } of tierCatalogue()) {
+      expect(terms.map(t => t.months)).toEqual([1, 3, 12])
+      for (const { months } of terms) expect(amountFor(months, tier)).toBeGreaterThan(0)
+    }
+  })
+
+  it('gets cheaper per month as the term gets longer, in every tier', () => {
+    for (const { terms } of tierCatalogue()) {
+      const [one, three, year] = terms
+      expect(three.perMonthToman).toBeLessThan(one.perMonthToman)
+      expect(year.perMonthToman).toBeLessThan(three.perMonthToman)
+    }
+  })
+
+  it('gets cheaper per client as the tier gets bigger', () => {
+    // Otherwise the coach with eighty clients goes back to a spreadsheet, and is right to.
+    const perClient = tierCatalogue().map(t => t.terms[0].toman / t.clientCap)
+    expect(perClient[1]).toBeLessThan(perClient[0])
+    expect(perClient[2]).toBeLessThan(perClient[1])
+  })
+
+  it('costs more in total as the tier gets bigger', () => {
+    const monthly = tierCatalogue().map(t => t.terms[0].toman)
+    expect(monthly[0]).toBeLessThan(monthly[1])
+    expect(monthly[1]).toBeLessThan(monthly[2])
+  })
+
+  it('refuses a tier it has no price for rather than charging nothing', () => {
+    expect(() => amountFor(1, 'legacy')).toThrow(/no price configured for legacy/)
+    expect(() => amountFor(1, 'enterprise')).toThrow(/no price configured/)
+  })
+
+  it('follows a tier-specific override', () => {
+    process.env.PRICE_STUDIO_3M = '888000'
+    expect(catalogue('studio').find(t => t.months === 3).toman).toBe(888_000)
+    // …and leaves the other tiers alone.
+    expect(catalogue('pro').find(t => t.months === 3).toman).toBe(1_999_000)
+  })
+
+  it('still honours the flat price a pre-tier deployment already has set', () => {
+    process.env.PRICE_1M = '111000'
+    expect(amountFor(1)).toBe(1_110_000)
+    expect(amountFor(1, 'solo')).toBe(1_110_000)
+  })
+
+  it('does not let that flat price leak into the tiers it never meant', () => {
+    process.env.PRICE_1M = '111000'
+    expect(catalogue('studio').find(t => t.months === 1).toman).toBe(349_000)
+    expect(catalogue('pro').find(t => t.months === 1).toman).toBe(749_000)
+  })
+
+  it('prefers the tier-specific name when both are set', () => {
+    process.env.PRICE_1M = '111000'
+    process.env.PRICE_SOLO_1M = '222000'
+    expect(catalogue('solo').find(t => t.months === 1).toman).toBe(222_000)
+  })
+
+  it('defaults to the entry tier when nobody says which', () => {
+    expect(catalogue().every(t => t.tier === 'solo')).toBe(true)
   })
 })

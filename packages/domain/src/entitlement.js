@@ -41,6 +41,66 @@ const DAY = 86400000
 /** The terms on offer. Longer terms are cheaper per month; the prices themselves are config. */
 export const TERMS = [1, 3, 12]
 
+/**
+ * The sizes a coaching subscription comes in.
+ *
+ * A seat is worth roughly what the book behind it is worth, and a coach with four clients and
+ * a coach with eighty are not running the same business. One flat price charges them the same
+ * thing, which means the small coach is priced out and the large one is underpriced — and it
+ * also means revenue cannot grow with a coach's practice, which is the part that matters to
+ * whoever is paying for the servers.
+ *
+ * `clientCap` is data on the tier rather than a number written into a check somewhere, so the
+ * thing offered and the thing enforced cannot drift apart. Same reason `TERMS` lives here and
+ * not in the pricing module: the catalogue and the credit have to agree, and the only way to
+ * guarantee that is for there to be one of them.
+ *
+ * **`legacy` is not for sale.** It is what everybody who bought before tiers existed keeps —
+ * unlimited, because unlimited is what they were sold. A trialling coach who has never bought
+ * anything is on it too: there is no purchase to name a tier after, and capping a trial at the
+ * smallest tier would make the trial a worse product than the thing it is advertising.
+ *
+ * A null `clientCap` is unlimited, and is deliberately not spelled `Infinity` — this value is
+ * written to a nullable integer column and read back from one, and a sentinel that survives
+ * that round trip beats one that turns into `null` on the way through anyway.
+ */
+export const TIERS = [
+  { id: 'legacy', clientCap: null, purchasable: false },
+  { id: 'solo',   clientCap: 5,    purchasable: true },
+  { id: 'studio', clientCap: 25,   purchasable: true },
+  { id: 'pro',    clientCap: 100,  purchasable: true }
+]
+
+/**
+ * What an unnamed tier means.
+ *
+ * Used where a tier is structurally absent rather than unknown — a subscription row created by
+ * starting a trial, an instance with no gateway at all. Both of those are uncapped, and both
+ * would be misrepresented by naming a tier nobody bought.
+ */
+export const DEFAULT_TIER = 'legacy'
+
+/** The tiers a person can actually buy, in the order the billing screen should show them. */
+export const PURCHASABLE_TIERS = TIERS.filter(t => t.purchasable)
+
+export const isTier = id => TIERS.some(t => t.id === id)
+
+export const isPurchasableTier = id => PURCHASABLE_TIERS.some(t => t.id === id)
+
+/** The tier row, or null. Callers that need a definite answer should say which default they want. */
+export const tierFor = id => TIERS.find(t => t.id === id) ?? null
+
+/**
+ * How many clients this tier permits — null for unlimited.
+ *
+ * An unknown tier is unlimited rather than zero. That direction is chosen on purpose: a tier
+ * name this build does not recognise means a row written by a newer version or a value nobody
+ * anticipated, and the failure mode of guessing generously is a coach who takes on a client
+ * they should have paid for. The failure mode of guessing meanly is a paying coach locked out
+ * of their own business by a deploy. Only one of those is worth having.
+ */
+export const capFor = id => (tierFor(id)?.clientCap ?? null)
+
 const ms = v => (v == null ? null : v instanceof Date ? v.getTime() : new Date(v).getTime())
 const latest = (a, b) => (a == null ? b : b == null ? a : Math.max(a, b))
 

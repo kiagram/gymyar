@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  entitlement, allows, extend, addMonths, trialEnd, TRIAL_DAYS, GRACE_DAYS
+  entitlement, allows, extend, addMonths, trialEnd, TRIAL_DAYS, GRACE_DAYS,
+  TIERS, PURCHASABLE_TIERS, DEFAULT_TIER, isTier, isPurchasableTier, tierFor, capFor
 } from './entitlement.js'
 
 const DAY = 86400000
@@ -141,5 +142,52 @@ describe('trialEnd', () => {
     expect(entitlement(sub, NOW).state).toBe('trial')
     expect(entitlement(sub, NOW).daysLeft).toBe(TRIAL_DAYS)
     expect(entitlement(sub, NOW + (TRIAL_DAYS + 1) * DAY).state).toBe('grace')
+  })
+})
+
+describe('tiers', () => {
+  it('names every tier exactly once', () => {
+    const ids = TIERS.map(t => t.id)
+    expect(ids).toEqual(['legacy', 'solo', 'studio', 'pro'])
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('sells three of the four', () => {
+    expect(PURCHASABLE_TIERS.map(t => t.id)).toEqual(['solo', 'studio', 'pro'])
+    expect(isPurchasableTier('legacy')).toBe(false)
+    expect(isTier('legacy')).toBe(true)
+  })
+
+  it('gets bigger as it gets further up the list', () => {
+    const caps = PURCHASABLE_TIERS.map(t => t.clientCap)
+    expect(caps).toEqual([...caps].sort((a, b) => a - b))
+    expect(caps.every(c => c > 0)).toBe(true)
+  })
+
+  it('treats legacy as unlimited, not as zero', () => {
+    // Everybody who bought before tiers existed bought no cap, and keeps it.
+    expect(capFor('legacy')).toBeNull()
+    expect(tierFor('legacy').clientCap).toBeNull()
+  })
+
+  it('defaults to the tier that promises nothing was taken away', () => {
+    expect(DEFAULT_TIER).toBe('legacy')
+    expect(capFor(DEFAULT_TIER)).toBeNull()
+  })
+
+  it('reads an unknown tier as unlimited rather than as capped', () => {
+    // A name from a newer build, or a typo. Guessing generously costs a client we should have
+    // been paid for; guessing meanly locks a paying coach out of their own business.
+    expect(capFor('enterprise')).toBeNull()
+    expect(capFor(null)).toBeNull()
+    expect(capFor(undefined)).toBeNull()
+    expect(tierFor('enterprise')).toBeNull()
+  })
+
+  it('gives every purchasable tier a real cap', () => {
+    for (const t of PURCHASABLE_TIERS) {
+      expect(typeof t.clientCap).toBe('number')
+      expect(capFor(t.id)).toBe(t.clientCap)
+    }
   })
 })
