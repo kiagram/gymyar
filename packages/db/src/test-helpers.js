@@ -25,6 +25,11 @@ export async function setupDb() {
  * exercises go and the library stays. */
 export async function truncateUsers() {
   await db()`delete from users`
+  /* `orphaned_media` has no foreign key to anything — that is the whole point of it, so that a
+   * deleted account cannot take the record of its files with it. Which means the cascade above
+   * does not clear it, and a test that sweeps would otherwise find every key every earlier test
+   * left behind. */
+  await db()`delete from orphaned_media`
 }
 
 export async function teardownDb() { await close(); ready = false }

@@ -92,21 +92,52 @@ describe('the note, in Persian', () => {
     changes: [{ exerciseId: '0025', field: 'reps', from: 5, to: 4, why: 'Cut the rep target.' }]
   }
 
-  it('assembles the sentence in Persian, not English', () => {
-    const { note } = explainChangeLocally(CHANGE, { lang: 'fa' })
+  it('assembles the sentence in Persian, not English', async () => {
+    const { note } = await explainChangeLocally(CHANGE, { lang: 'fa' })
     expect(note).toContain('از 5 به 4')
     expect(note).toContain('تکرار')          // the field name is translated
     expect(note).not.toContain('reps 5 → 4')
   })
 
-  it('still writes English by default', () => {
-    const { note } = explainChangeLocally(CHANGE)
+  it('still writes English by default', async () => {
+    const { note } = await explainChangeLocally(CHANGE)
     expect(note).toContain('reps 5 → 4')
   })
 
-  it('names the client when it knows them', () => {
-    const { note } = explainChangeLocally(CHANGE, { lang: 'fa', clientName: 'سام' })
+  it('names the client when it knows them', async () => {
+    const { note } = await explainChangeLocally(CHANGE, { lang: 'fa', clientName: 'سام' })
     expect(note.startsWith('سام: ')).toBe(true)
+  })
+
+  /* The lift, in Persian too.
+   *
+   * A note is the one thing a client reads word for word, and it is assembled here rather than
+   * on their screen — so unlike every other sentence in the app, there is nothing left for the
+   * client to translate afterwards. Persian scaffolding around "barbell bench press" is a note
+   * written by somebody who did not read it.
+   */
+  it('names the lift in Persian, not only the numbers around it', async () => {
+    const { note } = await explainChangeLocally(CHANGE, { lang: 'fa' })
+    expect(note).toContain('پرس سینه هالتر')
+    expect(note).not.toMatch(/barbell bench press/i)
+  })
+
+  it('falls back to the English name for a lift the pack does not cover', async () => {
+    // 66 of 1,324 are translated — the ones the planner can emit. Everything else reads as
+    // partly translated rather than blank, which is the deliberate trade.
+    const untranslated = {
+      ...CHANGE,
+      changes: [{ exerciseId: '3348', field: 'reps', from: 5, to: 4, why: 'Cut the rep target.' }]
+    }
+    const { note } = await explainChangeLocally(untranslated, { lang: 'fa' })
+    expect(note).toContain('از 5 به 4')       // still a Persian sentence
+    expect(note).toMatch(/[a-z]/i)            // with an English name inside it
+  })
+
+  it('leaves an English note naming the lift in English', async () => {
+    const { note } = await explainChangeLocally(CHANGE)
+    expect(note).toMatch(/bench press/i)
+    expect(note).not.toContain('پرس سینه هالتر')
   })
 })
 

@@ -57,7 +57,11 @@ export const sendMessage = (linkId, body, context = {}) =>
 export const SCOPE_INFO = {
   programmes: { label: 'Programmes', detail: 'Your routines and weekly schedule' },
   workouts:   { label: 'Workouts',   detail: 'Every session you log, set by set' },
-  bodyweight: { label: 'Body weight', detail: 'Your weigh-ins and goal' }
+  bodyweight: { label: 'Body weight', detail: 'Your weigh-ins and goal' },
+  /* Its own line, and worded so that what is being agreed to is unmistakable. Sharing a number
+   * about a body and sharing a picture of one are not the same decision, and a consent screen
+   * that treats them as one has not obtained consent for the second. */
+  photos: { label: 'Progress photos', detail: 'Photographs you take of yourself' }
 }
 
 /** Days since a date, or null. Used for "last trained" without pulling in a date library. */

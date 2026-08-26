@@ -20,11 +20,11 @@ export async function verifyPassword(password, stored) {
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual)
 }
 
-export async function createUser({ name, email = null, password = null, isCoach = false, isAdmin = false }, s = db()) {
+export async function createUser({ name, email = null, password = null, isCoach = false, isAdmin = false, locale = 'en' }, s = db()) {
   const password_hash = password ? await hashPassword(password) : null
   const [user] = await s`
-    insert into users (name, email, password_hash, is_coach, is_admin)
-    values (${name}, ${email}, ${password_hash}, ${isCoach}, ${isAdmin})
+    insert into users (name, email, password_hash, is_coach, is_admin, locale)
+    values (${name}, ${email}, ${password_hash}, ${isCoach}, ${isAdmin}, ${locale})
     returning *`
   await s`insert into sync_cursor (user_id, value) values (${user.id}, 0)
           on conflict (user_id) do nothing`
@@ -50,6 +50,22 @@ export const saveCredential = (c, s = db()) => s`
 
 export const touchCredential = (id, counter, s = db()) =>
   s`update credentials set counter = ${counter}, last_used_at = now() where id = ${id}`
+
+/**
+ * Remember which language this person reads.
+ *
+ * The column existed from 001 and nothing ever wrote it, so it was `'en'` for everybody — which
+ * quietly made two features monolingual. `interpretBrief` and `explainChange` both take
+ * `user.locale` and are commented as answering "in the language this person set on their
+ * profile"; with the column frozen at the default, a Farsi coach's client got an English note
+ * from a layer that had Farsi support sitting unreachable behind it.
+ *
+ * Not part of sync: this is a property of the account rather than a row the app edits offline,
+ * and the client pushes it when it changes.
+ */
+export const setLocale = (userId, locale, s = db()) =>
+  s`update users set locale = ${locale} where id = ${userId} returning locale`
+    .then(r => r[0]?.locale ?? null)
 
 /** Invalidate every session this user has anywhere. */
 export const bumpSessionVersion = (userId, s = db()) =>

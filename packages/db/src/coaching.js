@@ -13,7 +13,14 @@
 import crypto from 'node:crypto'
 import { db, logChange } from './index.js'
 
-export const SCOPES = ['programmes', 'workouts', 'bodyweight']
+/* What a client can agree to share, in the order a consent screen should ask.
+ *
+ * `photos` is last and is its own scope rather than a corner of `bodyweight`, because a
+ * progress photo is not a number about a body — it is a picture of one. Somebody who shares
+ * their weigh-ins with a coach has said nothing at all about that, and a design that folds the
+ * two together has quietly decided on their behalf. It is not in the default grant either: the
+ * defaults are what an invitation asks for before anyone has thought about it. */
+export const SCOPES = ['programmes', 'workouts', 'bodyweight', 'photos']
 
 const code = () => crypto.randomBytes(9).toString('base64url')
 

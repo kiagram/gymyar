@@ -22,6 +22,33 @@ export const config = {
     }
     return crypto.randomBytes(32).toString('hex')
   })(),
+  media: {
+    /* Whether nginx is in front and willing to serve the bytes itself.
+     *
+     * On, the API answers a media request with `X-Accel-Redirect` and no body: it has verified
+     * the signature, and nginx streams the file — including range requests, which is what makes
+     * seeking in a video work without Node holding an event loop open for the length of it.
+     *
+     * Off, Node serves the file. That is the dev stack (vite proxying straight to this process,
+     * no nginx anywhere) and the test suite, and it is why the fallback exists at all rather
+     * than being a second production path: an instance that sets this wrongly serves empty
+     * bodies, which is a misconfiguration that should be visible in one request.
+     */
+    accel: bool(process.env.STORAGE_ACCEL),
+    /* How long a media URL lives. Minutes — see packages/storage/src/sign.js for why. */
+    urlTtl: Math.max(30, +(process.env.MEDIA_URL_TTL || 300) || 300),
+    /* Everything one account may hold at once. Zero is unlimited, which is the right answer
+     * for a household instance and the wrong one for anything with a signup form: an upload
+     * endpoint with no ceiling is a bill somebody else writes. */
+    quotaBytes: Math.max(0, +(process.env.MAX_MEDIA_BYTES_PER_USER ?? 2 * 1024 * 1024 * 1024) || 0)
+  },
+  /* Where a link in an email points.
+   *
+   * `origin` already exists for WebAuthn, which needs it to match the page exactly — so it is
+   * the same value and there is nothing new to misconfigure. It is worth saying out loud that
+   * an instance with the default `http://localhost:8080` will email links nobody else can open;
+   * that is the same sentence as "set ORIGIN before you let anyone else sign up".
+   */
   vapid: {
     publicKey: process.env.VAPID_PUBLIC_KEY || null,
     privateKey: process.env.VAPID_PRIVATE_KEY || null,

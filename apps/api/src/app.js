@@ -11,6 +11,7 @@ import pushRoutes from './routes/push.js'
 import adminRoutes from './routes/admin.js'
 import aiRoutes from './routes/ai.js'
 import billingRoutes from './routes/billing.js'
+import mediaRoutes from './routes/media.js'
 
 export async function build({
   logger = false, databaseUrl = config.databaseUrl, runMigrations = true, ai = null,
@@ -52,7 +53,14 @@ export async function build({
     })
   })
 
-  app.addHook('onSend', async (req, reply) => { reply.header('Cache-Control', 'no-store') })
+  /* Nothing this API says is cacheable — except the bytes behind a signed media URL, which
+   * are immutable, already carry their own expiry in the signature, and are re-requested once
+   * per seek by a video element. `no-store` there would mean re-downloading a clip to scrub
+   * back five seconds, so those responses set their own header and this one leaves them be. */
+  app.addHook('onSend', async (req, reply) => {
+    if (req.url.startsWith('/media/')) return
+    reply.header('Cache-Control', 'no-store')
+  })
 
   app.get('/api/health', async () => {
     const [{ n }] = await db()`select count(*)::int as n from users`
@@ -67,6 +75,7 @@ export async function build({
   await app.register(adminRoutes)
   await app.register(aiRoutes, { ai })
   await app.register(billingRoutes, { gateway })
+  await app.register(mediaRoutes)
 
   return app
 }

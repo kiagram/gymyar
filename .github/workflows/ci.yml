@@ -35,6 +35,8 @@ jobs:
         run: npm run test -w @gymbuddy/domain
       - name: AI layer tests
         run: npm run test -w @gymbuddy/ai
+      - name: Storage tests
+        run: npm run test -w @gymbuddy/storage
       - name: Database tests
         run: npm run test -w @gymbuddy/db
       - name: API tests

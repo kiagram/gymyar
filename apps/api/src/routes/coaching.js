@@ -15,10 +15,12 @@ import {
   sendMessage, readThread, SCOPES
 } from '@gymbuddy/db/coaching.js'
 import { pullAll } from '@gymbuddy/db/sync.js'
+import { forMessages } from '@gymbuddy/db/attachments.js'
 import { db } from '@gymbuddy/db'
 import { requireUser } from '../session.js'
 import { requireCoach, requireCapacity, capacityFor } from '../entitlement.js'
 import { billingEnabled } from '../payments/pricing.js'
+import { withUrls } from '../media.js'
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status })
 
@@ -164,7 +166,15 @@ export default async function coachingRoutes(app) {
 
   app.get('/api/threads/:linkId', async req => {
     const user = await requireUser(req)
-    return { messages: await readThread({ linkId: req.params.linkId, userId: user.id }) }
+    const messages = await readThread({ linkId: req.params.linkId, userId: user.id })
+    /* Attachments come back attached, in one query for the whole thread rather than one per
+     * message. Their URLs are minted here because this is where the permission was checked —
+     * `readThread` has just refused anybody who is not in this conversation. */
+    const files = await forMessages(messages.map(m => m.id))
+    return {
+      messages: messages.map(m =>
+        files.has(m.id) ? { ...m, attachments: withUrls(files.get(m.id)) } : m)
+    }
   })
 
   app.post('/api/threads/:linkId', async req => {

@@ -31,7 +31,8 @@
 import { filesystemStorage } from './fs.js'
 import { s3Storage } from './s3.js'
 
-export { buildKey, assertKey, isKey, ownerPrefix, extensionFor, supportedTypes } from './keys.js'
+export { buildKey, assertKey, isKey, ownerPrefix, extensionFor, kindFor, mimeForKey, supportedTypes } from './keys.js'
+export { sniff, SNIFF_BYTES } from './sniff.js'
 export { signedPath, verify, urlKey, DEFAULT_TTL_SECONDS } from './sign.js'
 export { filesystemStorage } from './fs.js'
 export { s3Storage } from './s3.js'

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { build } from './app.js'
 import { client } from './test-client.js'
 import { db, close } from '@gymbuddy/db'
+import { config } from './config.js'
 
 let app
 const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
@@ -337,5 +338,284 @@ describe('admin', () => {
       insert into payments (user_id, gateway, amount, currency, months, status)
       values (${user.id}, 'zarinpal', 9999000, 'IRR', 12, 'abandoned')`
     expect((await c.get('/api/admin/revenue')).body.months).toEqual([])
+  })
+})
+
+/* The language the server writes in.
+ *
+ * `users.locale` shipped in 001 and nothing ever wrote it, so every account sat at `'en'` and
+ * two features that read it — the brief reader and the note a coach's client is sent — were
+ * monolingual behind a layer that already had Farsi in it. These are about the column being
+ * reachable at all.
+ */
+describe('the language on a profile', () => {
+  it('is taken from the form the account was created on', async () => {
+    const c = client(app)
+    const r = await c.post('/api/register/password', {
+      name: 'Reza', email: 'reza@x.test', password: 'correct-horse-battery', locale: 'fa'
+    })
+    expect(r.status).toBe(200)
+    const [row] = await db()`select locale from users where id = ${r.body.user.id}`
+    expect(row.locale).toBe('fa')
+  })
+
+  it('defaults to English rather than refusing an account over it', async () => {
+    const c = client(app)
+    const r = await c.post('/api/register/password', {
+      name: 'Ada', email: 'ada@x.test', password: 'correct-horse-battery', locale: 'klingon'
+    })
+    expect(r.status).toBe(200)
+    const [row] = await db()`select locale from users where id = ${r.body.user.id}`
+    expect(row.locale).toBe('en')
+  })
+
+  it('moves when somebody changes the app’s language', async () => {
+    const { c, user } = await signUp('Sam', 'sam@x.test')
+    const r = await c.patch('/api/me', { locale: 'fa' })
+    expect(r.status).toBe(200)
+    expect(r.body.user.locale).toBe('fa')
+    const [row] = await db()`select locale from users where id = ${user.id}`
+    expect(row.locale).toBe('fa')
+  })
+
+  it('refuses a language this app does not have', async () => {
+    const { c } = await signUp('Sam', 'sam@x.test')
+    expect((await c.patch('/api/me', { locale: 'xx' })).status).toBe(400)
+    expect((await c.patch('/api/me', { locale: 'fa-IR' })).status).toBe(400)
+    expect((await c.patch('/api/me', {})).status).toBe(400)
+  })
+
+  it('is nobody’s business but the signed-in account’s', async () => {
+    const c = client(app)
+    expect((await c.patch('/api/me', { locale: 'fa' })).status).toBe(401)
+  })
+
+  it('says the same thing twice without writing twice', async () => {
+    // Called on every sign-in, so the no-op case is the common one.
+    const { c } = await signUp('Sam', 'sam@x.test')
+    await c.patch('/api/me', { locale: 'fa' })
+    const again = await c.patch('/api/me', { locale: 'fa' })
+    expect(again.status).toBe(200)
+    expect(again.body.user.locale).toBe('fa')
+  })
+})
+
+/* Password reset over the real routes.
+ *
+ * Two things are being checked and they pull against each other. The first is that the feature
+ * works. The second is that it tells a stranger nothing — which means most of these assert that
+ * two different situations produce byte-identical answers.
+ *
+ * The transport is `log`, so the email is a line in the logger rather than a message anybody
+ * sends. The link is read back out of it, which is exactly what a self-hoster running
+ * MAIL_TRANSPORT=log does by hand.
+ */
+describe('password reset', () => {
+  // Initialised here rather than in `beforeEach`: the logger below starts writing during
+  // `build()`, which runs in `beforeAll` — before any `beforeEach` has.
+  let sent = []
+  let mailApp
+
+  /** The link out of the last email, which on this transport is a line in the log. */
+  const linkFrom = () => {
+    const url = sent.filter(l => l.body && l.subject).at(-1)?.body?.match(/https?:\S+/)?.[0]
+    return url ? url.split('/#/reset/')[1] : null
+  }
+
+  beforeAll(async () => {
+    process.env.MAIL_TRANSPORT = 'log'
+    /* A second app, with a logger that keeps what it is given.
+     *
+     * `req.log` is a child of the instance's logger, so replacing a property after the fact
+     * would not reach it — the capture has to be the stream the logger was built around. This
+     * is also exactly how a self-hoster running MAIL_TRANSPORT=log reads their own link, which
+     * makes it a fair test of that path rather than a mock of it. */
+    mailApp = await build({
+      databaseUrl: URL,
+      rateLimit: false,
+      logger: { level: 'info', stream: { write: line => sent.push(JSON.parse(line)) } }
+    })
+  })
+  beforeEach(() => { sent = [] })
+  // Every log line lands in `sent`; an email is the one carrying a body.
+  const emails = () => sent.filter(l => l.body && l.subject)
+  afterAll(async () => {
+    await mailApp.close()
+    delete process.env.MAIL_TRANSPORT
+    delete process.env.ORIGIN
+  })
+
+  const withMail = () => client(mailApp)
+
+  const register = async (c, email, extra = {}) => {
+    const r = await c.post('/api/register/password', {
+      name: 'Sam', email, password: 'correct-horse-battery', ...extra
+    })
+    expect(r.status).toBe(200)
+    return r.body.user
+  }
+
+  it('is not offered at all when the instance cannot send email', async () => {
+    /* Both are read from the environment per request rather than captured at boot, which is
+     * what lets this be tested at all — and is the same reason an operator can turn mail on
+     * without rebuilding an image. */
+    const was = process.env.MAIL_TRANSPORT
+    delete process.env.MAIL_TRANSPORT
+    try {
+      const c = withMail()
+      expect((await c.get('/api/config')).body.passwordReset).toBe(false)
+      // Not a 404 and not a silent 200: an instance that cannot do this says so.
+      expect((await c.post('/api/password/forgot', { email: 'nobody@x.test' })).status).toBe(501)
+    } finally {
+      process.env.MAIL_TRANSPORT = was
+    }
+  })
+
+  it('is offered when it can', async () => {
+    expect((await withMail().get('/api/config')).body.passwordReset).toBe(true)
+  })
+
+  it('sends a link that sets a new password and signs in', async () => {
+    const c = withMail()
+    const user = await register(c, 'reset-me@x.test')
+    await c.post('/api/logout')
+
+    expect((await c.post('/api/password/forgot', { email: 'reset-me@x.test' })).status).toBe(200)
+    const token = linkFrom()
+    expect(token).toBeTruthy()
+
+    expect((await c.get(`/api/password/reset/${token}`)).body.valid).toBe(true)
+    const done = await c.post('/api/password/reset', { token, password: 'a-brand-new-password' })
+    expect(done.status).toBe(200)
+    expect(done.body.user.id).toBe(user.id)
+    // Signed in on this device: reading the email and choosing the password is the whole proof.
+    expect((await c.get('/api/me')).body.user.id).toBe(user.id)
+
+    // And the new password is the one that works from a cold start.
+    const fresh = client(mailApp)
+    expect((await fresh.post('/api/login/password',
+      { email: 'reset-me@x.test', password: 'a-brand-new-password' })).status).toBe(200)
+    expect((await fresh.post('/api/login/password',
+      { email: 'reset-me@x.test', password: 'correct-horse-battery' })).status).toBe(401)
+  })
+
+  it('signs every other device out', async () => {
+    const c = withMail()
+    await register(c, 'reset-me@x.test')
+    const otherDevice = client(mailApp)
+    expect((await otherDevice.post('/api/login/password',
+      { email: 'reset-me@x.test', password: 'correct-horse-battery' })).status).toBe(200)
+    expect((await otherDevice.get('/api/me')).status).toBe(200)
+
+    await c.post('/api/password/forgot', { email: 'reset-me@x.test' })
+    await c.post('/api/password/reset', { token: linkFrom(), password: 'a-brand-new-password' })
+
+    // The session_version bump is what does this, and it is the point of the whole step.
+    expect((await otherDevice.get('/api/me')).status).toBe(401)
+  })
+
+  it('says exactly the same thing about an address with no account', async () => {
+    const c = withMail()
+    await register(c, 'real@x.test')
+    await c.post('/api/logout')
+
+    const real = await c.post('/api/password/forgot', { email: 'real@x.test' })
+    sent = []
+    const fake = await c.post('/api/password/forgot', { email: 'nobody-at-all@x.test' })
+
+    expect(fake.status).toBe(real.status)
+    expect(fake.body).toEqual(real.body)
+    // Nothing was sent, which is the only difference and it is not one the caller can see.
+    expect(emails()).toHaveLength(0)
+  })
+
+  it('says the same thing about a passkey-only account', async () => {
+    // Nothing to reset, and answering differently would say so.
+    const c = withMail()
+    await db()`insert into users (name, email) values ('Passkey Only', 'passkey@x.test')`
+    const r = await c.post('/api/password/forgot', { email: 'passkey@x.test' })
+    expect(r.status).toBe(200)
+    expect(r.body).toEqual({ ok: true })
+    expect(emails()).toHaveLength(0)
+  })
+
+  it('says the same thing about a disabled account', async () => {
+    const c = withMail()
+    const user = await register(c, 'disabled@x.test')
+    await db()`update users set disabled_at = now() where id = ${user.id}`
+    sent = []
+    const r = await c.post('/api/password/forgot', { email: 'disabled@x.test' })
+    expect(r.status).toBe(200)
+    expect(emails()).toHaveLength(0)
+  })
+
+  it('writes the email in the account’s language', async () => {
+    const c = withMail()
+    await register(c, 'reza@x.test', { locale: 'fa' })
+    sent = []
+    await c.post('/api/password/forgot', { email: 'reza@x.test' })
+
+    const line = emails().at(-1)
+    expect(line.subject).toMatch(/[؀-ۿ]/)
+    expect(line.body).toMatch(/[؀-ۿ]/)
+    // The link is still a link.
+    expect(line.body).toContain(`${config.origin}/#/reset/`)
+  })
+
+  it('points the link at this instance’s own origin', async () => {
+    /* Against `config.origin` rather than a literal: it is read once when the module loads, so
+     * a test cannot set it afterwards — and the property worth asserting is that the link is
+     * built from whatever this instance is configured with, not that it equals some string. */
+    const c = withMail()
+    await register(c, 'origin@x.test')
+    sent = []
+    await c.post('/api/password/forgot', { email: 'origin@x.test' })
+    expect(emails().at(-1).body).toContain(`${config.origin}/#/reset/`)
+  })
+
+  it('refuses a spent link, and says which of the two it was', async () => {
+    const c = withMail()
+    await register(c, 'twice@x.test')
+    await c.post('/api/password/forgot', { email: 'twice@x.test' })
+    const token = linkFrom()
+
+    expect((await c.post('/api/password/reset', { token, password: 'a-brand-new-password' })).status).toBe(200)
+    const again = await c.post('/api/password/reset', { token, password: 'yet-another-one' })
+    expect(again.status).toBe(400)
+    expect(again.body.error).toMatch(/expired or has already been used/)
+    expect((await c.get(`/api/password/reset/${token}`)).body.valid).toBe(false)
+  })
+
+  it('refuses a token nobody minted, without saying anything about it', async () => {
+    const c = withMail()
+    expect((await c.get('/api/password/reset/not-a-real-token')).body.valid).toBe(false)
+    const r = await c.post('/api/password/reset', { token: 'not-a-real-token', password: 'a-brand-new-password' })
+    expect(r.status).toBe(400)
+  })
+
+  it('applies the same password rule as the signup form, before spending the link', async () => {
+    const c = withMail()
+    await register(c, 'short@x.test')
+    await c.post('/api/password/forgot', { email: 'short@x.test' })
+    const token = linkFrom()
+
+    const r = await c.post('/api/password/reset', { token, password: 'short' })
+    expect(r.status).toBe(400)
+    expect(r.body.error).toMatch(/at least 10/)
+    // A password that was never going to be accepted must not cost somebody their link.
+    expect((await c.get(`/api/password/reset/${token}`)).body.valid).toBe(true)
+  })
+
+  it('leaves only the newest link working', async () => {
+    const c = withMail()
+    await register(c, 'again@x.test')
+    await c.post('/api/password/forgot', { email: 'again@x.test' })
+    const first = linkFrom()
+    await c.post('/api/password/forgot', { email: 'again@x.test' })
+    const second = linkFrom()
+
+    expect(first).not.toBe(second)
+    expect((await c.get(`/api/password/reset/${first}`)).body.valid).toBe(false)
+    expect((await c.get(`/api/password/reset/${second}`)).body.valid).toBe(true)
   })
 })

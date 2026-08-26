@@ -1,5 +1,6 @@
 // Backend + WebAuthn helpers (ported from the vanilla app).
 import { MOBILE } from './mobile.js'
+import { getLang } from './i18n.js'
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
 export const IS_ANDROID = /Android/.test(navigator.userAgent)
 export const BIO = IS_APPLE ? 'Face ID / Touch ID' : IS_ANDROID ? 'fingerprint or face unlock' : 'your fingerprint, face or PIN'
@@ -30,6 +31,42 @@ export async function api(path, opts) {
     throw e
   }
   return data
+}
+
+/**
+ * Send a file as a raw request body, with progress.
+ *
+ * `fetch` cannot report upload progress — there is no event for it — and this is the one place
+ * in the app where that matters: a 60 MB form check on mobile data is a minute of somebody
+ * staring at a screen, and a spinner that never moves is indistinguishable from a stall. So
+ * this one call is XHR, deliberately, and everything else stays on fetch.
+ *
+ * The body is the file and nothing else. No multipart, no filename — the server builds the key
+ * and sniffs the type, so a filename would be a field it has already decided never to read.
+ * `application/octet-stream` is sent because it is the type that means "these are bytes",
+ * which is exactly how much the server trusts it.
+ */
+export function upload(path, blob, { onProgress = null, signal = null } = {}) {
+  if (MOBILE) throw new Error(`the native build has no backend (tried ${path})`)
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', path)
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress?.(e.loaded / e.total) }
+    xhr.onload = () => {
+      let data = {}
+      try { data = JSON.parse(xhr.responseText) } catch { /* a proxy's error page, not ours */ }
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(data)
+      const e = new Error(data.error || ('HTTP ' + xhr.status))
+      e.status = xhr.status
+      e.code = data.code || null
+      reject(e)
+    }
+    xhr.onerror = () => reject(new Error('upload failed'))
+    xhr.onabort = () => reject(Object.assign(new Error('upload cancelled'), { cancelled: true }))
+    signal?.addEventListener('abort', () => xhr.abort(), { once: true })
+    xhr.send(blob)
+  })
 }
 
 const bufToB64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -84,10 +121,49 @@ export async function passkeyLogin() {
 export async function passwordRegister({ name, email, password, code, asCoach }) {
   const res = await api('/api/register/password', {
     method: 'POST',
-    body: JSON.stringify({ name, email, password, code: code || '', asCoach: !!asCoach })
+    body: JSON.stringify({
+      name, email, password, code: code || '', asCoach: !!asCoach,
+      // The language they are reading this form in. Sent at signup so the first note the
+      // server writes for this account is already in it, rather than English until they
+      // happen to open Settings.
+      locale: getLang()
+    })
   })
   return res.user
 }
+
+/**
+ * Tell the server which language to write in.
+ *
+ * Only the server-generated prose depends on this — a coach's drafted note, a plan summary —
+ * and everything else the app renders is translated on this side from packs it already has.
+ * So a failure here is silent: the worst case is a sentence arriving in English, and there is
+ * nothing a person could usefully be told about it mid-launch.
+ */
+export const setServerLocale = locale =>
+  api('/api/me', { method: 'PATCH', body: JSON.stringify({ locale }) }).catch(() => null)
+
+/* ------------------------------------------------------ password reset ---- */
+
+/**
+ * Ask for a reset link.
+ *
+ * Resolves the same way whether or not that address has an account — the server answers
+ * identically on purpose, so that this endpoint cannot be used to find out who is a member.
+ * Which means the screen cannot say "sent" honestly either, and says "if that address has an
+ * account" instead.
+ */
+export const requestPasswordReset = email =>
+  api('/api/password/forgot', { method: 'POST', body: JSON.stringify({ email }) })
+
+/** Whether a link is still good, asked before somebody bothers choosing a password. */
+export const checkResetToken = token =>
+  api(`/api/password/reset/${encodeURIComponent(token)}`).then(r => !!r.valid)
+
+/** Spend the link. Signs in on success — they have just proved the account is theirs. */
+export const resetPassword = ({ token, password }) =>
+  api('/api/password/reset', { method: 'POST', body: JSON.stringify({ token, password }) })
+    .then(r => r.user)
 
 export async function passwordLogin({ email, password }) {
   const res = await api('/api/login/password', {

@@ -11,10 +11,14 @@ import {
 } from '@simplewebauthn/server'
 import { db } from '@gymbuddy/db'
 import {
-  createUser, findUserByEmail, findCredential, saveCredential, touchCredential,
+  createUser, findUserByEmail, findCredential, saveCredential, touchCredential, setLocale,
   verifyPassword, bumpSessionVersion, publicUser
 } from '@gymbuddy/db/users.js'
 import { config } from '../config.js'
+import { LIMITS, MAX_VIDEO_SECONDS } from '@gymbuddy/storage'
+import { isLocale } from '@gymbuddy/domain'
+import { mailerFor, mailEnabled, resetEmail } from '@gymbuddy/mail'
+import { createReset, consume, isLive } from '@gymbuddy/db/passwords.js'
 import { issue, clear, requireUser, currentUser } from '../session.js'
 import { limit } from '../rate-limit.js'
 
@@ -50,13 +54,45 @@ export default async function authRoutes(app) {
     inviteOnly: config.inviteOnly,
     rpName: config.rpName,
     passkeys: true,
-    passwords: true
+    passwords: true,
+    /* Whether "forgot password" is a thing on this instance.
+     *
+     * False when no mail transport is configured, and the client then does not offer the link
+     * at all. That is the honest shape: an instance with no way to send email cannot reset a
+     * password, and a form that says "check your inbox" to somebody who will never receive
+     * anything is worse than no form. See packages/mail/src/index.js. */
+    passwordReset: mailEnabled(),
+    /* The upload ceilings, so the app can refuse a file before spending somebody's mobile
+     * data on it rather than after. The server enforces them regardless — this is courtesy,
+     * not the check — but a rejection that arrives at 100% of a 60 MB upload is a person who
+     * does not try again. */
+    media: { limits: LIMITS, maxVideoSeconds: MAX_VIDEO_SECONDS }
   }))
 
   app.get('/api/me', async req => {
     const user = await currentUser(req)
     if (!user) throw bad('not signed in', 401)
     return { user: publicUser(user) }
+  })
+
+  /**
+   * The parts of a profile the server needs to know and sync does not carry.
+   *
+   * Only `locale`, for now, and it is here rather than in a sync row because it is not one: the
+   * app's language is a device setting the client already keeps, and this is the server being
+   * told which language to *write* in — for the note a coach's client reads, which the server
+   * generates. An allowlist rather than whatever arrives, since it lands in a column two
+   * features branch on.
+   */
+  app.patch('/api/me', async req => {
+    const user = await requireUser(req)
+    const locale = String(req.body?.locale || '')
+    if (!isLocale(locale)) throw bad('not a language this app has')
+    // Nothing to say and nothing to write when it has not moved — this is called on every
+    // sign-in, and an UPDATE per launch is a write nobody asked for.
+    if (locale === user.locale) return { user: publicUser(user) }
+    await setLocale(user.id, locale)
+    return { user: publicUser({ ...user, locale }) }
   })
 
   /* ---------------------------------------------------------- passkeys ---- */
@@ -164,7 +200,11 @@ export default async function authRoutes(app) {
     await checkInvite(String(req.body?.code || '').trim().toUpperCase())
     if (await findUserByEmail(email)) throw bad('that email is already registered', 409)
 
-    const user = await createUser({ name, email, password, isCoach: !!req.body?.asCoach })
+    // The language they are reading the signup form in, so the first note this account is sent
+    // is already in it. Anything unrecognised is simply English rather than a rejection: a bad
+    // `locale` is not a reason to refuse somebody an account.
+    const locale = isLocale(req.body?.locale) ? req.body.locale : 'en'
+    const user = await createUser({ name, email, password, locale, isCoach: !!req.body?.asCoach })
     issue(reply, user)
     return { user: publicUser(user) }
   })
@@ -178,6 +218,84 @@ export default async function authRoutes(app) {
     const ok = user?.password_hash ? await verifyPassword(password, user.password_hash) : false
     if (!ok) throw bad('email or password is incorrect', 401)
     if (user.disabled_at) throw bad('this account has been disabled', 403)
+    issue(reply, user)
+    return { user: publicUser(user) }
+  })
+
+  /* ---------------------------------------------------- password reset ---- */
+
+  /**
+   * Ask for a link.
+   *
+   * Answers the same thing whether or not that address has an account, always. An endpoint that
+   * says "no such user" is an endpoint that confirms which of a leaked address list are real
+   * people here — and for a coaching app that list is a membership roster.
+   *
+   * Which means the caller learns nothing from the response, including nothing about whether it
+   * worked. That is the trade, and it is the right one: somebody who mistyped their address
+   * gets no email and tries again, while somebody enumerating gets nothing at all.
+   */
+  app.post('/api/password/forgot', { config: limit('password-reset') }, async req => {
+    /* `expose`, because this is a 5xx raised on purpose — see the error handler in app.js. An
+     * instance with no mail transport is not a bug, and "something went wrong" tells the person
+     * nothing they could act on. */
+    if (!mailEnabled()) {
+      throw Object.assign(new Error('this instance cannot send email'), { status: 501, expose: true })
+    }
+    const email = String(req.body?.email || '').trim().toLowerCase()
+
+    const user = await findUserByEmail(email)
+    // A passkey-only account has no password to reset, and a disabled one is not being let back
+    // in by email. Both fall through to the same answer as an address nobody has.
+    if (user?.password_hash && !user.disabled_at) {
+      const token = await createReset({ userId: user.id, ip: req.ip })
+      const url = `${config.origin}/#/reset/${token}`
+      // Their language, from their profile — see packages/mail/src/templates.js for why that
+      // rather than the locale of whichever browser asked.
+      const { subject, text } = resetEmail({ name: user.name, url, locale: user.locale })
+      try {
+        await mailerFor({ log: req.log }).send({ to: user.email, subject, text })
+      } catch (err) {
+        /* Logged and swallowed. The person on the other end is told the same thing either way,
+         * so throwing here would leak — a 500 for real addresses and a 200 for the rest is the
+         * enumeration oracle this endpoint was carefully written not to be. The operator gets
+         * the reason, which is who can actually act on a relay that is refusing connections. */
+        req.log.error({ err, userId: user.id }, 'could not send a password reset email')
+      }
+    }
+    return { ok: true }
+  })
+
+  /**
+   * Is this link still good? Asked when the reset screen opens.
+   *
+   * Yes or no and nothing else — it names no account and no address, so guessing at tokens
+   * reveals nothing about whose they might be. It exists so somebody who followed a stale link
+   * is told before they choose a password rather than after.
+   */
+  app.get('/api/password/reset/:token', async req => ({
+    valid: await isLive({ token: String(req.params.token || '') })
+  }))
+
+  /**
+   * Spend the link and set the password.
+   *
+   * Signs the account out everywhere on the way through — see `consume`. Somebody resetting a
+   * password may be doing it because another person had the old one, and a reset that leaves
+   * that person's session alive has fixed nothing.
+   */
+  app.post('/api/password/reset', { config: limit('auth') }, async (req, reply) => {
+    const token = String(req.body?.token || '')
+    const password = String(req.body?.password || '')
+    // The same rule the signup form applies. Checked before the token is spent, so a password
+    // that was never going to be accepted does not cost somebody their link.
+    if (password.length < 10) throw bad('password must be at least 10 characters')
+
+    const user = await consume({ token, password })
+    if (!user) throw bad('this link has expired or has already been used', 400)
+
+    // Signed in on this device, since they have just proved they can read the account's email
+    // and chosen the password — asking them to type it again immediately is ceremony.
     issue(reply, user)
     return { user: publicUser(user) }
   })

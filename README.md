@@ -41,6 +41,8 @@ apps/api          Fastify — auth, delta sync, coaching
 apps/site         marketing site (static)
 packages/domain   runtime-agnostic training logic, shared by client and server
 packages/db       Postgres schema, migrations, sync engine, coaching rules
+packages/storage  uploaded bytes — the one thing that is not a row
+packages/mail     the one email this app sends, in thirteen languages
 packages/ai       the language layer, and the deterministic path underneath it
 infra             nginx, Docker builds, media fetch, smoke and browser tests
 docs              self-hosting, mobile builds, releasing, store listings, upstream README
@@ -99,6 +101,24 @@ Zarinpal has neither recurring billing nor webhooks, so a subscription is a **pa
 date** that a purchase extends rather than a state machine something upstream drives. Payments
 are confirmed when the payer's browser comes back; the ones that never come back are found by
 reconciliation, not by hoping.
+
+### Video, photos, and the bytes that are not rows
+
+Everything else GymBuddy holds is a row, which is why "the database is the backup" was true.
+Form-check video and progress photos cannot be, so they live on a volume and `attachments` is
+the index — see [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) section 7, because a `pg_dump`
+alone restores an instance where every attachment is a broken link.
+
+The row is written *before* the bytes, always: storage deliberately cannot list itself, so an
+object written before its row could never be found again. The file's type is read from its
+leading bytes rather than from what the upload claimed, because the alternative lets a stranger
+decide what a browser does with a file served from your origin. And the bytes come back through
+a signed URL that expires in minutes, which nginx serves directly — the API decides once, and
+Node never touches a video.
+
+A progress photo has its own sharing scope. Showing a coach what you weigh is not agreeing to
+show them a photograph of yourself, and a consent screen that treats those as one decision has
+not obtained consent for the second.
 
 ### The rule that makes coaching safe
 

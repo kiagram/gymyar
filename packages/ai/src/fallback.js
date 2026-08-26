@@ -9,7 +9,7 @@
  * API serves a Farsi lifter and an English one in the same second — a registered-global
  * translator would hand one of them the other's language.
  */
-import { EXIDX, say } from '@gymbuddy/domain'
+import { EXIDX, say, loadNames, namerFor } from '@gymbuddy/domain'
 import { translatorFor } from './planner-strings.js'
 
 /* Word boundaries are ASCII in JavaScript regex, so `\b` around a Persian word matches in the
@@ -206,20 +206,23 @@ const NOTE = {
  * fallback is to say those, joined up, rather than to dress them in a coaching voice a template
  * cannot actually produce.
  *
- * Note the limit: `headline` and every `why` are English literals in `planner.js`, so a Persian
- * note here is Persian scaffolding around English reasons. Translating those is a change to the
- * domain, not to this file — see docs/ARCHITECTURE.md.
+ * Async for one reason: the exercise names are a pack that is loaded, not a table that is
+ * imported. A note is the one thing a client reads verbatim, and a Persian sentence that names
+ * the lift in English is a note that was translated by somebody who did not read it.
  */
-export function explainChangeLocally(change, { clientName = null, lang = 'en' } = {}) {
+export async function explainChangeLocally(change, { clientName = null, lang = 'en' } = {}) {
   if (!change) return { note: '' }
   const shape = NOTE[lang] || NOTE.en
   // The planner hands back sentences it has not rendered, so the language is decided here —
   // at the moment the note is written, in the language of whoever will read it.
   const t = translatorFor(lang)
-  const render = m => say(m, { t })
+  // The same pack the client renders screens from, reached through the domain. Null for a
+  // language without one, which `namerFor` turns back into the English name per exercise.
+  const exName = namerFor(await loadNames(lang))
+  const render = m => say(m, { t, exName })
   const who = clientName ? `${clientName}: ` : ''
   const lines = (change.changes || []).map(c => {
-    const ex = EXIDX[c.exerciseId]?.n || c.exerciseId
+    const ex = exName(EXIDX[c.exerciseId]) || c.exerciseId
     return c.field === 'added'
       ? shape.added(c.to, render(c.why))
       : shape.changed(ex, shape.field(c.field), c.from, c.to, render(c.why))
