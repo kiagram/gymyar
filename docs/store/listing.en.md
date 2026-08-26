@@ -56,11 +56,10 @@ WHAT IT DOES
 • A reminder on the days your plan has a session
 • Export everything as a file, any time, through the share sheet
 
-THIRTEEN LANGUAGES
+ENGLISH AND PERSIAN
 
-English, Persian, German, Spanish, French, Italian, Portuguese, Polish, Turkish, Russian,
-Chinese, Korean and Hindi — including full right-to-left layout in Persian, and a Jalali
-calendar rather than a converted Gregorian one.
+Persian is not a translation layer bolted on top — the layout mirrors right to left, and dates
+are Jalali rather than a converted Gregorian calendar. 1404, not 2026.
 
 WHAT IT DOES NOT DO
 

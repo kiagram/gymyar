@@ -1,17 +1,22 @@
 // Tiny dependency-free i18n. English source strings are the keys; locale files in
 // src/locales/ map them to translations and are lazy-loaded (Vite code-splits each
 // import.meta.glob entry), so the initial bundle stays English-only.
-// Exercise instructions come from separately generated packs in src/instr/ (one per
-// language, from the upstream dataset) — also lazy-loaded on language switch.
+//
+// Two languages ship: English, which is the source, and Persian, which is the market. The
+// other eleven were removed deliberately — see LANGS.
 import { useSyncExternalStore } from 'react'
-import { setI18n, setMediaBases, say as saySource, loadNames } from '@gymbuddy/domain'
+import { setI18n, setMediaBases, say as saySource, loadNames, weekStartsFor } from '@gymbuddy/domain'
 
-// UI languages. de/pt have no instruction pack upstream — instructions fall back to English.
-export const LANGS = {
-  en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', it: 'Italiano',
-  pt: 'Português', pl: 'Polski', tr: 'Türkçe', ru: 'Русский', zh: '中文',
-  ko: '한국어', hi: 'हिन्दी', fa: 'فارسی'
-}
+/* UI languages: the source and the market, and nothing in between.
+ *
+ * This shipped with thirteen for a while. Twelve of them were a tax rather than a reach —
+ * every user-facing string had to be written thirteen times before it could merge, which is
+ * a real cost paid on every feature, against languages nobody using this product speaks. The
+ * customer here is a Persian-speaking coach; English is the source strings and the fallback.
+ *
+ * A profile that had chosen one of the removed languages lands back on English through the
+ * guard in `setLang` — the stored preference is simply no longer a language that ships. */
+export const LANGS = { en: 'English', fa: 'فارسی' }
 /* Languages written right to left. The whole layout mirrors for these — see the [dir="rtl"]
  * rules in index.css — so this set is the single switch, not a per-component decision. */
 export const RTL_LANGS = new Set(['fa'])
@@ -39,24 +44,17 @@ export function detectLang() {
   }
   return 'en'
 }
-export const INSTR_LANGS = ['en', 'es', 'fr', 'it', 'tr', 'ru', 'zh', 'hi', 'pl', 'ko']
 const DATE_LOCALES = {
-  en: 'en-GB', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', it: 'it-IT', pt: 'pt-PT',
-  pl: 'pl-PL', tr: 'tr-TR', ru: 'ru-RU', zh: 'zh-CN', ko: 'ko-KR', hi: 'hi-IN',
+  en: 'en-GB',
   // fa-IR resolves to the Persian calendar in Intl by default, so every date the app already
   // formats becomes Jalali without a date library or a second code path. 1404, not 2026.
   fa: 'fa-IR'
 }
-/* Which weekday the week grid starts on, as a `getDay()` index.
- *
- * Only languages that differ from Monday are listed. Every language here was hardcoded to
- * Monday before this map existed, so leaving one out keeps exactly what it did — and the ones
- * that arguably want Sunday (hi, ko, zh) are left alone deliberately rather than changed as a
- * side effect of adding Farsi. */
-const WEEK_STARTS = { fa: 6 }
+/* Which weekday the week grid starts on comes from the domain, which is also where the server
+ * reads it from — see `weekStartsFor`. Two maps would disagree the day somebody added a locale
+ * to one of them, and a coach and their client would be looking at different Saturdays. */
 
 const localePacks = import.meta.glob('../locales/*.js')
-const instrPacks = import.meta.glob('../instr/*.js')
 
 /* Exercise names come from the domain package rather than from here.
  *
@@ -70,7 +68,12 @@ export { NAME_LANGS } from '@gymbuddy/domain'
 
 let lang = 'en'
 let dict = {}
-let instr = null            // { exId: [steps] } for the current language, null = English
+/* Exercise instructions are English for everybody.
+ *
+ * The upstream dataset ships translated instruction packs, and this app carried nine of them —
+ * seven megabytes for languages it no longer offers, and none for Persian, which was never
+ * among them. So the packs are gone and `instrFor` reads the English steps off the exercise
+ * row. `ex.st` has always been the fallback; now it is the only path. */
 let names = null            // { exId: name } for the current language, null = English
 let version = 0
 const subs = new Set()
@@ -78,7 +81,7 @@ const notify = () => { version++; subs.forEach(f => f()) }
 
 export const getLang = () => lang
 export const dateLocale = () => DATE_LOCALES[lang] || 'en-GB'
-export const weekStartsOn = () => WEEK_STARTS[lang] ?? 1
+export const weekStartsOn = () => weekStartsFor(lang)
 
 /* Which grammatical form a number takes, for the languages where "the plural" is not one form.
  *
@@ -100,23 +103,49 @@ const categoryOf = (count, l) => {
   if (!pluralRules.has(l)) pluralRules.set(l, new Intl.PluralRules(l))
   return pluralRules.get(l).select(count)
 }
-function pickForm(forms, args) {
+/* Exported, and takes its locale rather than reading the module's.
+ *
+ * Neither language this app ships needs it: English plurals are two separate source strings and
+ * Persian does not inflect a noun after a numeral, so `fa.js` contains no plural object at all.
+ * It stays because it is eight lines wrapped around `Intl.PluralRules`, and because the
+ * alternative to keeping it is rediscovering Slavic plural rules the day a locale returns.
+ *
+ * The locale is a parameter so that it can still be tested against languages the app no longer
+ * ships — `Intl` knows the rules for every tag whether or not there is a translation file for
+ * it, and a plural engine that can only be exercised through a shipped language is one that
+ * quietly stops being exercised at all. */
+export function pickForm(forms, args, l = lang) {
   const count = Number(args[forms.n ?? 0])
   // A non-number means the caller did not pass the count it promised. 'other' is the form
   // every locale has to define, so it is the one thing that cannot be missing.
-  const category = Number.isFinite(count) ? categoryOf(count, lang) : 'other'
+  const category = Number.isFinite(count) ? categoryOf(count, l) : 'other'
   return forms[category] ?? forms.other ?? ''
 }
+
+/* A number substituted into a sentence, in the digits that language writes.
+ *
+ * Without this, `t('{0} week streak', 2)` renders "2 هفته پیاپی" — one Latin digit in a Persian
+ * sentence, on a screen where `fmtNum` has already written ۵٬۲۰۰ two lines above. Doing it here
+ * rather than at three hundred call sites is what makes it true everywhere instead of wherever
+ * somebody remembered.
+ *
+ * Only actual numbers are touched. A string argument is passed through exactly as given: it has
+ * usually been through `fmtNum` or `fmtVol` already, and formatting a formatted number strips
+ * its unit or its decimal. Applied after the plural form is chosen, because `Intl.PluralRules`
+ * needs the number and not its spelling.
+ */
+const localiseArg = a =>
+  typeof a === 'number' && Number.isFinite(a) ? a.toLocaleString(dateLocale()) : a
 
 // Translate a source string; {0},{1}… are replaced with args (also on the English fallback).
 export function t(s, ...args) {
   const entry = dict[s]
   let v = typeof entry === 'object' && entry ? pickForm(entry, args) : (entry || s)
-  for (let i = 0; i < args.length; i++) v = v.replaceAll('{' + i + '}', args[i])
+  for (let i = 0; i < args.length; i++) v = v.replaceAll('{' + i + '}', localiseArg(args[i]))
   return v
 }
 // Instructions for an exercise in the current language (English steps as fallback).
-export const instrFor = ex => (instr && instr[ex.id]) || ex.st || []
+export const instrFor = ex => ex.st || []
 
 /**
  * An exercise's name in the current language.
@@ -159,9 +188,8 @@ export async function setLang(l) {
   }
   try {
     dict = l === 'en' ? {} : (await localePacks['../locales/' + l + '.js']()).default
-    instr = l === 'en' || !INSTR_LANGS.includes(l) ? null : (await instrPacks['../instr/' + l + '.js']()).default
     names = await loadNames(l)
-  } catch (e) { dict = {}; instr = null; names = null }
+  } catch (e) { dict = {}; names = null }
   notify()
 }
 

@@ -51,8 +51,10 @@ describe('switching to Farsi', () => {
     await setLang('fa')
     expect(t('Settings')).toBe('تنظیمات')
     expect(t('Start workout')).toBe('شروع تمرین')
-    // Interpolation still has to work after the swap — the arg is spliced into Persian text.
-    expect(t('{0} week streak', 3)).toBe('3 هفته پیاپی')
+    // Interpolation still has to work after the swap — the arg is spliced into Persian text,
+    // and a number is spliced in that language's digits. One Latin numeral in a Persian
+    // sentence, two lines under a `fmtNum` that already wrote ۵٬۲۰۰, reads as a bug.
+    expect(t('{0} week streak', 3)).toBe('۳ هفته پیاپی')
   })
 
   it('starts the week on Saturday', async () => {
@@ -92,11 +94,16 @@ describe('switching back', () => {
     expect(fmtDate('2026-08-23')).toMatch(/Aug/)
   })
 
-  it('leaves every other language on Monday', async () => {
-    for (const lang of ['de', 'tr', 'ru', 'zh']) {
-      await setLang(lang)
+  it('lands a profile on English if it had chosen a language that no longer ships', async () => {
+    /* Eleven locales were removed. Somebody whose saved profile still says `de` must open on
+     * English — left to right, Monday, Gregorian — rather than on a half-applied state where
+     * the dictionary is English and the direction is not. */
+    for (const gone of ['de', 'tr', 'ru', 'zh']) {
+      await setLang(gone)
+      expect(getLang()).toBe('en')
       expect(weekStartsOn()).toBe(1)
       expect(document.documentElement.dir).toBe('ltr')
+      expect(t('Settings')).toBe('Settings')
     }
   })
 })
@@ -169,8 +176,10 @@ describe('the coaching UI speaks the reader\'s language', () => {
   it('keeps the placeholder through the translation', async () => {
     await setLang('fa')
     // A locale that drops {0} loses the coach's name and reads as a sentence about nobody.
+    // A string argument is passed through exactly as given — it has usually been through
+    // `fmtNum` or `fmtVol` already, and formatting a formatted number eats its unit.
     expect(t('{0} wants to coach you', 'سارا')).toBe('سارا می‌خواهد مربی شما باشد')
-    expect(t('{0} of {1} sessions', 3, 5)).toBe('3 از 5 جلسه')
+    expect(t('{0} of {1} sessions', 3, 5)).toBe('۳ از ۵ جلسه')
   })
 
   it('is English again in English', async () => {
@@ -186,49 +195,34 @@ describe('the coaching UI speaks the reader\'s language', () => {
  * them all. It reads as "5 подход" to a native speaker and as nothing at all to everyone else,
  * which is why it survived twelve locales and a locale checker.
  */
-describe('plural forms', () => {
-  it('picks the Russian form the number actually takes', async () => {
-    await setLang('ru')
-    expect(t('{0} sets', 1)).toBe('1 подход')
-    expect(t('{0} sets', 2)).toBe('2 подхода')
-    expect(t('{0} sets', 5)).toBe('5 подходов')
-    expect(t('{0} sets', 21)).toBe('21 подход')     // back to `one`, which is the whole point
-    expect(t('{0} sets', 0)).toBe('0 подходов')
-  })
-
-  it('picks the Polish form, which splits 2–4 from 5+', async () => {
-    await setLang('pl')
-    expect(t('{0} workouts', 1)).toBe('1 trening')
-    expect(t('{0} workouts', 3)).toBe('3 treningi')
-    expect(t('{0} workouts', 8)).toBe('8 treningów')
-    expect(t('{0} workouts', 22)).toBe('22 treningi')
-  })
-
-  it('agrees with the argument the noun belongs to, not always the first', async () => {
-    await setLang('ru')
-    // "{0} reps in reserve across {1} sessions" — {0} is an average, {1} is the count.
-    const key = 'Even the hardest set is averaging {0} reps in reserve across {1} sessions. The load is climbing slower than the person is.'
-    expect(t(key, '1.5', 2)).toContain('за 2 тренировки')
-    expect(t(key, '1.5', 7)).toContain('за 7 тренировок')
-  })
-
-  it('leaves languages with one plural form as plain strings', async () => {
-    await setLang('de')
-    expect(t('{0} sets', 2)).toBe('2 Sätze')
-    await setLang('zh')
-    expect(t('{0} sets', 5)).toBe('5 组')
-  })
-
-  it('falls back to `other` when the count is not a number', async () => {
-    await setLang('ru')
-    // Nothing should render a bare category name or an empty string if a caller slips.
-    expect(t('{0} sets')).toBe('{0} подхода')
-    expect(t('{0} sets', 'many')).toBe('many подхода')
-  })
-
-  it('is the English source string again in English', async () => {
+describe('numbers inside a sentence', () => {
+  /* This block used to test Russian and Polish plural categories, which were the reason
+   * `pickForm` exists. Those packs are gone with the other eleven languages, and Persian does
+   * not inflect a noun after a numeral — `fa.js` has no plural objects at all.
+   *
+   * `pickForm` is kept anyway and is deliberately not tested through a fixture: it is the
+   * mechanism any future pack would need, and its `other` fallback is what stops a missing form
+   * rendering as a blank. What is tested here is what actually ships. */
+  it('is the English source string in English', async () => {
     await setLang('en')
     expect(t('{0} sets', 5)).toBe('5 sets')
+  })
+
+  it('is Persian, with the number in Persian digits', async () => {
+    await setLang('fa')
+    expect(t('{0} sets', 5)).toBe('۵ ست')
+  })
+
+  it('substitutes two arguments in the order the sentence wants them', async () => {
+    await setLang('fa')
+    expect(t('{0} of {1} sessions', 3, 5)).toBe('۳ از ۵ جلسه')
+  })
+
+  it('renders a sentence whose count is not a number rather than a blank', async () => {
+    // A caller slipping must never produce an empty string or a bare category name.
+    await setLang('fa')
+    expect(t('{0} sets')).toBe('{0} ست')
+    expect(t('{0} sets', 'many')).toBe('many ست')
   })
 })
 
@@ -256,12 +250,15 @@ describe('the language the device asks for', () => {
     // Not "the first tag" — a Farsi speaker who also reads Swedish must not get English.
     asDevice({ languages: ['sv-SE', 'fa-IR', 'en-US'] })
     expect(detectLang()).toBe('fa')
+    // A language that no longer ships is skipped over rather than matched.
     asDevice({ languages: ['de-AT', 'fa-IR'] })
-    expect(detectLang()).toBe('de')
+    expect(detectLang()).toBe('fa')
   })
 
   it('matches on the base subtag, whatever region or script rides along', () => {
-    for (const [tag, want] of [['fa-IR', 'fa'], ['pt-BR', 'pt'], ['zh-Hans-CN', 'zh'], ['FA-ir', 'fa']]) {
+    for (const [tag, want] of [['fa-IR', 'fa'], ['FA-ir', 'fa'], ['en-AU', 'en'],
+      // Regions of languages that no longer ship fall through to English like any other miss.
+      ['pt-BR', 'en'], ['zh-Hans-CN', 'en']]) {
       asDevice({ languages: [tag] })
       expect(detectLang()).toBe(want)
     }

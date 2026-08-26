@@ -46,15 +46,26 @@ const seen = new Map()
 for (const keys of locales.values()) for (const k of keys) seen.set(k, (seen.get(k) || 0) + 1)
 const union = [...seen.keys()]
 
+/* Skipped when only one locale ships.
+ *
+ * This check compares locales against each other, and with a single file there is nothing to
+ * compare: every key is carried by exactly one locale, which is precisely the shape the "only
+ * here" warning exists to flag. Running it anyway reports all 1,088 keys as suspicious and
+ * fails the build for the one arrangement that cannot possibly be inconsistent.
+ *
+ * The source-coverage check below is unaffected, and it is the stricter of the two — it holds
+ * every string the UI can render to a translation. */
 let failed = false
-for (const [lang, keys] of locales) {
-  const missing = union.filter(k => !keys.has(k))
-  const orphans = union.filter(k => keys.has(k) && seen.get(k) === 1)
-  if (missing.length || orphans.length) {
-    failed = true
-    console.error(`\n${lang}.js: ${keys.size}/${union.length} keys`)
-    for (const k of missing) console.error(`  missing:   ${JSON.stringify(k)}`)
-    for (const k of orphans) console.error(`  only here: ${JSON.stringify(k)}`)
+if (locales.size > 1) {
+  for (const [lang, keys] of locales) {
+    const missing = union.filter(k => !keys.has(k))
+    const orphans = union.filter(k => keys.has(k) && seen.get(k) === 1)
+    if (missing.length || orphans.length) {
+      failed = true
+      console.error(`\n${lang}.js: ${keys.size}/${union.length} keys`)
+      for (const k of missing) console.error(`  missing:   ${JSON.stringify(k)}`)
+      for (const k of orphans) console.error(`  only here: ${JSON.stringify(k)}`)
+    }
   }
 }
 
@@ -139,6 +150,11 @@ for (const path of sources.sort()) {
   const gaps = new Set()
   for (const [, , literal] of readFileSync(path, 'utf8').matchAll(T_CALL)) {
     const key = literal.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\n/g, '\n')
+    /* A "string" with no letters or digits in it is not a string anybody translates — it is
+     * this scan matching prose. `lib/api.js` explains itself with the phrase "a scan for
+     * `t('…')` literals", and the scan duly finds `t('…')` and demands a translation for an
+     * ellipsis. Punctuation-only keys are always that, never a real gap. */
+    if (!/[\p{L}\p{N}]/u.test(key)) continue
     if (!known.has(key)) gaps.add(key)
   }
   if (!gaps.size) continue
@@ -149,10 +165,13 @@ for (const path of sources.sort()) {
 
 if (untranslated) {
   const s = untranslated === 1 ? 'string the UI renders has' : 'strings the UI renders have'
+  const langs = [...locales.keys()].join(', ')
   console.error(`\n${untranslated} ${s} no entry in any locale — they fall back to`)
-  console.error('English in all twelve languages. Add them to every locale file.')
+  console.error(`English. Add them to: ${langs}.`)
   process.exit(1)
 }
 
-console.log(`${locales.size} locales, ${union.length} keys each — in sync.`)
+console.log(locales.size === 1
+  ? `1 locale (${[...locales.keys()][0]}), ${union.length} keys — every t() string translated.`
+  : `${locales.size} locales, ${union.length} keys each — in sync.`)
 console.log(`${sources.length} source files scanned, every t() string translated.`)
