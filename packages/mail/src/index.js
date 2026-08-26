@@ -24,7 +24,7 @@
  * ## Plain text, no HTML
  *
  * The only email this sends is a link and a sentence about it. HTML would buy a button and cost
- * a rendering surface, a second body to keep in step across twelve languages, and the deliver-
+ * a rendering surface, a second body to keep in step across both languages, and the deliver-
  * ability penalty every text-only sender avoids. A URL on its own line is linkified by every
  * mail client written this century.
  */

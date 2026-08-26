@@ -22,11 +22,24 @@
  * language an AI-written note comes back in, and it is written from a request. An allowlist is
  * what keeps that column a language rather than a string somebody chose.
  */
-export const LOCALES = [
-  'en', 'de', 'es', 'fr', 'it', 'pt', 'pl', 'tr', 'ru', 'zh', 'ko', 'hi', 'fa'
-]
+export const LOCALES = ['en', 'fa']
 
 export const isLocale = code => LOCALES.includes(String(code || ''))
+
+/* Which weekday each locale's week starts on, as a `getDay()` index.
+ *
+ * Here for the same reason `LOCALES` is: the server needs it too. A roster counting "this
+ * week's habits" has to use the coach's week, and it learns which one that is from
+ * `users.locale` — while the client learns it from the profile. Two copies of this map would
+ * disagree the day somebody adds a locale to one of them, and the symptom would be a coach and
+ * a client looking at different Saturdays.
+ *
+ * Only languages that differ from Monday are listed. Everything else was hardcoded to Monday
+ * before this existed, so an omission keeps exactly what it did — and the ones that arguably
+ * want Sunday (hi, ko, zh) are left alone deliberately rather than changed as a side effect. */
+const WEEK_STARTS = { fa: 6 }
+
+export const weekStartsFor = locale => WEEK_STARTS[String(locale || '').split('-')[0]] ?? 1
 
 const fallback = {
   t: (s, ...args) => {

@@ -42,7 +42,7 @@ apps/site         marketing site (static)
 packages/domain   runtime-agnostic training logic, shared by client and server
 packages/db       Postgres schema, migrations, sync engine, coaching rules
 packages/storage  uploaded bytes — the one thing that is not a row
-packages/mail     the one email this app sends, in thirteen languages
+packages/mail     the one email this app sends, in English and Persian
 packages/ai       the language layer, and the deterministic path underneath it
 infra             nginx, Docker builds, media fetch, smoke and browser tests
 docs              self-hosting, mobile builds, releasing, store listings, upstream README
