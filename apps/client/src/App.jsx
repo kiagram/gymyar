@@ -13,7 +13,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Modals from './components/Modals.jsx'
 import Toast from './components/Toast.jsx'
 import RestTimer from './components/RestTimer.jsx'
-import Login from './views/Login.jsx'
+import Login, { PasswordReset } from './views/Login.jsx'
 import Home from './views/Home.jsx'
 import Plan from './views/Plan.jsx'
 import RoutineEdit from './views/RoutineEdit.jsx'
@@ -28,6 +28,9 @@ import CoachClient from './views/CoachClient.jsx'
 import Coaching, { InviteAccept } from './views/Coaching.jsx'
 import Billing from './views/Billing.jsx'
 import { MOBILE } from './lib/mobile.js'
+import { api } from './lib/api.js'
+import { setMediaLimits } from './lib/media.js'
+import { setServerLocale } from './lib/api.js'
 import { DEMO } from './lib/demo.js'
 import PlanBuilder from './views/PlanBuilder.jsx'
 import mark from './assets/mark.svg'
@@ -49,8 +52,25 @@ function Shell() {
   const isGuest = useStore(s => s.isGuest())
   const langV = useLang()   // re-renders the whole shell when the language (pack) changes
   useEffect(() => { setNav(navigate) }, [navigate])
+  /* The upload ceilings, asked for once. They are only ever used to refuse a file before it is
+   * sent — the server enforces the same numbers and does not trust these — so a failure here is
+   * silent and leaves the defaults in `lib/media.js` standing. */
+  useEffect(() => {
+    if (MOBILE) return
+    api('/api/config').then(c => setMediaLimits(c.media)).catch(() => {})
+  }, [])
   useEffect(() => { applyPrefs(S.theme, S.accent) }, [S.theme, S.accent])
   useEffect(() => { setLang(S.lang || 'en') }, [S.lang])
+  /* And tell the server, which writes in it.
+   *
+   * Runs on every language change and on every sign-in, which is deliberate: the endpoint
+   * writes nothing when the value has not moved, and the alternative — pushing it only when
+   * the setting is touched — leaves every account that never changed language stuck at the
+   * default the column was created with. That is exactly the bug this fixes. */
+  useEffect(() => {
+    if (MOBILE || !user) return
+    setServerLocale(S.lang || 'en')
+  }, [S.lang, user])
   useEffect(() => { document.documentElement.lang = S.lang || 'en' }, [langV, S.lang])
   // every tab/route change starts at the top of the page
   useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
@@ -74,7 +94,16 @@ function Shell() {
           re-mounts the boundary, so the tab bar is always a way out */}
       <div id="app" className="vfade" key={loc.pathname}>
         <ErrorBoundary>
-          {!authed ? <Login /> : (
+          {/* A reset link arrives from an email, usually on a device that is not signed in and
+              sometimes on one that is. It has to work either way, so the route exists on both
+              sides of this branch rather than only on the signed-out one. Not in the native or
+              demo builds, which have no server to reset anything against. */}
+          {!authed ? (
+            <Routes>
+              {!MOBILE && !DEMO && <Route path="/reset/:token" element={<PasswordReset />} />}
+              <Route path="*" element={<Login />} />
+            </Routes>
+          ) : (
             <Routes>
               <Route path="/home" element={<Home />} />
               <Route path="/plan" element={<Plan />} />
@@ -102,6 +131,7 @@ function Shell() {
                   about who may take the money. */}
               <Route path="/billing" element={MOBILE || DEMO ? <Navigate to="/home" replace /> : <Billing />} />
               <Route path="/admin" element={user?.isAdmin ? <Admin /> : <Navigate to="/home" replace />} />
+              <Route path="/reset/:token" element={MOBILE || DEMO ? <Navigate to="/home" replace /> : <PasswordReset />} />
               <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>
           )}

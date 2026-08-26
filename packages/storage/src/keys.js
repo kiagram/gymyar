@@ -44,6 +44,28 @@ export const extensionFor = mime => EXT[String(mime || '').toLowerCase()] ?? nul
 
 export const supportedTypes = () => Object.keys(EXT)
 
+/* The reverse lookup, for the one caller that has a key and no row: whatever serves the bytes
+ * has to name a type, and by then the only thing it holds is the path. Built from EXT rather
+ * than written twice, so a format added above cannot be served as something else — or, worse,
+ * served as nothing and sniffed by the browser. */
+const MIME = Object.fromEntries(Object.entries(EXT).map(([mime, ext]) => [ext, mime]))
+
+/** The media type a key's extension stands for, or null. Never guessed — see MIME. */
+export const mimeForKey = key => MIME[String(key || '').split('.').pop().toLowerCase()] ?? null
+
+/* Which of the three things an upload is, from its type.
+ *
+ * The taxonomy is the one `LIMITS` is keyed by, and it exists because the numbers that matter
+ * about an upload — how many bytes it may be, which subject it may be attached to — are
+ * properties of the kind rather than of the container. A voice note is eight megabytes whether
+ * the phone wrote it as `audio/mp4` or `audio/webm`, and neither may be attached to a weigh-in.
+ */
+export const kindFor = mime => {
+  const m = String(mime || '').toLowerCase()
+  if (!EXT[m]) return null
+  return m.startsWith('image/') ? 'photo' : m.startsWith('video/') ? 'video' : 'audio'
+}
+
 /**
  * Build the key for a new object: `ab/<owner>/<year>/<month>/<id>.<ext>`.
  *

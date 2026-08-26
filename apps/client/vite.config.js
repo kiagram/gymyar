@@ -18,6 +18,10 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': { target: backend, changeOrigin: true },
+      /* Uploaded media. There is no nginx in the dev stack, so the API serves the bytes
+       * itself — which is what STORAGE_ACCEL being off means, and why this proxies to the
+       * backend rather than to the exercise-media server two lines down. */
+      '/media': { target: backend, changeOrigin: true },
       '/img': { target: media, changeOrigin: true },
       '/gif': { target: media, changeOrigin: true }
     }

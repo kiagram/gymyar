@@ -1,12 +1,15 @@
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
-import { webauthnOK, passkeyLogin, passkeyRegister, passwordLogin, passwordRegister, api, BIO } from '../lib/api.js'
+import { webauthnOK, passkeyLogin, passkeyRegister, passwordLogin, passwordRegister, api, BIO,
+  requestPasswordReset, checkResetToken, resetPassword } from '../lib/api.js'
 import { hasData } from '../store/useStore.js'
 import { t } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '../components/ui.jsx'
 import mark from '../assets/mark.svg'
+import { useParams } from 'react-router-dom'
+import { nav } from '../lib/nav.js'
 
 /* What happens after any successful sign-in, whichever way it happened.
  *
@@ -32,9 +35,30 @@ function PasswordSheet({ close, mode }) {
   const [code, setCode] = useState('')
   const [asCoach, setAsCoach] = useState(false)
   const [inviteOnly, setInviteOnly] = useState(false)
+  /* Whether this instance can send email. Nothing is offered when it cannot: an instance with
+   * no mail transport genuinely cannot reset a password, and a link that leads to a form that
+   * cannot work is worse than no link. */
+  const [canReset, setCanReset] = useState(false)
+  const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
-  useEffect(() => { api('/api/config').then(c => setInviteOnly(!!c.inviteOnly)).catch(() => {}) }, [])
+  useEffect(() => {
+    api('/api/config')
+      .then(c => { setInviteOnly(!!c.inviteOnly); setCanReset(!!c.passwordReset) })
+      .catch(() => {})
+  }, [])
+
+  /* Always the same message, because the server always gives the same answer — see
+   * `requestPasswordReset`. Saying "sent" would be a claim the client cannot make and the
+   * server deliberately will not confirm. */
+  const forgot = async () => {
+    const address = email.trim()
+    if (!address) { setErr(t('Enter your email address first.')); return }
+    setBusy(true); setErr(null)
+    try { await requestPasswordReset(address); setSent(true) }
+    catch (e) { setErr(e.message) }
+    finally { setBusy(false) }
+  }
 
   const go = async () => {
     setBusy(true); setErr(null)
@@ -86,7 +110,82 @@ function PasswordSheet({ close, mode }) {
     <Button variant="ghost" className="dim" onClick={() => { setErr(null); setSignUp(v => !v) }}>
       {signUp ? t('I already have an account') : t('Create one instead')}
     </Button>
+    {!signUp && canReset && (sent
+      ? <p className="dim small" style={{ textAlign: 'left', marginTop: 10 }}>
+          {t('If that address has an account, a link is on its way. It works once and expires in an hour.')}
+        </p>
+      : <Button variant="ghost" className="dim" disabled={busy} onClick={forgot}>
+          {t('Forgot your password?')}
+        </Button>)}
   </>
+}
+
+/**
+ * The screen a reset link opens.
+ *
+ * Its own route rather than a sheet, because it is reached from an email — often on a different
+ * device, sometimes weeks after the app was last opened — and a URL that has to land on a modal
+ * over some other screen is a URL that will eventually land somewhere strange.
+ *
+ * The token is checked before the form is offered. Somebody who followed a link from last month
+ * should be told that on arrival, not after choosing a password.
+ */
+export function PasswordReset() {
+  const { token = '' } = useParams()
+  const [valid, setValid] = useState(null)          // null = still asking
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+
+  useEffect(() => { checkResetToken(token).then(setValid).catch(() => setValid(false)) }, [token])
+
+  const go = async () => {
+    setBusy(true); setErr(null)
+    try {
+      const u = await resetPassword({ token, password })
+      // Signed in already — the server issued a session, since reading the email and choosing
+      // the password is the whole proof. `afterAuth` does the first sync and lands them home.
+      await afterAuth(u)
+      nav('/home')
+    } catch (e) { setErr(e.message); setBusy(false) }
+  }
+
+  const wrap = {
+    display: 'flex', flexDirection: 'column', justifyContent: 'center',
+    minHeight: '78vh', textAlign: 'center'
+  }
+
+  return <div className="narrow" style={wrap}>
+    <div style={{ display: 'flex', justifyContent: 'center' }}><img src={mark} alt="" height="56" /></div>
+    <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.022em', margin: '12px 0 16px' }}>
+      {t('Choose a new password')}
+    </h1>
+
+    {valid === null && <p className="dim small">{t('Loading…')}</p>}
+
+    {valid === false && <>
+      <p className="dim small">{t('This link has expired or has already been used. Ask for a new one from the sign-in screen.')}</p>
+      <div style={{ height: 12 }} />
+      <Button variant="primary" onClick={() => nav('/')}>{t('Back to sign in')}</Button>
+    </>}
+
+    {valid === true && <>
+      <input className="input" type="password" autoComplete="new-password"
+             placeholder={t('New password')} value={password}
+             onChange={e => setPassword(e.target.value)} />
+      <div className="dim small" style={{ marginTop: 6, textAlign: 'left' }}>
+        {t('At least 10 characters.')}
+      </div>
+      <p className="dim small" style={{ textAlign: 'left', marginTop: 10 }}>
+        {t('Setting a new password signs you out on every other device.')}
+      </p>
+      {err && <p className="err small" style={{ textAlign: 'left' }}>{err}</p>}
+      <div style={{ height: 12 }} />
+      <Button variant="primary" disabled={busy || password.length < 10} onClick={go}>
+        {busy ? t('Working…') : t('Set password and sign in')}
+      </Button>
+    </>}
+  </div>
 }
 
 function RegisterSheet({ close }) {
@@ -108,7 +207,7 @@ function RegisterSheet({ close }) {
   }
   return <>
     <h3>{t('Create your profile')}</h3>
-    <div className="muted small" style={{ marginBottom: 14 }}>{t('Pick a name, then confirm with {0}. The passkey is saved in your device — no password needed.', BIO)}</div>
+    <div className="muted small" style={{ marginBottom: 14 }}>{t('Pick a name, then confirm with {0}. The passkey is saved in your device — no password needed.', t(BIO))}</div>
     <input ref={ref} className="input" placeholder={t('Your name')} maxLength={40} value={name} onChange={e => setName(e.target.value)} />
     {inviteOnly && <>
       <div style={{ height: 10 }} />
@@ -168,7 +267,7 @@ export default function Login() {
       <Button variant="ghost" className="dim" onClick={() => setGuest(true)}>{t('Continue without account')}</Button>
       <div className="dim small" style={{ marginTop: 26, lineHeight: 1.5 }}>
         {webauthnOK()
-          ? <>{t('Passkeys use {0} — no passwords.', BIO)}<br /></>
+          ? <>{t('Passkeys use {0} — no passwords.', t(BIO))}<br /></>
           : <>{t("This browser doesn't support passkeys, so email and password it is.")}<br /></>}
         {t('Each profile keeps its own plan, workouts & body weight.')}
       </div>

@@ -20,6 +20,8 @@ import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-sha
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from '@gymbuddy/domain'
 import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS } from '@gymbuddy/domain'
 import { MOBILE, shareExport } from './lib/mobile.js'
+import Attachments from './components/Attachments.jsx'
+import { formChecksFor, uploadFormCheck } from './lib/media.js'
 
 const S = () => useStore.getState().S
 const update = (...a) => useStore.getState().update(...a)
@@ -746,6 +748,55 @@ function DayAssign({ day, close }) {
 export const dayAssignSheet = day => ui().openSheet(close => <DayAssign day={day} close={close} />)
 
 /* ============================ workout detail ============================ */
+
+/* Form checks, filed under the exercise they are of.
+ *
+ * One request for the whole session rather than one per exercise, sliced here — see the header
+ * of components/Attachments.jsx. `null` while it is in flight, so an exercise with no clips and
+ * an exercise whose clips have not arrived yet do not look identical.
+ *
+ * A session that has never reached the server has nothing to attach a video to, which is a real
+ * state and not an error: everything works offline, and sync is debounced. So a failure to load
+ * is rendered as "not yet", and `sync` is nudged rather than reported.
+ */
+function FormChecks({ w }) {
+  const user = useStore(s => s.user)
+  const [files, setFiles] = useState(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    if (!user || MOBILE) return
+    formChecksFor(w.id).then(setFiles).catch(() => setFailed(true))
+  }, [w.id, user])
+
+  // Guest, native build or demo: there is no server, so there is nowhere for a clip to live.
+  // Saying nothing is right — an upload button that cannot work is worse than no button.
+  if (!user || MOBILE || files === null) return null
+  if (failed) return <div className="ss dim">{t('Videos need this session to have synced — try again in a moment.')}</div>
+
+  return <>
+    <h4 className="sec">{t('Form checks')}</h4>
+    {w.entries.map((e, i) => {
+      const ex = EXIDX[e.id]
+      const mine = files.filter(f => f.exercise_id === e.id)
+      return <div key={i} style={{ marginBottom: 14 }}>
+        <div className="ss capitalize" style={{ fontWeight: 600, marginBottom: 4 }}>
+          {ex ? exName(ex) : (e.n || e.id)}
+        </div>
+        <Attachments
+          subject="form_check"
+          files={mine}
+          onChange={next => setFiles([...files.filter(f => f.exercise_id !== e.id), ...next])}
+          send={(file, onProgress) =>
+            uploadFormCheck({ workoutId: w.id, exerciseId: e.id, file, onProgress })}
+          addLabel={t('Add a video')}
+        />
+      </div>
+    })}
+    <p className="sect-f">{t('Only a coach you have shared your workouts with can see these.')}</p>
+  </>
+}
+
 function WorkoutDetail({ w, close }) {
   const st = useStore(s => s.S)
   return <>
@@ -759,6 +810,7 @@ function WorkoutDetail({ w, close }) {
           <div className="ss">{e.sets.filter(s => s.done).map(s => setLabel(e.id, s, e.target)).join('  ·  ') || t('no sets')}</div></div>
       </div>
     })}
+    <FormChecks w={w} />
     <Button variant="danger" onClick={() => confirmSheet({ title: t('Delete workout?'), message: t('This removes it from your history for good.'), confirmText: t('Delete'), danger: true, onConfirm: () => { update(s => { s.workouts = s.workouts.filter(x => x.id !== w.id) }); close(); toast(t('Workout deleted')) } })}>{t('Delete workout')}</Button>
   </>
 }

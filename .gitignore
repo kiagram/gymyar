@@ -34,3 +34,6 @@ apps/client/android/keystore.properties
 apps/site/img/
 apps/site/icon-180.png
 apps/site/icon-512.png
+
+# Local scratch volume for uploaded media in development (see STORAGE_PATH in .env)
+.devmedia/

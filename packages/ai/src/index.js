@@ -190,7 +190,7 @@ export function createAI({
       // An empty or absurd answer is not better than the template it replaced.
       if (!note || note.length < 12) {
         return {
-          ...explainChangeLocally(change, { clientName, lang }), source: 'local',
+          ...await explainChangeLocally(change, { clientName, lang }), source: 'local',
           ...(result.modelError ? { modelError: result.modelError } : {})
         }
       }

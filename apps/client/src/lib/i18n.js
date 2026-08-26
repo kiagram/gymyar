@@ -4,7 +4,7 @@
 // Exercise instructions come from separately generated packs in src/instr/ (one per
 // language, from the upstream dataset) — also lazy-loaded on language switch.
 import { useSyncExternalStore } from 'react'
-import { setI18n, setMediaBases, say as saySource } from '@gymbuddy/domain'
+import { setI18n, setMediaBases, say as saySource, loadNames } from '@gymbuddy/domain'
 
 // UI languages. de/pt have no instruction pack upstream — instructions fall back to English.
 export const LANGS = {
@@ -57,12 +57,16 @@ const WEEK_STARTS = { fa: 6 }
 
 const localePacks = import.meta.glob('../locales/*.js')
 const instrPacks = import.meta.glob('../instr/*.js')
-const namePacks = import.meta.glob('../names/*.js')
 
-/* Languages with translated exercise names. Separate from the instruction packs because the
- * two are translated by different people at different times — a name is four words a coach
- * checks in a second, a set of instructions is a paragraph. */
-export const NAME_LANGS = ['fa']
+/* Exercise names come from the domain package rather than from here.
+ *
+ * They moved when the server started writing sentences that contain them: a coach's drafted
+ * note is assembled server-side in the reader's language and arrives as finished text, so the
+ * name has to be translated before it is baked in. One pack, reachable from both sides — see
+ * packages/domain/src/names/index.js. `loadNames` is still a dynamic import, so this is exactly
+ * as lazy as the glob it replaced.
+ */
+export { NAME_LANGS } from '@gymbuddy/domain'
 
 let lang = 'en'
 let dict = {}
@@ -156,7 +160,7 @@ export async function setLang(l) {
   try {
     dict = l === 'en' ? {} : (await localePacks['../locales/' + l + '.js']()).default
     instr = l === 'en' || !INSTR_LANGS.includes(l) ? null : (await instrPacks['../instr/' + l + '.js']()).default
-    names = NAME_LANGS.includes(l) ? (await namePacks['../names/' + l + '.js']()).default : null
+    names = await loadNames(l)
   } catch (e) { dict = {}; instr = null; names = null }
   notify()
 }

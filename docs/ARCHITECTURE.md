@@ -70,6 +70,48 @@ individually at accept time and revocable at any point. A client who shared thei
 not thereby agreed to hand over every weigh-in. Sections a coach cannot see are labelled rather
 than hidden — a silently absent panel reads as a bug.
 
+## Attachments
+
+Form-check video, progress photos and files on a message are the first user data that is not a
+row in Postgres, and the split is deliberate: `attachments` is an index and
+[`packages/storage`](../packages/storage) is a bag of bytes with no opinions. The storage
+interface is four methods — `put`, `signedUrl`, `stat`, `delete` — and keeping it to four is the
+design rather than a preference. The methods that get proposed (list, copy, a directory walk)
+are almost always a caller asking the volume something the database already knows.
+
+**The row is written before the bytes.** An upload is two writes to two systems that cannot
+share a transaction, so one is first, and that choice decides which failure is recoverable.
+Bytes first would leave an object nothing knows about after a crash — and nothing *could* know,
+because storage cannot list itself. So a row is reserved with `uploaded_at` null, the bytes
+follow, and the row is finished. Every object on the volume has a row naming it before it
+exists; a row still null an hour later is an upload that died, and the sweeper deletes its bytes
+by key.
+
+**The type comes from the bytes, never from the header.** A `Content-Type` on an upload is a
+claim by the uploader, and believing it would let them choose what a browser later does with
+their file — served from the app's own origin. `sniff.js` reads the leading bytes against a
+short list of formats real cameras and recorders emit, and the extension the object is stored
+under comes from that.
+
+**Two doors.** Everything under `/api/attachments` is a session: who are you, is this yours.
+`/media/*` has no session at all — it takes an HMAC signature that expires in minutes, minted by
+whichever route just checked the permission. That is what lets nginx serve a 60 MB video without
+Node touching a byte (`X-Accel-Redirect`), and it is why a leaked media URL is worth little: it
+names one object and stops working shortly. The signing key is derived from `SESSION_SECRET`
+through a fixed label, so it rotates with it and a leaked media link is never a forged session.
+
+**Attachments do not sync.** They are not in `SYNC_TABLES` and never reach `log_change()`. Sync
+keeps an offline working copy of training on a phone, and a synced attachment row would promise
+a video the app cannot play with no signal. Screens fetch them when they open — the same rule
+coaching data already follows.
+
+**Scopes, and the one that is new.** A form check rides the `workouts` scope, because it is a
+record of a session. A progress photo has its own `photos` scope: sharing a weigh-in with a
+coach says nothing about sharing a photograph of your body, and folding the two together would
+decide that on the client's behalf. Files on a message are read by the two people in the
+conversation, which membership already settles. A coach never uploads into a client's account,
+for the same reason they never write a client's routine.
+
 ## The AI layer
 
 ### Why the planner is not a language model
@@ -134,6 +176,25 @@ profile that does not log effort.
 `proposeAdaptation` turns the worst finding into a routine in the app's own shape — which is
 exactly the payload the propose endpoint takes. A coach opens a filled-in composer, edits it, and
 sends it. Nothing reaches a client that a coach did not send.
+
+### Which language the server writes in
+
+The domain owns the numbers and a model owns the language — but *which* language is a property
+of the reader, and the reader is not always the person making the request. A coach drafts a
+change and their client reads the note, so the note is written in the client's language, not the
+coach's.
+
+That means the server has to know it. `users.locale` is where it lives, written by the client at
+signup and whenever the app's language changes; `PATCH /api/me` validates against `LOCALES` in
+the domain, which is the same list the language picker is built from. It is not a synced row —
+it is not something the app edits offline, and the server is the only consumer.
+
+Two things read it: `interpretBrief` and `explainChange`. Both write prose in English or Persian
+and fall back to English elsewhere, which is a scope choice rather than a gap — the register of a
+coaching note is not a translation job (see the comment above `LANGUAGE_NAME`). Exercise names
+inside those sentences come from `packages/domain/src/names/`, shared with the client, because a
+note is assembled server-side and reaches the client as finished text with nothing left to
+translate.
 
 ## Units
 

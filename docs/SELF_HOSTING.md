@@ -137,6 +137,23 @@ plans, reviews and text logging all still work, in template wording rather than 
 **billing**, which is off unless you set a merchant id, in which case coaching is free on your
 instance and no subscription row is ever written.
 
+One more, if anybody but you can sign up:
+
+```bash
+MAX_MEDIA_BYTES_PER_USER=2147483648   # 2 GB each; 0 is unlimited
+```
+
+Form-check video, progress photos and voice notes go on a disk you are paying for, and an
+upload endpoint with no ceiling is a storage bill somebody else gets to write. The default is
+2 GB per account — roughly thirty clips and a few hundred photographs. Unlimited is the right
+answer for an instance you and your training partners use and the wrong one for an open signup
+form.
+
+Deleted media is removed by a sweeper that runs inside the API container every fifteen minutes,
+so there is no cron job to set up. Deleting an attachment hides it immediately and erases it on
+the next pass; until then the bytes are still on the volume, which is worth knowing if somebody
+asks you to prove a file is gone.
+
 ## 6. Who can join
 
 By default anyone who can reach the URL can create their own profile, and each gets isolated
@@ -207,7 +224,45 @@ it is re-downloaded on first boot if the directory is empty. Individual users ca
 export their own training as JSON from **Settings → Data**, which is a per-user convenience and
 not an instance backup — it carries no other accounts, no credentials and no coaching state.
 
-## 8. Notifications
+## 8. Email, and getting back into an account
+
+Somebody will forget their password. Without a mail relay there is nothing GymBuddy can do about
+that, so the feature is simply not offered: `passwordReset` is false, the app does not show the
+link, and the endpoint refuses. Passkeys are unaffected — their recovery is the platform's job.
+
+To turn it on, point it at a relay:
+
+```bash
+MAIL_TRANSPORT=smtp
+MAIL_SMTP_HOST=smtp.example.com
+MAIL_SMTP_PORT=587
+MAIL_SMTP_USER=
+MAIL_SMTP_PASS=
+MAIL_FROM=GymBuddy <no-reply@example.com>
+```
+
+Two things decide whether this works in practice, and neither is in this file. **`ORIGIN` must
+be your real HTTPS origin** — reset links are built from it, and an instance still on the
+localhost default will send links nobody can open. And **`MAIL_FROM` should be a domain whose
+SPF and DKIM records you control**, or the mail lands in spam and the feature looks broken
+rather than misconfigured.
+
+For an instance that is only you, there is a third option:
+
+```bash
+MAIL_TRANSPORT=log
+```
+
+The email is written to the server log instead of being sent — `docker compose logs api` and
+the link is there. Fine when you are the only person with an account and the only person reading
+the logs. Not fine on anything with a signup form: every reset link would pass through whatever
+ships those logs.
+
+The link is good for one hour and works once. Using it signs the account out on every other
+device, which is the correct outcome when the reason for the reset is that somebody else had the
+old password.
+
+## 9. Notifications
 
 GymBuddy can push a rest-timer-over alert to your phone or desktop even when the app is not open.
 Turn it on per-profile in **Settings → Notifications** — it needs a signed-in profile and HTTPS,
@@ -235,7 +290,7 @@ Wake Lock API is only available over HTTPS or on `http://localhost`, so on a pla
 instance the switch shows as unsupported. Nothing to configure server-side either way, and iOS
 refuses the lock while the phone is in Low Power Mode.
 
-## 9. Updating
+## 10. Updating
 
 ```bash
 git pull

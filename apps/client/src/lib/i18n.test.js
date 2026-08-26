@@ -292,3 +292,30 @@ describe('the language the device asks for', () => {
     }
   })
 })
+
+/* The languages the app offers, and the languages the server will accept.
+ *
+ * Two lists in two packages, and they have to be the same one. `LANGS` is what a person picks
+ * from; `LOCALES` in the domain is what `PATCH /api/me` validates against, because the server
+ * cannot import a React module to find out. A language added to the picker and not to the
+ * domain is a language the server refuses to record — and the only symptom is that the notes it
+ * writes stay in English, which nobody would trace back to a list.
+ */
+describe('the language list', () => {
+  it('is the same on both sides', async () => {
+    const { LANGS } = await import('./i18n.js')
+    const { LOCALES } = await import('@gymbuddy/domain')
+    expect([...LOCALES].sort()).toEqual(Object.keys(LANGS).sort())
+  })
+
+  it('recognises what it lists, and nothing else', async () => {
+    const { isLocale } = await import('@gymbuddy/domain')
+    expect(isLocale('fa')).toBe(true)
+    expect(isLocale('en')).toBe(true)
+    expect(isLocale('xx')).toBe(false)
+    expect(isLocale('')).toBe(false)
+    expect(isLocale(null)).toBe(false)
+    // Region subtags are not locales here: the packs are keyed by the base language.
+    expect(isLocale('fa-IR')).toBe(false)
+  })
+})

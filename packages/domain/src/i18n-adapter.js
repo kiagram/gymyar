@@ -11,6 +11,23 @@
  * output is correct English rather than placeholder keys.
  */
 
+/* Every language this app ships, as the codes both sides key off.
+ *
+ * Here rather than in the client's `LANGS` because the server needs it too and has no business
+ * importing a React module to get it. `LANGS` maps these to the names a person picks from,
+ * which is presentation; this is the set, which is a fact about the build. A test in the client
+ * asserts the two have not drifted.
+ *
+ * The server's use for it is narrow and worth stating: `users.locale` is what decides the
+ * language an AI-written note comes back in, and it is written from a request. An allowlist is
+ * what keeps that column a language rather than a string somebody chose.
+ */
+export const LOCALES = [
+  'en', 'de', 'es', 'fr', 'it', 'pt', 'pl', 'tr', 'ru', 'zh', 'ko', 'hi', 'fa'
+]
+
+export const isLocale = code => LOCALES.includes(String(code || ''))
+
 const fallback = {
   t: (s, ...args) => {
     let v = s

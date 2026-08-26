@@ -102,6 +102,156 @@ language model owns language.**
   still does the naming, so a model cannot put an exercise into a log that is not in the
   library.
 
+### A way back into an account
+
+Email and password sign-in shipped without a reset, which made "I forgot my password" the end of
+an account rather than an inconvenience. Passkeys have no equivalent problem — the authenticator
+holds the secret and its recovery is the platform's job — but the whole reason for adding
+passwords was that passkey-only is a dead end for a mainstream signup, and a password with no
+reset is a different dead end at the same door.
+
+- 📧 **One email, and there will not be a second.** A reset link, plain text, no HTML. Web Push
+  already handles everything that needs to reach somebody, so there is no digest, no newsletter
+  and nothing planned. `packages/mail` is the whole surface.
+- 🌍 **In the reader's language, all thirteen of them.** Which is only possible because
+  `users.locale` is real now — it shipped as a column nothing ever wrote, and this would have
+  been English for everybody. A test asserts there is a template for every language the picker
+  offers, since a missing one is not a crash, it is an English email nobody notices.
+- 🚫 **An instance that cannot send email does not offer the feature.** No transport configured
+  means `passwordReset: false`, no link on the sign-in screen, and a 501 from the endpoint. Not
+  a degraded mode — an honest one: an instance with no relay genuinely cannot reset a password,
+  and a form that says "check your inbox" to somebody who will never receive anything is worse
+  than no form. The same shape as billing.
+- 🏠 **`MAIL_TRANSPORT=log`** writes the message to the server log instead of sending it, for
+  the household instance where one person is both the only account and the only reader of the
+  logs. Documented as exactly that, including the sentence about what it means anywhere else.
+
+### What the reset does not tell you
+
+- 🕵️ **The same answer for an address with an account and one without**, byte for byte. An
+  endpoint that says "no such user" is one that turns a leaked address list into a membership
+  roster — and for a coaching app, that roster is who trains with whom. A passkey-only account
+  and a disabled one answer identically too. The cost is that somebody who mistypes their
+  address gets no email and no explanation, which is the right side of that trade.
+- 🤫 **A relay that is refusing connections does not change the answer either.** The failure is
+  logged for the operator, who can act on it, and swallowed in the response — because a 500 for
+  real addresses and a 200 for the rest is the enumeration oracle this endpoint was written not
+  to be.
+- 🔑 **The token is never stored.** What is kept is `sha256(token)`; the token itself exists in
+  the URL and in the request that comes back with it, and nowhere else. A dump of the table, a
+  replica, a backup on a laptop — none contains anything that opens an account. SHA-256 rather
+  than the scrypt used for passwords is deliberate: the input is 256 bits of `randomBytes`, so
+  there is nothing to guess and a slow hash would only slow the endpoint down.
+- 1️⃣ **One use, one hour, and asking again retires the last link.** Spending it is a single
+  UPDATE with every condition in the WHERE clause, so a mail client that prefetches the URL and
+  a double tap race the database rather than each other — exactly one wins.
+- 🚪 **A reset signs the account out everywhere else.** The reason somebody resets a password is
+  often that another person has the old one, and a reset that leaves that person's cookie
+  working has fixed nothing. It does not sign out the device doing the resetting, which is the
+  one bug this had: `consume` returned the account row as it was read, one version behind the
+  bump it had just made, so the cookie issued from it was dead on arrival. Caught by the test
+  that signs in immediately afterwards.
+
+### Video of the lift, and the first bytes that are not a row
+
+A coach who can read the numbers still cannot see the rep. Everything GymBuddy held until now
+was a row in Postgres — which is why the self-hosting guide could say "the database is the
+backup" and mean it — and a form check cannot be one. So there is a volume now, and
+`attachments` is the index into it.
+
+- 🎥 **Film a set and file it under the lift.** A form check hangs off a session and an
+  exercise, and a coach with the `workouts` scope sees it beside the sets it belongs to — in
+  the same sheet they were already using to comment on that session, because "watch this" and
+  "say something about it" are one action.
+- 📸 **Progress photos, on their own scope.** Not a corner of `bodyweight`: sharing what you
+  weigh says nothing whatsoever about sharing a photograph of your body, and a consent screen
+  that folds those together has not obtained consent for the second. `photos` is granted
+  separately, is not in the default invitation, and a coach without it is told it was not
+  shared rather than shown an empty panel.
+- 🎙️ **Files on a message**, either way round — a coach sending back a demonstration, a client
+  sending a voice note. Attaching is gated exactly where writing a message is gated and on the
+  same side, so a lapsed coach cannot author one and **a client is never blocked**.
+- 🙅 **A coach never uploads into a client's account**, and cannot delete what a client filmed.
+  It is the same rule that puts a proposed programme in `routine_revisions`: there is one writer
+  per row and it is the person the row is about. A coach who could delete a form check could
+  delete the evidence of what they told somebody to do.
+
+### The three decisions underneath that
+
+- 🧾 **The row is written before the bytes, always.** An upload is two writes to two systems that
+  cannot share a transaction, so one goes first and that choice decides which failure is
+  survivable. Bytes first leaves, after a crash, an object nothing knows about — and nothing
+  *could*: `packages/storage` has no `list` method on purpose, because a caller listing storage
+  is a caller asking the volume what the database already knows. So a row is reserved with
+  `uploaded_at` null, the bytes follow, the row is finished. Every object has a row naming it
+  before it exists, which makes the sweeper's job finite instead of impossible.
+- 🔍 **The type is read from the bytes, and the header is ignored.** A `Content-Type` on an
+  upload is a claim by the uploader, and the whole consequence of believing it is downstream:
+  the extension it is stored under, the type served back, and therefore what the browser
+  *does* with it. These files come back from the app's own origin, so "the uploader picks the
+  content type" is the same sentence as "the uploader picks whether their file runs as a
+  script". A short magic-number check refuses everything that is not a format a real camera or
+  recorder emits, `nosniff` goes on every response, and an HTML document uploaded as
+  `video/mp4` is a 415 with nothing written.
+- 🔗 **Two doors, and only one of them knows who you are.** `/api/attachments` asks who you are
+  and whether this is yours. `/media/*` has no session at all — it takes an HMAC signature that
+  expires in minutes, minted by whichever route just checked the permission. That is what lets
+  nginx serve a 60 MB video with `X-Accel-Redirect` while Node touches none of it, ranges
+  included, and it is why a leaked media URL is worth so little: it names one object and stops
+  working shortly. The signing key is `HMAC(SESSION_SECRET, label)` — a sibling, never the
+  secret itself — so rotating the session secret invalidates outstanding links and a leaked
+  media link is never a forged session.
+
+### Deleting means deleting
+
+- 🧹 **A sweeper inside the API container**, every fifteen minutes, no cron to set up — a
+  self-hosted instance is `docker compose up` and nothing else, and a sweeper that needs a
+  second moving part is one that is not running on most instances that exist. Deleting sets a
+  flag, so the file leaves every screen at the speed of one `UPDATE` rather than at the speed of
+  whatever the volume is doing; the row and then the bytes go on the next pass. It also collects
+  uploads that died halfway. A volume that is full, read-only or briefly missing is a delay and
+  never a leak: the key stays on the list until the bytes are actually gone. Running it twice is
+  the same as running it once, which is what makes it safe with two containers and no leader
+  election.
+- ⚰️ **A key outlives its row**, which is what makes deleting an account mean something. The
+  row is the only index into the volume — storage has no `list`, on purpose — so a row removed
+  by anything other than the sweeper takes the only record of its bytes with it. And rows are
+  removed by other things: `owner_id` and `message_id` both cascade, so deleting a user erases
+  every attachment row they had without this code being involved, leaving every file they ever
+  uploaded on disk with nothing left that knows it exists. "We deleted your account and kept
+  your photographs" is not a sentence to ship. So an `after delete` trigger writes the key to
+  `orphaned_media`, and the sweeper works from that table rather than from a guess. It is also
+  what makes the row safe to remove before the bytes rather than after — found by deleting a
+  user on a running instance and counting the files left behind.
+- 🗑️ **A quota, because an upload endpoint with no ceiling is a bill somebody else writes.**
+  2 GB per account by default, checked before an upload starts rather than after the bytes have
+  arrived. Zero is unlimited and is the right answer for a household instance.
+- 🖼️ **An attachment whose bytes are missing renders as unavailable** and leaves the screen
+  around it alone. That is not defensive coding for an impossible state: restoring a database
+  next to an older media archive produces exactly it, and section 7 of the self-hosting guide
+  promises this is what it looks like.
+- 📉 **Attachments do not sync.** They are not in `SYNC_TABLES` and never reach `log_change()`.
+  Sync exists to keep an offline copy of training on a phone; a synced attachment row would
+  promise a video that cannot play with no signal. Screens fetch them when they open, which is
+  the rule coaching data already followed.
+
+### Also
+
+- 🌐 **The four sharing descriptions are translated now.** Three of them never were: they reach
+  `t()` as `t(SCOPE_INFO[key].detail)`, a dynamic argument `check-locales.mjs` cannot see, so
+  every language read the English. They are the sentences somebody reads while deciding what to
+  share, which makes them close to the worst 204th string to have missed.
+- 🔁 **The smoke test can be run twice.** Its row ids were fixed strings, and a client-minted
+  id is final — so `smoke-r1` written by one run is a row the next run's account cannot write,
+  and the second run against any given database failed on the collision. Nobody noticed because
+  CI stands up an empty Postgres every time; anyone smoke-testing their own deployment would
+  have hit it immediately. Ids carry the run's stamp now, and the media path is checked there
+  too — which is the only place `X-Accel-Redirect` is exercised at all, since every unit test
+  runs with Node serving the bytes itself.
+- ✅ **`@gymbuddy/storage`'s suite runs in CI**, which it did not — it was in the root `npm test`
+  and missing from the workflow, so a break in it would have been found by whoever ran the whole
+  suite locally next.
+
 ### Persian, and a week that starts where your locale starts it
 
 Farsi is the twelfth locale and the first that is not written left to right. Adding it turned
@@ -145,6 +295,37 @@ up three things that were never about translation.
   second dictionary on the server: the client sends the words with the request that schedules
   the timer, at the one moment it is awake and knows both. English is what the server sends
   if a client omits them, which is what an older build looks like from there.
+
+### The Farsi the AI layer already had, made reachable
+
+- 🗣️ **`users.locale` was never written.** The column shipped in 001 with a default of `'en'`
+  and nothing in the app ever set it, so it was `'en'` for every account that has ever existed.
+  Two places read it, both commented as doing the obvious right thing — `interpretBrief` takes
+  "the language this person set on their profile", and a drafted note takes "the client's
+  language, not the coach's — they are the one who reads this note". Both were reading a
+  constant. A Farsi lifter's coach drafted a change and their client got it in English, from a
+  layer with Persian prompts and a Persian note template sitting in it unreachable.
+- ✍️ **The client says which language it is being read in** — at signup, so the first note an
+  account is sent is already right, and on every launch, because the alternative is that anyone
+  who never touches the language setting stays on the default forever, which is the bug. The
+  endpoint writes nothing when the value has not moved.
+- 📋 **One list, checked.** The languages the picker offers and the languages the server will
+  record are now the same list, in the domain package where both can reach it, with a test that
+  fails if they drift. A language added to the picker and not the allowlist would be a language
+  the server silently refuses to record, and the only symptom would be prose staying English.
+- 🏋️ **And the lift is named in Persian too.** The exercise names lived in the client, which was
+  right while the only thing rendering a name was a screen — and stopped being right the moment
+  the server started assembling sentences containing them. A coach's note is built server-side
+  and arrives as finished text, so there is nothing left for the client to translate: the first
+  Persian note this produced read "پرس سینه هالتر" nowhere and `barbell bench press` twice. The
+  pack moved to `packages/domain/src/names/`, one copy, reached from both sides and still
+  lazy-loaded on each. Coverage is unchanged — the 66 exercises the planner can emit — so a lift
+  outside that set still reads in English inside an otherwise Persian sentence, which is the
+  same deliberate trade the library screen makes.
+- The AI layer's own scope is unchanged and deliberate: English and Persian are the two
+  languages it writes prose in. The register of a coaching note is not a translation job — see
+  the comment above `LANGUAGE_NAME` — and ten more half-supported languages would be a worse
+  promise than none.
 
 ### A choice of model, and limits that do not punish a neighbourhood
 
@@ -296,6 +477,10 @@ incidental.
 
 ### Known limitations
 
+- 💾 **Uploaded media is not in the database dump.** Form-check video and progress photos live
+  on a volume and only the rows describing them are in Postgres, so a backup is now two things
+  rather than one. `docs/SELF_HOSTING.md` section 7 has both commands; restoring the dump alone
+  gives you an instance where every attachment is a broken link.
 - 🖼️ **The exercise media is not licensed for a commercial deployment.** The 1,324 animations
   are © [Gym visual](https://gymvisual.com/) and the dataset grants us nothing; they are
   fetched from upstream on first run rather than redistributed here. Exercise rows carry

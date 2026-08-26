@@ -16,6 +16,8 @@
     "@gymbuddy/ai": "*",
     "@gymbuddy/db": "*",
     "@gymbuddy/domain": "*",
+    "@gymbuddy/mail": "*",
+    "@gymbuddy/storage": "*",
     "@simplewebauthn/server": "^13.1.1",
     "fastify": "^5.12.1",
     "web-push": "^3.6.7"

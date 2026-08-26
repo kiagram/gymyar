@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { EXIDX } from '@gymbuddy/domain'
@@ -17,6 +17,9 @@ import {
   effortHistogram, isHardSet, HARD_RIR
 } from '@gymbuddy/domain'
 import { Button, Segmented, SelectRow } from '../components/ui.jsx'
+import Attachments from '../components/Attachments.jsx'
+import { progressPhotos, uploadProgressPhoto } from '../lib/media.js'
+import { MOBILE } from '../lib/mobile.js'
 
 // Which muscles the training in a window actually hit — and, the point of the card,
 // which ones it keeps missing. Shading is relative within the window (lib/muscles.js).
@@ -130,6 +133,51 @@ function EffortCard({ S }) {
 }
 
 // Stats = the analytics hub: all charts, progress and history live here.
+/* Progress photos, on the screen that already holds the other measurement of a body.
+ *
+ * Filed under a day, like a weigh-in, and shown newest first — the two are read together, and
+ * a photograph beside a number is most of why people take either.
+ *
+ * It is its own sharing decision. A coach with the `bodyweight` scope sees weigh-ins and not
+ * this; `photos` is a separate grant, made separately, and the footnote says so on the screen
+ * where somebody is deciding whether to take one.
+ */
+function ProgressPhotos() {
+  const user = useStore(s => s.user)
+  const [files, setFiles] = useState(null)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!user || MOBILE || !open) return
+    progressPhotos().then(setFiles).catch(() => setFiles([]))
+  }, [user, open])
+
+  // No account, no server, nowhere for a photograph to live. Guests keep everything in this
+  // browser and that is the deal they were offered; an upload button here would break it.
+  if (!user || MOBILE) return null
+
+  return <div className="card">
+    <div className="row between" onClick={() => setOpen(o => !o)} style={{ cursor: 'pointer' }}>
+      <h2 style={{ margin: 0 }}>{t('Progress photos')}</h2>
+      <Icon name={open ? 'chevronUp' : 'chevronDown'} />
+    </div>
+    {open && (files === null
+      ? <div className="ss dim" style={{ marginTop: 10 }}>{t('Loading…')}</div>
+      : <>
+        <Attachments
+          subject="progress"
+          files={files}
+          onChange={setFiles}
+          send={(file, onProgress) =>
+            uploadProgressPhoto({ date: todayISO(), file, onProgress })}
+          addLabel={t('Add a photo')}
+          empty={t('Nothing yet. A photo every few weeks shows what the scale does not.')}
+        />
+        <p className="sect-f">{t('Private unless you share photos with a coach — sharing your weigh-ins does not share these.')}</p>
+      </>)}
+  </div>
+}
+
 export default function Stats() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
@@ -255,6 +303,8 @@ export default function Stats() {
         </> : <div className="muted small">{t('Finish your first workout to see progress curves here.')}</div>}
       </div>
     </div>
+
+    <ProgressPhotos />
 
     {S.workouts.length > 0 && <>
       <div className="row between" style={{ marginBottom: 10 }}>

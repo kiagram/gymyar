@@ -953,6 +953,33 @@ h4.sec{
  * failure read as ordinary body copy. */
 .err{color:var(--red)}
 
+/* ------------------------------------------------------- attachments --- */
+/* Form-check clips, progress photos and voice notes. Written in logical properties like
+   everything above, so the whole block mirrors under [dir="rtl"] with no rules of its own. */
+.atts{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+
+.att{margin:0;border-radius:var(--r-lg);overflow:hidden;background:var(--surface-2)}
+.att img,.att video{
+  display:block;width:100%;max-height:340px;object-fit:contain;
+  /* Black, not the surface colour: a portrait clip filmed on a phone is letterboxed inside a
+     landscape box whichever way this is laid out, and grey bars around a video read as a
+     broken layout where black reads as a video. */
+  background:#000;
+}
+.att audio{display:block;width:100%;padding:10px}
+.att figcaption{padding:8px 12px;gap:8px;min-height:38px}
+.att figcaption .ss{color:var(--label-2);font-size:13px;word-break:break-word}
+
+/* A row whose bytes are gone — a restore out of step with its media archive. It says so and
+   leaves the screen around it intact, rather than rendering a broken-image glyph. */
+.att-gone{display:flex;align-items:center;gap:8px;padding:14px;color:var(--label-2)}
+
+/* Upload progress. A determinate bar because the length is known and a spinner during a
+   sixty-megabyte upload on mobile data is indistinguishable from a stall. */
+.upl{display:flex;flex-direction:column;gap:6px}
+.upl-bar{height:4px;background:var(--surface-2);border-radius:99px;overflow:hidden}
+.upl-bar i{display:block;height:100%;background:var(--acc);border-radius:99px;transition:width var(--med) var(--ease)}
+
 /* ============================ right to left ============================
  *
  * Everything above is written in logical properties, so the layout mirrors on its own when

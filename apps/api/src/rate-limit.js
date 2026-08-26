@@ -45,6 +45,11 @@ export const BUCKETS = {
   'model.parse': { max: 40, window: 10 * MINUTE },
   // Signing in. Tight, and keyed by the identifier being tried rather than the address.
   'auth': { max: 10, window: 15 * MINUTE },
+  /* Asking for a reset link. Tighter than signing in and keyed the same way — by the address
+   * being asked about — because the cost of this one is not a guess at a password, it is an
+   * email somebody else receives. An unthrottled endpoint here is a way to use this instance to
+   * send a stranger a hundred messages. */
+  'password-reset': { max: 5, window: 60 * MINUTE },
   // Starting a checkout. Each one mints an authority at the gateway and a row here, and a
   // person buying a subscription does it once — twice if the first attempt went wrong.
   'billing': { max: 8, window: 10 * MINUTE },
@@ -67,6 +72,11 @@ const authSubject = req => {
   return email ? 'email:' + String(email).trim().toLowerCase() : 'ip:' + req.ip
 }
 
+/* A reset that carries a token names no address, so there is nothing to key on but where it
+ * came from. That is the weaker key — everyone behind one carrier address shares it — which is
+ * why the budget for spending a token is generous where the budget for requesting one is not:
+ * this endpoint cannot be used to send anybody anything. */
+
 export async function registerRateLimit(app, { enabled = config.rateLimit } = {}) {
   if (!enabled) {
     app.log?.warn?.('rate limiting is off')
@@ -84,7 +94,8 @@ export async function registerRateLimit(app, { enabled = config.rateLimit } = {}
     // Counted per account wherever there is one — see the note at the top of this file.
     keyGenerator: req => {
       if (req.routeOptions?.url?.startsWith('/api/login') ||
-          req.routeOptions?.url?.startsWith('/api/register')) {
+          req.routeOptions?.url?.startsWith('/api/register') ||
+          req.routeOptions?.url?.startsWith('/api/password')) {
         return authSubject(req)
       }
       const uid = sessionUserId(req)

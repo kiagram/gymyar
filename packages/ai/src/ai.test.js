@@ -252,19 +252,19 @@ describe('reading a description without a model', () => {
 })
 
 describe('explaining a change without a model', () => {
-  it('says what changed and why', () => {
-    const { note } = explainChangeLocally(CHANGE)
+  it('says what changed and why', async () => {
+    const { note } = await explainChangeLocally(CHANGE)
     expect(note).toMatch(/bench press/i)
     expect(note).toMatch(/reps 5 → 4/)
     expect(note).toMatch(/reachable/)
   })
 
-  it('addresses the client when it knows their name', () => {
-    expect(explainChangeLocally(CHANGE, { clientName: 'Sam' }).note).toMatch(/^Sam:/)
+  it('addresses the client when it knows their name', async () => {
+    expect((await explainChangeLocally(CHANGE, { clientName: 'Sam' })).note).toMatch(/^Sam:/)
   })
 
-  it('handles a change with nothing in it', () => {
-    expect(explainChangeLocally(null).note).toBe('')
-    expect(explainChangeLocally({ headline: 'Fine', changes: [] }).note).toMatch(/Fine/)
+  it('handles a change with nothing in it', async () => {
+    expect((await explainChangeLocally(null)).note).toBe('')
+    expect((await explainChangeLocally({ headline: 'Fine', changes: [] })).note).toMatch(/Fine/)
   })
 })
