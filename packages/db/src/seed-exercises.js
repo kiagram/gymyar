@@ -5,7 +5,7 @@
  * code, so the day that licence changes — or a replacement set arrives — swapping them is an
  * UPDATE over this table instead of a code change shipped to three app stores.
  */
-import { EXDB } from '@gymbuddy/domain'
+import { EXDB } from '@gymyar/domain'
 import { db, logChange } from './index.js'
 
 const IMG_BASE = process.env.EXERCISE_IMG_BASE || '/img/'

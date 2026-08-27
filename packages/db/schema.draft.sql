@@ -1,4 +1,4 @@
--- GymBuddy — phase 2 data model (DRAFT, for review before any code is written against it)
+-- GymYar — phase 2 data model (DRAFT, for review before any code is written against it)
 --
 -- Replaces openGym's single state-<uid>.json blob. The blob is why the coach features can't
 -- exist: whole-state PUT with last-write-wins means a coach and a client writing in the same

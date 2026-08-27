@@ -1,4 +1,4 @@
-/* @gymbuddy/domain — runtime-agnostic training logic.
+/* @gymyar/domain — runtime-agnostic training logic.
  *
  * Everything here runs unchanged in the browser, in the API and in the AI worker:
  * no DOM, no React, no Vite-only syntax. That is the contract, and it is what lets
@@ -9,6 +9,9 @@ export * from './i18n-adapter.js'
 export * from './names/index.js'
 export * from './messages.js'
 export * from './format.js'
+export * from './calendar.js'
+export * from './checkin.js'
+export * from './habits.js'
 export * from './exercises-data.js'
 export * from './exercises.js'
 export * from './history.js'

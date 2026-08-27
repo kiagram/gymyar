@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseLog, matchExercise, describeParse } from './parse-log.js'
+import * as domain from './index.js'
 import { EXIDX } from './exercises.js'
 
 const one = text => parseLog(text).entries[0]
@@ -146,5 +147,23 @@ describe('showing what was understood', () => {
       'barbell bench press — 5 × 5 @ 80',
       'power point plank — 3 × 40s'
     ])
+  })
+})
+
+/* The package root is what everything outside the domain imports from, and a star export with
+ * two of the same name resolves to neither. This one was `undefined` there for a while — the
+ * build said so in a NAMESPACE_CONFLICT line nobody reads, and nothing failed because the only
+ * caller imported straight from the file. */
+describe('reaching it from the package root', () => {
+  it("is exported, and is the parser’s matcher rather than the importer’s", () => {
+    expect(typeof domain.matchExercise).toBe('function')
+    expect(domain.matchExercise('bench').n).toBe('barbell bench press')
+  })
+
+  it("does not collide with the importer’s, which answers a different question", () => {
+    // A phrase somebody typed against a name from somebody else's export — same input, and
+    // deliberately different rules about when to guess.
+    expect(typeof domain.matchImportedName).toBe('function')
+    expect(domain.matchImportedName).not.toBe(domain.matchExercise)
   })
 })

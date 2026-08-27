@@ -5,7 +5,7 @@
 // Two languages ship: English, which is the source, and Persian, which is the market. The
 // other eleven were removed deliberately — see LANGS.
 import { useSyncExternalStore } from 'react'
-import { setI18n, setMediaBases, say as saySource, loadNames, weekStartsFor } from '@gymbuddy/domain'
+import { setI18n, setMediaBases, say as saySource, loadNames, weekStartsFor } from '@gymyar/domain'
 
 /* UI languages: the source and the market, and nothing in between.
  *
@@ -64,7 +64,7 @@ const localePacks = import.meta.glob('../locales/*.js')
  * packages/domain/src/names/index.js. `loadNames` is still a dynamic import, so this is exactly
  * as lazy as the glob it replaced.
  */
-export { NAME_LANGS } from '@gymbuddy/domain'
+export { NAME_LANGS } from '@gymyar/domain'
 
 let lang = 'en'
 let dict = {}

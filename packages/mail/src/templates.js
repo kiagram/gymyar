@@ -2,7 +2,7 @@
  *
  * ## Why these are here and not in the locale packs
  *
- * Every other string in GymBuddy is translated in the client, because every other string is
+ * Every other string in GymYar is translated in the client, because every other string is
  * rendered there. This one is written by the server for somebody who is not signed in, on a
  * device that may not be the one they use the app on. There is nobody to ask.
  *
@@ -25,10 +25,10 @@ export const RESET_TTL_MINUTES = 60
 
 const T = {
   en: {
-    subject: 'Reset your GymBuddy password',
+    subject: 'Reset your GymYar password',
     body: (name, url) => `Hi ${name},
 
-Someone asked to reset the password on your GymBuddy account. If that was you, open this link:
+Someone asked to reset the password on your GymYar account. If that was you, open this link:
 
 ${url}
 
@@ -38,10 +38,10 @@ If it wasn't you, ignore this email — nothing has changed and your current pas
   },
 
   fa: {
-    subject: 'بازنشانی رمز عبور جیم‌بادی',
+    subject: 'بازنشانی رمز عبور جیم‌یار',
     body: (name, url) => `سلام ${name}،
 
-کسی درخواست بازنشانی رمز عبور حساب جیم‌بادی شما را داده است. اگر خودتان بوده‌اید، این پیوند را باز کنید:
+کسی درخواست بازنشانی رمز عبور حساب جیم‌یار شما را داده است. اگر خودتان بوده‌اید، این پیوند را باز کنید:
 
 ${url}
 

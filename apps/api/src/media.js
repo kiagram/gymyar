@@ -5,8 +5,8 @@
  * in the conversation. Minting is never a client's job and never a screen's: a URL is the
  * permission decision, written down.
  */
-import { storageFor, LIMITS } from '@gymbuddy/storage'
-import { publicView } from '@gymbuddy/db/attachments.js'
+import { storageFor, LIMITS } from '@gymyar/storage'
+import { publicView } from '@gymyar/db/attachments.js'
 import { config } from './config.js'
 
 let cached = null

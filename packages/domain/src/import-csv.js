@@ -192,8 +192,18 @@ const aliasIndex = () => {
  * between "barbell bench press" and "dumbbell bench press" would file years of training
  * under the wrong lift, which is worse than leaving it as a custom exercise the user can
  * see and fix.
+ *
+ * Named for the import rather than for the matching, because `parse-log.js` resolves exercises
+ * too and does it by opposite rules — that one takes a phrase somebody just typed and picks the
+ * *shortest* name containing every word, because a person writing "bench" means the obvious one.
+ * This takes a name from somebody else's export and refuses unless it is certain, because a
+ * wrong guess here is silent and permanent.
+ *
+ * Both were called `matchExercise`, and both are re-exported by the package root. A star export
+ * with two of the same name resolves to neither: `import { matchExercise } from '@gymyar/domain'`
+ * was `undefined`, with the build saying so in a line nobody reads.
  */
-export function matchExercise(name) {
+export function matchImportedName(name) {
   const idx = buildIndex()
   const w = wordsOf(name)
   if (!w.length) return null
@@ -287,7 +297,7 @@ const toKm = (v, unit) => num(v) * (KM[String(unit || 'km').toLowerCase().trim()
 /* --------------------------------------------------------------- parse ---- */
 
 /**
- * Read an export into workouts GymBuddy understands, WITHOUT touching state — the caller
+ * Read an export into workouts GymYar understands, WITHOUT touching state — the caller
  * shows the summary for confirmation first. Nothing here throws on a bad row: a history
  * of several thousand sets will contain oddities, and losing the file over one of them
  * helps nobody. Bad rows are counted and reported instead.
@@ -338,7 +348,7 @@ export function parseWorkoutCSV(text, { unit = 'kg' } = {}) {
 
     const key = keyOf(name)
     let id = resolved.get(key)
-    if (id === undefined) { id = matchExercise(name); resolved.set(key, id) }
+    if (id === undefined) { id = matchImportedName(name); resolved.set(key, id) }
     if (id) matched++
     else {
       let c = created.get(key)

@@ -8,7 +8,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { mailerFor, mailEnabled, resetEmail, MAIL_LOCALES } from './index.js'
 
-const env = (over = {}) => ({ MAIL_FROM: 'GymBuddy <no-reply@example.test>', ...over })
+const env = (over = {}) => ({ MAIL_FROM: 'GymYar <no-reply@example.test>', ...over })
 
 afterEach(() => {
   for (const k of Object.keys(process.env)) if (k.startsWith('MAIL_')) delete process.env[k]
@@ -109,7 +109,7 @@ describe('the reset email', () => {
   })
 
   it('has a template for every language the app records', async () => {
-    const { LOCALES } = await import('@gymbuddy/domain')
+    const { LOCALES } = await import('@gymyar/domain')
     // The server can store any of these on a profile, and this is the one place that turns one
     // into words. A language in the picker with no template here is an English email.
     expect([...MAIL_LOCALES].sort()).toEqual([...LOCALES].sort())
@@ -117,7 +117,7 @@ describe('the reset email', () => {
 
   it('says an hour, because the code says an hour', async () => {
     const { RESET_TTL_MINUTES } = await import('./templates.js')
-    const { RESET_TTL_MS } = await import('@gymbuddy/db/passwords.js')
+    const { RESET_TTL_MS } = await import('@gymyar/db/passwords.js')
     // The text is not parameterised — see the header in templates.js. This is what keeps the
     // sentence and the expiry from drifting apart silently.
     expect(RESET_TTL_MINUTES * 60 * 1000).toBe(RESET_TTL_MS)

@@ -1,4 +1,4 @@
-/* @gymbuddy/db — connection, migrations and the write helpers that keep the change log honest.
+/* @gymyar/db — connection, migrations and the write helpers that keep the change log honest.
  *
  * Everything that mutates a syncable row goes through `logged()`. That is not a style rule:
  * a write that skips the change log is invisible to every client that is already synced, and
@@ -70,7 +70,7 @@ export async function reset() {
 /** Tables whose rows belong to a user and take part in sync. */
 export const SYNC_TABLES = [
   'routines', 'workouts', 'bodyweight_entries', 'exercises',
-  'week_plan', 'day_overrides', 'user_settings'
+  'week_plan', 'day_overrides', 'checkins', 'habits', 'habit_ticks', 'user_settings'
 ]
 
 /**

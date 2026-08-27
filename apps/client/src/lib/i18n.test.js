@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { setLang, getLang, dateLocale, weekStartsOn, isRTL, t, exName, exSearchText, detectLang, LANGS, RTL_LANGS, NAME_LANGS } from './i18n.js'
-import { fmtDate, startOfWeek, isoOf, EXIDX } from '@gymbuddy/domain'
+import { fmtDate, startOfWeek, isoOf, EXIDX } from '@gymyar/domain'
 
 const realDocument = globalThis.document
 
@@ -301,12 +301,12 @@ describe('the language the device asks for', () => {
 describe('the language list', () => {
   it('is the same on both sides', async () => {
     const { LANGS } = await import('./i18n.js')
-    const { LOCALES } = await import('@gymbuddy/domain')
+    const { LOCALES } = await import('@gymyar/domain')
     expect([...LOCALES].sort()).toEqual(Object.keys(LANGS).sort())
   })
 
   it('recognises what it lists, and nothing else', async () => {
-    const { isLocale } = await import('@gymbuddy/domain')
+    const { isLocale } = await import('@gymyar/domain')
     expect(isLocale('fa')).toBe(true)
     expect(isLocale('en')).toBe(true)
     expect(isLocale('xx')).toBe(false)

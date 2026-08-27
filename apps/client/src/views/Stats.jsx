@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
-import { EXIDX } from '@gymbuddy/domain'
-import { lastBW, streakWeeks, setLabel, modeOf, effortOf } from '@gymbuddy/domain'
-import { fmtNum, fmtDate, fmtVol, todayISO, weekKey } from '@gymbuddy/domain'
+import { EXIDX } from '@gymyar/domain'
+import { lastBW, streakWeeks, setLabel, modeOf, effortOf } from '@gymyar/domain'
+import { fmtNum, fmtDate, fmtVol, todayISO, weekKey, sameMonth, fmtInt } from '@gymyar/domain'
 import { t } from '../lib/i18n.js'
 import { bwSheet, goalSheet, calendarSheet, workoutDetailSheet, WorkoutRow, bwDeltaColor } from '../sheets.jsx'
 import LineChart from '../components/LineChart.jsx'
 import Heatmap from '../components/Heatmap.jsx'
 import Icon from '../components/Icon.jsx'
 import BodyMap, { BodyMapLegend } from '../components/BodyMap.jsx'
-import { loadOfWorkouts, rankOf, MUSCLE_NAME } from '@gymbuddy/domain'
-import { e1rmSeries, best1RM } from '@gymbuddy/domain'
+import { loadOfWorkouts, rankOf, MUSCLE_NAME } from '@gymyar/domain'
+import { e1rmSeries, best1RM } from '@gymyar/domain'
 import {
   hasEffort, displayScale, scaleName, toScale, avgRir, effortSummary, effortWeeks,
   effortHistogram, isHardSet, HARD_RIR
-} from '@gymbuddy/domain'
+} from '@gymyar/domain'
 import { Button, Segmented, SelectRow } from '../components/ui.jsx'
 import Attachments from '../components/Attachments.jsx'
 import { progressPhotos, uploadProgressPhoto } from '../lib/media.js'
@@ -51,7 +51,7 @@ function MuscleBalance({ S }) {
         onClick={() => { setHard(h => !h); setSel(null) }}>{on ? t('Hard') : t('All')}</Button>}
     </div>
     <Segmented className="seg-range" value={win} onChange={v => { setWin(v); setSel(null) }}
-      options={[{ value: 7, label: t('Week') }, { value: 30, label: '30d' }, { value: 90, label: '90d' }, { value: 0, label: t('All') }]} />
+      options={[{ value: 7, label: t('Week') }, { value: 30, label: t('30d') }, { value: 90, label: t('90d') }, { value: 0, label: t('All') }]} />
     {inWin.length ? <>
       <BodyMap className="tappable" load={load} body={S.body} selected={sel}
         onMuscle={m => setSel(s => (s === m ? null : m))} />
@@ -99,7 +99,7 @@ function EffortCard({ S }) {
   return <div className="card">
     <h2>{t('Effort')} <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}>· {t('how close to failure')}</span></h2>
     <Segmented className="seg-range" value={win} onChange={setWin}
-      options={[{ value: 30, label: '30d' }, { value: 90, label: '90d' }, { value: 365, label: '1Y' }, { value: 0, label: t('All') }]} />
+      options={[{ value: 30, label: t('30d') }, { value: 90, label: t('90d') }, { value: 365, label: t('1Y') }, { value: 0, label: t('All') }]} />
     {sum.rated === 0 ? <div className="muted small">{t('No rated sets in this period.')}</div> : <>
       <div className="row between" style={{ alignItems: 'flex-end', gap: 12 }}>
         <div>
@@ -193,7 +193,9 @@ export default function Stats() {
     .map(b => ({ t: b.t || new Date(b.d).getTime(), y: b.w, d: b.d }))
   const bw30 = S.bodyweight.filter(b => (b.t || new Date(b.d).getTime()) > now - 30 * 86400000)
   const bwDelta30 = bw30.length > 1 ? bw30[bw30.length - 1].w - bw30[0].w : null
-  const monthW = S.workouts.filter(w => w.d.slice(0, 7) === todayISO().slice(0, 7)).length
+  // The month a workout belongs to is the reader's month: under fa-IR that is Shahrivar, and
+  // an ISO prefix can only ever answer about August.
+  const monthW = S.workouts.filter(w => sameMonth(w.d, todayISO())).length
 
   const exHist = [...new Set(S.workouts.flatMap(w => w.entries.map(e => e.id)))].filter(id => EXIDX[id]).sort((a, b) => EXIDX[a].n < EXIDX[b].n ? -1 : 1)
   const curEx = exId && exHist.includes(exId) ? exId : exHist[0] || null
@@ -247,9 +249,9 @@ export default function Stats() {
       <button className="iconbtn" onClick={() => nav('/history')} aria-label={t('History')}><Icon name="history" /></button></div>
 
     <div className="tiles">
-      <div className="tile"><div className="l"><Icon name="dumbbell" />{t('Workouts')}</div><div className="v">{S.workouts.length}</div></div>
-      <div className="tile"><div className="l"><Icon name="calendar" />{t('This month')}</div><div className="v">{monthW}</div></div>
-      <div className="tile"><div className="l"><Icon name="flame" />{t('Week streak')}</div><div className="v">{streakWeeks(S)}</div></div>
+      <div className="tile"><div className="l"><Icon name="dumbbell" />{t('Workouts')}</div><div className="v">{fmtInt(S.workouts.length)}</div></div>
+      <div className="tile"><div className="l"><Icon name="calendar" />{t('This month')}</div><div className="v">{fmtInt(monthW)}</div></div>
+      <div className="tile"><div className="l"><Icon name="flame" />{t('Week streak')}</div><div className="v">{fmtInt(streakWeeks(S))}</div></div>
       <div className="tile"><div className="l"><Icon name="scale" />{t('Weight 30d')}</div><div className="v" style={{ fontSize: 22, color: bwDelta30 === null ? 'inherit' : bwDeltaColor(bwDelta30, (lastBW(S) || {}).w || 0) }}>{bwDelta30 === null ? '—' : (bwDelta30 > 0 ? '+' : '') + fmtNum(bwDelta30) + ' ' + S.unit}</div></div>
     </div>
 
@@ -271,7 +273,7 @@ export default function Stats() {
           </div>
         </div>
         <Segmented className="seg-range" value={range} onChange={setRange}
-          options={[{ value: 30, label: '1M' }, { value: 90, label: '3M' }, { value: 365, label: '1Y' }, { value: 0, label: t('All') }]} />
+          options={[{ value: 30, label: t('1M') }, { value: 90, label: t('3M') }, { value: 365, label: t('1Y') }, { value: 0, label: t('All') }]} />
         <div className="chart"><LineChart points={bwPts} h={160} unit={S.unit} goal={S.targetW} /></div>
       </div>
 
@@ -309,7 +311,7 @@ export default function Stats() {
     {S.workouts.length > 0 && <>
       <div className="row between" style={{ marginBottom: 10 }}>
         <h4 className="sec" style={{ margin: 0 }}>{t('Recent workouts')}</h4>
-        <Button size="sm" variant="ghost" trailingIcon="chevronRight" onClick={() => nav('/history')}>{t('All')} {S.workouts.length}</Button>
+        <Button size="sm" variant="ghost" trailingIcon="chevronRight" onClick={() => nav('/history')}>{t('All')} {fmtInt(S.workouts.length)}</Button>
       </div>
       <div className="list">{[...S.workouts].reverse().slice(0, 6).map(w => <WorkoutRow key={w.id} w={w} onClick={() => workoutDetailSheet(w)} />)}</div>
     </>}

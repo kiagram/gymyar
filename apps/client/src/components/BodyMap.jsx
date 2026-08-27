@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MUSCLES, INERT, MUSCLE_NAME, levelsOf } from '@gymbuddy/domain'
+import { MUSCLES, INERT, MUSCLE_NAME, levelsOf } from '@gymyar/domain'
 import { t } from '../lib/i18n.js'
 
 // Front and back views of a body, each muscle shaded by how hard it was worked.

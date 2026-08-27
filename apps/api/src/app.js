@@ -1,6 +1,6 @@
 import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
-import { connect, migrate, db } from '@gymbuddy/db'
+import { connect, migrate, db } from '@gymyar/db'
 import { config } from './config.js'
 import { registerRateLimit } from './rate-limit.js'
 import authRoutes from './routes/auth.js'
@@ -12,6 +12,7 @@ import adminRoutes from './routes/admin.js'
 import aiRoutes from './routes/ai.js'
 import billingRoutes from './routes/billing.js'
 import mediaRoutes from './routes/media.js'
+import checkinRoutes from './routes/checkins.js'
 
 export async function build({
   logger = false, databaseUrl = config.databaseUrl, runMigrations = true, ai = null,
@@ -70,6 +71,7 @@ export async function build({
   await app.register(authRoutes)
   await app.register(syncRoutes)
   await app.register(coachingRoutes)
+  await app.register(checkinRoutes)
   await app.register(exerciseRoutes)
   await app.register(pushRoutes)
   await app.register(adminRoutes)

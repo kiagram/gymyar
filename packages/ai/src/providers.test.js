@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import {
-  createAI, providersFromEnv, deepseekProvider, ollamaProvider
+  createAI, providersFromEnv, deepseekProvider, ollamaProvider, openaiProvider
 } from './index.js'
 
 const CHANGE = {
@@ -102,6 +102,28 @@ describe('the openai-compatible adapter', () => {
     expect(ollamaProvider({}).available).toBe(false)
   })
 
+  it('asks openai for a completion budget by the name openai accepts', async () => {
+    const fetchImpl = okFetch(toolReply({ goal: 'strength' }))
+    await openaiProvider({ apiKey: 'k', model: 'gpt-5-mini', fetchImpl }).complete(TASK)
+
+    const [url, init] = fetchImpl.mock.calls[0]
+    expect(url).toBe('https://api.openai.com/v1/chat/completions')
+    const sent = JSON.parse(init.body)
+    // The older name is a 400 from a reasoning model, and a 400 is not retried — so this is
+    // the difference between prose and a template, not between one round trip and two.
+    expect(sent.max_tokens).toBeUndefined()
+    expect(sent.max_completion_tokens).toBeGreaterThan(1024)
+    expect(sent.tool_choice).toEqual({ type: 'function', function: { name: 'training_brief' } })
+  })
+
+  it('leaves every other endpoint asking by the name it already accepted', async () => {
+    const fetchImpl = okFetch(toolReply({ goal: 'strength' }))
+    await deepseekProvider({ apiKey: 'k', model: 'm', fetchImpl }).complete(TASK)
+    const sent = JSON.parse(fetchImpl.mock.calls[0][1].body)
+    expect(sent.max_tokens).toBe(1024)
+    expect(sent.max_completion_tokens).toBeUndefined()
+  })
+
   it('gives a local model longer before giving up on it', () => {
     expect(ollamaProvider({ model: 'qwen' }).timeoutMs).toBeGreaterThan(20000)
     expect(deepseekProvider({ apiKey: 'k', model: 'm' }).timeoutMs).toBeUndefined()
@@ -183,9 +205,27 @@ describe('when the hosted model cannot be reached', () => {
 })
 
 describe('what the environment configures', () => {
+  it('takes openai when its key is set, and splits the tiers', () => {
+    const p = providersFromEnv({ OPENAI_API_KEY: 'k' })
+    expect(p.fast.name).toBe('openai')
+    expect(p.deep.name).toBe('openai')
+    // Naming neither must not send the note a client reads to the cheap model.
+    expect(p.deep.model).not.toBe(p.fast.model)
+  })
+
+  it('lets openai win over another hosted key left in the environment', () => {
+    const p = providersFromEnv({ OPENAI_API_KEY: 'k', DEEPSEEK_API_KEY: 'old', ANTHROPIC_API_KEY: 'older' })
+    expect(p.fast.name).toBe('openai')
+  })
+
+  it('keeps ollama as the failover behind openai too', () => {
+    const p = providersFromEnv({ OPENAI_API_KEY: 'k', OLLAMA_MODEL_FAST: 'qwen3' })
+    expect(p.local.name).toBe('ollama')
+  })
+
   it('prefers deepseek when its key is set, and splits the tiers', () => {
     const p = providersFromEnv({
-      DEEPSEEK_API_KEY: 'k', GYMBUDDY_MODEL_FAST: 'v4-flash', GYMBUDDY_MODEL_DEEP: 'v4-pro'
+      DEEPSEEK_API_KEY: 'k', GYMYAR_MODEL_FAST: 'v4-flash', GYMYAR_MODEL_DEEP: 'v4-pro'
     })
     expect(p.fast.name).toBe('deepseek')
     expect(p.fast.model).toBe('v4-flash')
@@ -194,7 +234,7 @@ describe('what the environment configures', () => {
   })
 
   it('uses the fast model for both when only one is named', () => {
-    const p = providersFromEnv({ DEEPSEEK_API_KEY: 'k', GYMBUDDY_MODEL_FAST: 'v4-flash' })
+    const p = providersFromEnv({ DEEPSEEK_API_KEY: 'k', GYMYAR_MODEL_FAST: 'v4-flash' })
     expect(p.deep.model).toBe('v4-flash')
   })
 

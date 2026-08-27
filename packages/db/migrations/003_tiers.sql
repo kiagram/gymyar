@@ -1,4 +1,4 @@
--- GymBuddy 003 — how many clients a subscription is for.
+-- GymYar 003 — how many clients a subscription is for.
 --
 -- 002 sold one thing: coaching, unlimited, for a month or three or twelve. That prices a coach
 -- with four clients the same as one with eighty, which means the second one is subsidised by

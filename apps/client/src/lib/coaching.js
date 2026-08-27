@@ -20,6 +20,42 @@ export const proposeRoutine = (clientId, { routineId, payload, note }) =>
     method: 'POST', body: JSON.stringify({ routineId, payload, note })
   })
 
+/** A habit, through the same endpoint and the same accept-or-decline as a programme. */
+export const proposeHabit = (clientId, { habitId, title, target, note }) =>
+  api(`/api/coach/clients/${clientId}/propose`, {
+    method: 'POST',
+    body: JSON.stringify({ kind: 'habit', subjectId: habitId, payload: { title, target }, note })
+  })
+
+/* ------------------------------------------------------------ check-ins ---- */
+
+export const fetchTemplates = () => api('/api/coach/checkin-templates')
+
+export const saveTemplate = ({ id, title, fields }) =>
+  api('/api/coach/checkin-templates', {
+    method: 'POST', body: JSON.stringify({ id, title, fields })
+  })
+
+export const archiveTemplate = id =>
+  api(`/api/coach/checkin-templates/${id}`, { method: 'DELETE' })
+
+export const fetchSchedule = clientId =>
+  api(`/api/coach/clients/${clientId}/checkin-schedule`)
+
+export const setSchedule = (clientId, { templateId, weekday }) =>
+  api(`/api/coach/clients/${clientId}/checkin-schedule`, {
+    method: 'POST', body: JSON.stringify({ templateId, weekday })
+  })
+
+export const clearSchedule = clientId =>
+  api(`/api/coach/clients/${clientId}/checkin-schedule`, { method: 'DELETE' })
+
+export const clientCheckins = clientId =>
+  api(`/api/coach/clients/${clientId}/checkins`)
+
+export const clientHabits = clientId =>
+  api(`/api/coach/clients/${clientId}/habits`)
+
 /* ------------------------------------------------------------ as client ---- */
 
 export const fetchCoaches = () => api('/api/coaches')
@@ -58,6 +94,12 @@ export const SCOPE_INFO = {
   programmes: { label: 'Programmes', detail: 'Your routines and weekly schedule' },
   workouts:   { label: 'Workouts',   detail: 'Every session you log, set by set' },
   bodyweight: { label: 'Body weight', detail: 'Your weigh-ins and goal' },
+  /* The wording says "sent", because that is what happens: a check-in is answered and shared in
+   * one act, and nothing here is read off a device without being written first. */
+  checkins: { label: 'Check-ins', detail: 'The weekly answers you send' },
+  /* Separate from check-ins on the screen as well as in the schema, because they are two
+   * different pictures: a summary you wrote, and a day-by-day record of what you did. */
+  habits: { label: 'Habits', detail: 'The daily habits you agree on, and whether you tick them' },
   /* Its own line, and worded so that what is being agreed to is unmistakable. Sharing a number
    * about a body and sharing a picture of one are not the same decision, and a consent screen
    * that treats them as one has not obtained consent for the second. */

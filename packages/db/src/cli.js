@@ -26,7 +26,7 @@ try {
   } else if (cmd === 'ping') {
     const [r] = await db()`select now()`; log(`ok ${r.now.toISOString()}`)
   } else {
-    log('usage: gymbuddy-db <migrate|seed|demo|reset|ping>'); process.exitCode = 1
+    log('usage: gymyar-db <migrate|seed|demo|reset|ping>'); process.exitCode = 1
   }
 } catch (e) {
   console.error(e.message); process.exitCode = 1

@@ -3,7 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'r
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { bindUI } from './components/ui.jsx'
-import { ACCENTS } from '@gymbuddy/domain'
+import { ACCENTS } from '@gymyar/domain'
 import { setLang, useLang } from './lib/i18n.js'
 import { setNav } from './lib/nav.js'
 import { useWakeLock } from './lib/wakelock.js'
@@ -25,6 +25,7 @@ import Settings from './views/Settings.jsx'
 import Admin from './views/Admin.jsx'
 import Coach from './views/Coach.jsx'
 import CoachClient from './views/CoachClient.jsx'
+import CheckinTemplates from './views/CheckinTemplates.jsx'
 import Coaching, { InviteAccept } from './views/Coaching.jsx'
 import Billing from './views/Billing.jsx'
 import { MOBILE } from './lib/mobile.js'
@@ -119,6 +120,9 @@ function Shell() {
               {/* The coach screens are gated on the flag, not hidden by it: a direct link from
                   someone who is not a coach lands on Home rather than an empty roster. */}
               <Route path="/coach" element={user?.isCoach ? <Coach /> : <Navigate to="/home" replace />} />
+              {/* Before the `:id` route, or every visit to it would be read as a client whose
+                  id happens to be "checkins". */}
+              <Route path="/coach/checkins" element={user?.isCoach ? <CheckinTemplates /> : <Navigate to="/home" replace />} />
               <Route path="/coach/:id" element={user?.isCoach ? <CoachClient /> : <Navigate to="/home" replace />} />
               {/* Not gated on isCoach: somebody whose subscription lapsed still needs to reach
                   the screen that sells them a new one, and a receipt outlives a role.

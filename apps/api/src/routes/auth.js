@@ -9,16 +9,16 @@ import {
   generateRegistrationOptions, verifyRegistrationResponse,
   generateAuthenticationOptions, verifyAuthenticationResponse
 } from '@simplewebauthn/server'
-import { db } from '@gymbuddy/db'
+import { db } from '@gymyar/db'
 import {
   createUser, findUserByEmail, findCredential, saveCredential, touchCredential, setLocale,
   verifyPassword, bumpSessionVersion, publicUser
-} from '@gymbuddy/db/users.js'
+} from '@gymyar/db/users.js'
 import { config } from '../config.js'
-import { LIMITS, MAX_VIDEO_SECONDS } from '@gymbuddy/storage'
-import { isLocale } from '@gymbuddy/domain'
-import { mailerFor, mailEnabled, resetEmail } from '@gymbuddy/mail'
-import { createReset, consume, isLive } from '@gymbuddy/db/passwords.js'
+import { LIMITS, MAX_VIDEO_SECONDS } from '@gymyar/storage'
+import { isLocale } from '@gymyar/domain'
+import { mailerFor, mailEnabled, resetEmail } from '@gymyar/mail'
+import { createReset, consume, isLive } from '@gymyar/db/passwords.js'
 import { issue, clear, requireUser, currentUser } from '../session.js'
 import { limit } from '../rate-limit.js'
 
@@ -180,7 +180,7 @@ export default async function authRoutes(app) {
     if (!verification.verified) throw bad('not verified')
 
     await touchCredential(cred.id, verification.authenticationInfo.newCounter)
-    const { findUserById } = await import('@gymbuddy/db/users.js')
+    const { findUserById } = await import('@gymyar/db/users.js')
     const user = await findUserById(cred.user_id)
     if (!user) throw bad('user missing', 500)
     if (user.disabled_at) throw bad('this account has been disabled', 403)

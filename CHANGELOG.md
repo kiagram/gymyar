@@ -1,10 +1,10 @@
 # Changelog
 
-Two projects live in this file. GymBuddy's own releases come first; under
+Two projects live in this file. GymYar's own releases come first; under
 [openGym, before the fork](#opengym-before-the-fork) is the history of the project this one
 was forked from, kept as it was written.
 
-**About the version number.** GymBuddy starts again at 1.0.0. openGym had reached v1.2.4 by
+**About the version number.** GymYar starts again at 1.0.0. openGym had reached v1.2.4 by
 the time of the fork, so the first version below is a lower number than the ones further
 down the page — those are a different product's version line, not a release this one
 regressed from. The reset is also load-bearing: Android's `versionCode` must strictly
@@ -15,7 +15,7 @@ increase or the OS refuses an update, and the fork inherited openGym's `versionC
 
 ## v1.0.0 — unreleased
 
-GymBuddy is openGym with a second person in it. Everything openGym did for one person
+GymYar is openGym with a second person in it. Everything openGym did for one person
 tracking their own training is here, and none of it is gated. What is new is a coach on the
 other side of it — and the storage rewrite that had to happen first, because two people
 could not touch the same training without one of them silently erasing the other.
@@ -51,7 +51,7 @@ The whole design rests on one rule, and it is a property of the schema rather th
 in a settings screen.
 
 - 🤝 **A coach never writes a client's rows.** A proposed programme lands in
-  `routine_revisions` and becomes real only when the client accepts it — at which point it
+  `proposals` and becomes real only when the client accepts it — at which point it
   is written as the client's own row, through the ordinary sync path. There is exactly one
   writer per row, so there is nothing to merge, and a client's own edit cannot be erased by
   a coach's sync.
@@ -70,6 +70,246 @@ in a settings screen.
   weeks of training each — including one who shares only programmes and one who stopped
   turning up, because a roster where everybody is at 100% demonstrates nothing.
 
+### Two things that were quietly not true
+
+- 🪞 **`matchExercise` was `undefined` from the package root.** Two functions had the name —
+  `import-csv.js`'s, which matches a name out of somebody else's export and refuses unless it is
+  certain, and `parse-log.js`'s, which takes a phrase somebody just typed and picks the shortest
+  name containing every word. Opposite rules for opposite jobs, and a star export with two of the
+  same name resolves to neither. Nothing broke, because the only caller imported straight from
+  the file — and the build had been saying so in a `NAMESPACE_CONFLICT` line nobody reads. The
+  importer's is `matchImportedName` now, and a test reaches for the other one through the package
+  root so it cannot go quiet again.
+- 🧪 **`npx vitest run` from the repo root was lying twice over.** It walked `.claude/worktrees`,
+  where the agent tooling keeps scratch checkouts of this same repo — four full copies with their
+  own tests, so the run took three times as long, reported counts nobody could reconcile with the
+  source, and failed on abandoned work never meant to be green. Excluding those exposed the second
+  half: `packages/db` and `apps/api` disable `fileParallelism` in their own configs because they
+  share one Postgres, and a flat root run does not pick those up — three hundred failures that
+  looked like broken code and were a missing flag. They are projects now, so one command behaves
+  like eight. Each workspace gained a config of its own to anchor `root` at itself, because
+  vitest searches upward and any root config would otherwise have turned every per-workspace
+  script into a whole-repo run.
+
+### The notifications nobody caused
+
+The other half of push. Everything before this announced something a person had just done and
+rode on that request; these fire because *nothing* happened — a check-in is due, a week has gone
+quiet — which is exactly why somebody needs telling.
+
+- ⏰ **The hour is the recipient's, not the server's.** A reminder at six in the evening is
+  useful and the same reminder at three in the morning is an uninstall, so each candidate carries
+  the timezone their app reported and the pass asks what hour it is *there*. An unknown timezone
+  falls back to the instance's own, which for a product whose users are nearly all in one country
+  is a good guess and is still a guess.
+- 🗓️ **A reminder is about the row they would open** — the check-in filed under *their* week,
+  which under fa-IR starts on Saturday. Verified against a real clock: the fire keys came out as
+  the two Persian Saturdays, not the two Mondays.
+- 🔑 **Sending twice is the failure mode, so the claim is a primary key.** Not a check before
+  sending — that is a read-then-write two containers can both pass in the same millisecond.
+  Migration 009's `notifications_sent` is claimed with `on conflict do nothing returning`, and a
+  row coming back *is* the right to send. Four concurrent passes were raced against each other:
+  one push, one row. Same reasoning as the unique index on `payments.ref_id`.
+- ↩️ **A send that throws gives the claim back**, so one bad fifteen minutes costs a retry rather
+  than a permanent silence.
+- 🤐 **Nothing to say is not a notification.** A digest that reads "0 and 0" is why people turn
+  digests off, so it is not sent at all.
+- 🧾 **The preference is checked before the claim, not after.** `notify` checks it too and would
+  have refused to send — but by then the claim is spent, so the row is written, the log says one
+  went out and nothing did. Found by a test that expected zero and got one.
+- ⏱️ **Its own timer, beside the sweeper's rather than inside it.** Deleting files and messaging
+  people fail differently and belong in different log lines — and reminders are meaningless on
+  the single-user self-hosted instance the sweeper still has to run on.
+
+### Told, rather than found out later
+
+Until now the only push this app sent was a rest timer, which the client schedules for itself. A
+coach could send a message at midnight and their client would learn about it whenever they next
+happened to open the app.
+
+- 🌍 **The server writes the notification in the reader's language**, from a small pack beside
+  the code that sends it — the same shape and the same reason as the planner's rationale
+  strings. The rest timer dodges this by having the client send the text it wants shown; nothing
+  server-initiated can, because there is nobody awake to ask.
+- 🚫 **Language is a parameter, never module state.** This process serves a Persian lifter and an
+  English one in the same second, and the domain's registered global `t` would hand one of them
+  the other's language.
+- 🔕 **The switch lives in the settings the client already syncs**, so the row somebody flips and
+  the row the API reads before sending are the same row, with no second store to keep in step.
+  Absent means yes — somebody who has never opened the screen has not opted out of anything —
+  and switching one kind off leaves the others alone.
+- 🛟 **A notification can never break what it is announcing.** Every one of them describes a row
+  that has already been written, so the whole path swallows its own failures and returns how
+  many devices it reached. That is also what makes it survivable that web push may not reach a
+  device in Iran at all: nothing is ever *only* a notification.
+- ↔️ **`otherSide` is a function rather than a ternary in a route**, because "the person who did
+  not send it" is the one property here worth testing and, backwards, it pushes every coach
+  their own messages.
+- 🖼️ **Three icons were named and never drawn** — `chat`, and `archive` twice, which I had added
+  myself earlier in this work. `Icon` renders null for a name it does not know, so each was a
+  coloured square with nothing in it. There is now a check that every referenced icon exists.
+
+### The coach's side of both
+
+- ✍️ **A check-in is written once and put on whoever it suits.** Templates live on their own
+  screen off the roster rather than under a client, because that is what they are: questions a
+  coach writes, not a property of one relationship. Field keys are derived from the labels at
+  save time — a Persian label leaves nothing behind an ASCII filter, so those get a positional
+  key and the label is kept exactly as written.
+- 📅 **Putting one on a client is two rows**: which questions, and which day. Both are on the
+  client's own screen, next to the answers that come back, because "am I asking them anything"
+  and "did they answer" are one question and splitting them across two taps is how the second
+  half stops being read.
+- ▪️ **Habits show as fourteen squares, not a percentage.** The grid says which days somebody
+  missed; a number says only that they missed some.
+- 🤲 **A coach suggests a habit and cannot write one.** The sheet says so, and the section still
+  shows nothing until the client accepts — which is the proposal rule doing its job visibly.
+- 🗓️ **The roster's week is the coach's own week.** `habitWeek` used Postgres's `date_trunc`,
+  which starts on Monday for everybody — so a Persian coach's "this week" was two days out of
+  step with the grid their client was ticking, and the disagreement would have read as a bug in
+  the ticking rather than in the reporting. The weekday now comes from `users.locale` through
+  `weekStartsFor`, which lives in the domain **once** and is read by both the client's i18n and
+  the API. Two copies of that map would have disagreed the day somebody added a locale to one.
+- 🔔 **"check-in due" appears on the roster only for clients who are being asked one.** A client
+  with no check-in on them is not overdue for one, and neither is a client who did not share
+  them — those are both null, and neither is a thing to chase somebody about.
+
+### The two screens somebody actually touches
+
+- ✅ **Habits are on the home screen, one tap deep.** A list that needs a screen of its own before
+  anything can be ticked stops being ticked around day four, so the thing done every day is on
+  the card and everything else — renaming, retiring, the history — is behind the row itself.
+- 🔥 **What a habit says about itself depends on the habit.** A run of days leads when there is
+  one, because it is the most motivating true thing available — but only for a daily habit,
+  since a run means nothing against a target of three. A streak of weeks is the equivalent for
+  the rest. With neither, the week's count; and nothing at all beats a decorated zero.
+- 📝 **The check-in form is built from whatever questions apply**, and falls back to the built-in
+  set when the server cannot be reached rather than showing an error — they are the same
+  questions somebody with no coach answers, and a form that will not open on a bad connection is
+  worse than one that asks slightly less.
+- 🗓️ **An answer is filed under the week it is about**, so Sunday's edit lands on Saturday's row
+  and one week never gets two. Sending is one button; a draft is the other, and reopening a week
+  already sent edits it without withdrawing it.
+- 📸 **A photo question draws no input.** It says where to add the picture instead, because the
+  photo belongs behind the `photos` scope and a control here would file it somewhere nobody
+  asked permission for.
+- 🈳 **The built-in check-in has no title, on purpose.** A coach's template title is *their words*
+  and is rendered exactly as written; the built-in one is a label the app names, so it comes out
+  in the reader's language. It was a literal until the form was opened in Persian and had one
+  English heading on it.
+
+### Check-ins and habits, over HTTP
+
+- 🧩 **A client answers through sync, not through an endpoint.** A filled-in check-in and a
+  ticked habit are rows in `push` with everything else they own, which is what lets both be done
+  on a phone with no signal. The one thing the server has to tell them is which questions they
+  are being asked this week — `GET /api/checkin` — and it always answers with something, because
+  somebody with no coach gets the built-in set.
+- 👩‍🏫 **The coach side is templates, a schedule, and reading.** Saving a template and scheduling
+  one are gated on `propose`, because editing a template already on a client changes what they
+  are asked next week. Taking one *off* is not gated: a lapsed coach removing their questions
+  harms nobody, and a paywall that traps somebody's form on a stranger's screen would be worse
+  than no paywall.
+- 📋 **Answers travel with the questions they answered.** Values under keys nobody can read are
+  not a check-in, and the template may since have been reworded or archived.
+- 🤝 **`POST …/propose` takes a `kind`.** `routineId` and a named payload still work exactly as
+  before — every caller sends that, including the AI draft — and a habit names `kind` and
+  `subjectId` instead.
+- 🛡️ **Answers are shaped on the way in, not only in the form.** Found by driving a real server:
+  the push path was storing whatever arrived, so a hand-made request could file a waist of
+  4,000 cm and a sleep score of 11 out of 5. The domain had the rule and the phone was running
+  it; the server was not. It runs on both ends now, which is the reason the validation lives in
+  the domain in the first place.
+
+### The days between sessions
+
+Migration 008, and the first thing to use 006's seam for what it was built for. A programme says
+what to do three times a week; most of whether it works happens on the other four days, and none
+of it is a set.
+
+- ✅ **A tick is a row, and its absence is the answer.** No `done` column — a boolean would have
+  created a third state, a row saying false, meaning exactly what no row means. Unticking is a
+  tombstone, because sync has to tell "they changed their mind" apart from "this device has not
+  heard yet".
+- 🔢 **No count column either.** "Eight glasses of water" is a number and numbers belong in a
+  check-in's `measure` field, where they already have bounds and a unit. A habit is a yes.
+- 🎯 **A target of one to seven days a week**, so a habit can have rest built into it. A streak
+  counts weeks that met the target rather than days in a row, and the current week is allowed to
+  be unfinished — a counter that reads zero until Friday is one that punishes people for looking
+  at it. A run of days is reported only for a daily habit, and is null otherwise rather than a
+  number that looks like a verdict.
+- 📊 **Adherence is measured in days asked for, not habits completed.** Two of three habits fully
+  done reads as 67%, which flatters somebody who skipped one entirely; six of nine days says what
+  happened. An over-done habit cannot cover for another one, and a client with no habits is null
+  rather than zero — the same rule the roster already follows for a client with no schedule.
+- 🤝 **A coach proposes, the client accepts** — and everything above the dispatch was already
+  written. `PROPOSAL_KINDS` gained a line, `APPLY` gained a function, and who may propose, what
+  supersedes what and who may accept were untouched. The payload is re-validated on acceptance,
+  because a target a coach wrote in March would otherwise fail at a check constraint under the
+  client's accept button.
+- 🔓 **`habits` is its own scope**, next to `checkins` and in the default invitation with it. Two
+  scopes rather than one because they are two different pictures: a summary somebody composed,
+  and a day-by-day record of what they did with their evenings.
+- 🔒 **A tick can only be filed under a habit the pusher owns.** The foreign key alone would let
+  somebody write a row in their own name pointing at a stranger's habit, so the insert selects
+  from `habits` rather than taking the id on trust.
+
+### The week, answered
+
+Migration 007. Coaching until now was a coach reading numbers a client's app recorded on its
+own — sets, loads, what they weigh — none of which says whether the week was any good. A stalled
+lift and a stalled lift after four nights of no sleep are the same rows and opposite problems.
+
+- ❓ **A coach owns the questions, a client owns every answer.** The template is the coach's row
+  and they edit it freely. The answer is written through the client's own sync like any other
+  row they hold, which is what makes it fillable on a phone with no signal and what stops a
+  coach from ever authoring one. Same rule as a proposed programme, same reason.
+- 📅 **One check-in per person per day**, keyed `(user_id, on_date)` exactly as a weigh-in is.
+  Not per relationship: a client with two coaches describes their week once, and both read it if
+  both were granted the scope. It is also the only key that survives two offline devices
+  answering the same Saturday — a per-device id would push two rows and fail the transaction.
+- 🔓 **`checkins` is a scope, and it is in the default invitation** — unlike `photos`, which is
+  not and will not be. Answering questions you have read, in words you chose, *is* the consent;
+  being photographed is not. So a check-in can ask for a picture, and the picture still arrives
+  as an attachment behind the scope that asks properly. There is no photo column here.
+- 👤 **A client with no coach can keep check-ins for themselves.** `template_id` null means the
+  built-in set of questions, which lives in the domain — a table holding one identical row per
+  user is a table holding a constant.
+- 🪦 **A coach deleting their account cannot take their clients' answers with them.**
+  `template_id` is `set null` rather than `cascade`; what is lost is the wording of the
+  questions, not what anybody said. Templates are archived rather than deleted for the same
+  reason: an answer is only readable next to the question it answered.
+- 🙈 **A draft is never readable by a coach.** A check-in with no `submitted_at` is somebody
+  halfway through a sentence about their week. It syncs so it survives a closed app, not so it
+  can be read over their shoulder.
+- 📆 **A due date belongs to the week it is about**, not the day the form was typed — otherwise
+  a late reply lands in the next week and leaves a hole in the one it describes. Which weekday a
+  week starts on stays a locale question and is not stored.
+
+### A proposal is not always a routine
+
+Migration 006, ahead of the three features that all need the same thing. A macro target a coach
+sets and a habit a coach assigns are both a coach deciding something about a client, and both
+are worthless if the coach can simply write it — which is the rule `proposals` already holds for
+programmes.
+
+- 🔤 **`routine_revisions` is `proposals`, and `routine_id` is `subject_id`.** A table named for
+  routines holding a macro target is a schema that lies, and the next person to read it believes
+  it. Renamed rather than left to drift; only `coaching.js` writes this table and one client
+  screen reads the column.
+- 🏷️ **`kind` names what is being proposed**, and the database's list of kinds is deliberately
+  wider than what this build can create. The schema knowing the word first is what makes adding
+  nutrition targets or habits a code change rather than another migration.
+- 🚫 **Accepting a kind this build cannot apply is refused**, rather than applied as whatever the
+  code happens to know how to write. The ordinary version of that is an API container still on
+  last week's build while the schema has moved on; the bad version is a macro target appearing in
+  somebody's programme list. Declining always works, so an inbox can never be stuck.
+- 🔑 **One open proposal per subject is now keyed by the client too.** It was keyed on the routine
+  id alone, which held only because ids are generated client-side from a timestamp and five
+  random characters — unique across accounts by luck, not by construction. A kind whose subject
+  is the same word for everybody, which is exactly what nutrition targets will be, would have
+  turned that luck into one client blocking the whole instance.
+
 ### Programmes, review, and logging by typing
 
 The division of labour matters more than the feature list: **the domain owns every number, a
@@ -80,7 +320,7 @@ language model owns language.**
   the app already runs on. A model is asked to do exactly two things — turn free text into a
   structured brief, and write the note explaining a change — and both have deterministic
   implementations underneath.
-- **With no API key configured, GymBuddy builds the same plans, finds the same stalls and
+- **With no API key configured, GymYar builds the same plans, finds the same stalls and
   parses the same logs.** It phrases things from a template instead of writing prose, in
   whichever language the person is using, and `/api/ai/status` says so. Nothing here can
   invent a lift that is not in the library, or put 140 kg on a beginner's bar.
@@ -154,7 +394,7 @@ reset is a different dead end at the same door.
 
 ### Video of the lift, and the first bytes that are not a row
 
-A coach who can read the numbers still cannot see the rep. Everything GymBuddy held until now
+A coach who can read the numbers still cannot see the rep. Everything GymYar held until now
 was a row in Postgres — which is why the self-hosting guide could say "the database is the
 backup" and mean it — and a form check cannot be one. So there is a volume now, and
 `attachments` is the index into it.
@@ -172,7 +412,7 @@ backup" and mean it — and a form check cannot be one. So there is a volume now
   sending a voice note. Attaching is gated exactly where writing a message is gated and on the
   same side, so a lapsed coach cannot author one and **a client is never blocked**.
 - 🙅 **A coach never uploads into a client's account**, and cannot delete what a client filmed.
-  It is the same rule that puts a proposed programme in `routine_revisions`: there is one writer
+  It is the same rule that puts a proposed programme in `proposals`: there is one writer
   per row and it is the person the row is about. A coach who could delete a form check could
   delete the evidence of what they told somebody to do.
 
@@ -248,14 +488,44 @@ backup" and mean it — and a form check cannot be one. So there is a volume now
   have hit it immediately. Ids carry the run's stamp now, and the media path is checked there
   too — which is the only place `X-Accel-Redirect` is exercised at all, since every unit test
   runs with Node serving the bytes itself.
-- ✅ **`@gymbuddy/storage`'s suite runs in CI**, which it did not — it was in the root `npm test`
+- ✅ **`@gymyar/storage`'s suite runs in CI**, which it did not — it was in the root `npm test`
   and missing from the workflow, so a break in it would have been found by whoever ran the whole
   suite locally next.
 
 ### Persian, and a week that starts where your locale starts it
 
 Farsi is the twelfth locale and the first that is not written left to right. Adding it turned
-up three things that were never about translation.
+up three things that were never about translation — and making it the *primary* audience turned
+up four more, all of them the same mistake in different places: a date rendered by `Intl` is
+Jalali, and a date taken apart with `getMonth()` is not.
+
+- 📆 **A calendar that is actually the reader's calendar.** `domain/calendar.js` reads a stored
+  Gregorian day in whichever calendar the locale resolves to, and every screen that lays out
+  months goes through it: the calendar sheet is Shahrivar with 31 cells rather than August with
+  31 cells, the heatmap's month bands fall where Persian months fall, a chart's gridlines land
+  on the 1st of Mehr, and "this month" turns over on the day it should. Storage is untouched and
+  must stay that way — a Jalali string in a `date` column cannot be compared, sorted or indexed
+  as a date.
+- 🧮 **No Jalali arithmetic anywhere, and no date library.** Every operation reduces to Gregorian
+  arithmetic plus a Jalali reading of the result — the start of a month is "this day minus
+  (day-of-month − 1) days", and a month's length is how many days fit before the month you read
+  changes. Esfand having 29 days or 30 stays ICU's problem, which already knows.
+- 🔢 **Numbers interpolated into a sentence take that language's digits.** `t('{0} week streak',
+  3)` was rendering "3 هفته پیاپی" — one Latin numeral in a Persian sentence, two lines under a
+  `fmtNum` that had already written ۵٬۲۰۰. Done in `t()` rather than at the call sites, so it is
+  true everywhere instead of wherever somebody remembered. String arguments pass through
+  untouched: most have been through `fmtNum` already, and formatting a formatted number eats its
+  unit.
+- 🗣️ **"پس‌کی‌ها از your fingerprint, face or PIN استفاده می‌کنند".** `BIO` and `VAULT` are picked
+  by platform at import time, before a locale pack exists, and were being interpolated raw into
+  a translated sentence. They are translation keys now, rendered through `t()` at the call site.
+  `fmtDur` had the same shape — "1h 30m" is not a value, it is a sentence with the units glued
+  on, and no scan for `t('…')` could ever have found it.
+
+A Gregorian locale keeps exactly what it had. Only a non-Gregorian calendar reads its structure
+from `Intl`, because Intl's month names disagree with this app's own translations in most of the
+languages it ships — 'Sept' against 'Sep', 'janv.', lowercase Spanish, a trailing dot in Russian
+— and restyling twelve correct languages to fix a thirteenth is not a fix.
 
 - 🗓️ **The week grid was anchored to Monday.** Iran's week starts on Saturday, and a Monday
   anchor does not fail visibly — it shifts every heatmap cell, every streak and every "this
@@ -406,14 +676,21 @@ incidental.
 
 ### A visual identity, cut from one vector
 
-- 🔴 **The mark**: the figure with its arms crossed, one silhouette with the muscle contours
-  cut out of it as negative space. On the red field it reads white with red lines; on paper,
-  red with white lines. One shape, two colourways, no second piece of artwork. It is a real
-  vector traced from the brand artwork rather than upscaled from it.
-- 🎨 **GymBuddy red `#E63935`** (Pantone 185 C), read off the brand system's own colour sheet
-  rather than sampled by eye. It is a token of its own, `--brand`, identical in both themes —
-  `--red` stays Apple's, because that is the *error* colour and a destructive action should
-  look the way the platform says it looks.
+- 🟢 **The mark**: a Persian calligraphic stroke that doubles as a lifter under a barbell —
+  the bar and its plates across the top, the head and raised arm inside the curve, a diamond
+  resting at the foot of the descender. One continuous gesture, strength held still at the top
+  and motion in the tail. It is a real vector traced from the brand system's guide sheets
+  rather than upscaled from them, drawn as filled contours with `fill-rule="evenodd"` so the
+  counters stay open at any size.
+- 🎨 **Emerald `#1FA774`, ivory `#F3F0E8`, onyx `#0B0D0E`**, read off the brand system's own
+  colour sheet rather than sampled by eye, and flat everywhere — there is no gradient anywhere
+  in the identity. Emerald is a token of its own, `--brand`, identical in both themes; `--red`
+  stays Apple's, because that is the *error* colour and a destructive action should look the
+  way the platform says it looks.
+- ♿ **Emerald is a mid-tone, and the type on it knows that.** White on emerald is 3.07:1 —
+  the large-text bar and nothing smaller. A filled control carrying normal-size white text
+  steps one shade darker to `--brand-2` (`#177D57`), which clears AA at 4.74:1 and reads as
+  the same colour.
 - 🏭 **One source, twenty-odd outputs.** `infra/scripts/render-logo.mjs` cuts every raster
   from the vectors — PWA icons, the SVG favicon, twenty-four Android mipmaps, the iOS app
   icon, both platforms' launch screens. Nobody edits a PNG by hand, so they cannot drift, and
@@ -421,12 +698,21 @@ incidental.
   rather than byte-for-byte, because a PNG rendered by Chromium on Linux is not the same file
   as one rendered on Windows, and a check that fails on the developer's own operating system
   is a check that gets deleted.
-- 🖼️ **The launch screen is a layout rule, not a drawing**: the icon tile centred on off
-  black at 26% of the shorter side, with night variants, since the app is dark whichever way
-  the system is set and a light launch screen would flash white before the first paint.
-- ✒️ **The wordmark and lockups are vectors too**, traced off the hero render's alpha channel
-  — a letterform is exactly its alpha, so the shading inside it stops mattering. `BUDDY` is
-  red in every colourway; only `GYM` and the tagline change.
+- 🖼️ **The launch screen is a layout rule, not a drawing**: the icon tile centred on onyx at
+  26% of the shorter side — 14% on the single square iOS uses for every device, where cropping
+  to a tall phone throws away more than half the width — with night variants, since the app is
+  dark whichever way the system is set and a light launch screen would flash white before the
+  first paint.
+- ✒️ **The wordmark and lockups are vectors too.** `GYMYAR` is emerald in every colourway;
+  only the tagline changes, onyx on light surfaces and ivory on dark, because the brand colour
+  does not become something else on a different background. The `A` is drawn without its
+  crossbar, as a bare `Λ` — the system's letterform, not a rendering fault.
+- 📐 **Traced, and the trace is measured.** Marching squares at the 0.5 iso-level of the source
+  anti-aliasing, simplified with Douglas–Peucker, fitted with corner-aware Catmull-Rom → cubic
+  Béziers so the barbell keeps hard corners while the calligraphy stays smooth. The mark
+  matches its source raster at 0.983 IoU. The tagline is the one element whose fidelity is
+  capped by the source rather than the trace — it is 18px tall on the sheet, sits at about
+  0.945, and wants re-cutting from larger artwork if any ever turns up.
 
 ### Release engineering
 
@@ -434,7 +720,7 @@ incidental.
   Android said 1.2.4 with openGym's `versionCode 5`, and iOS said 1.0. `infra/scripts/version.mjs`
   stamps one version into the workspace packages, the Gradle file, the Xcode project and the
   PWA manifest; `--check` fails on drift, and CI runs it.
-- 🔐 **Release signing**, reading a gitignored `keystore.properties` or `GYMBUDDY_KEYSTORE_*`
+- 🔐 **Release signing**, reading a gitignored `keystore.properties` or `GYMYAR_KEYSTORE_*`
   from the environment — and building unsigned with a warning when it has neither, so a
   contributor can check the release build compiles without holding a key.
 - 📄 **Store listings in English and Persian**, written separately rather than translated, and
@@ -472,7 +758,7 @@ incidental.
   seam that the client registers its runtime into and that falls back to English elsewhere.
 - **The exercise library is served, not only bundled**, since a coach picking movements for
   someone else has no local catalogue for them.
-- **The app id** moved from `ch.duartesantos.opengym` to `com.gymbuddy.app` across Capacitor,
+- **The app id** moved from `ch.duartesantos.opengym` to `com.gymyar.app` across Capacitor,
   the Android package and the iOS project.
 
 ### Known limitations
@@ -487,7 +773,7 @@ incidental.
   `image_url` and `animation_url`, so replacing the source is an `UPDATE` — but until that
   happens or a licence is obtained, this cannot ship as a paid product.
 - 📦 **There is no public repository yet**, and the AGPL requires one before a hosted instance
-  takes payment. See `docs/PUBLISHING.md`. Until there is one, the app's "self-host GymBuddy"
+  takes payment. See `docs/PUBLISHING.md`. Until there is one, the app's "self-host GymYar"
   links are hidden rather than pointed somewhere, `SECURITY.md` has no private reporting
   channel to name, and `CONTRIBUTING.md` has no issue tracker to send anyone to.
 
@@ -522,7 +808,7 @@ incidental.
 
 ### Licence
 
-GymBuddy is **AGPL-3.0-or-later**, inherited from openGym and kept deliberately. `NOTICE.md`
+GymYar is **AGPL-3.0-or-later**, inherited from openGym and kept deliberately. `NOTICE.md`
 carries openGym's attribution and its AGPL section 7 App Store permission verbatim, with a
 note that the permission travels to this work — and that its condition, corresponding source
 available under the AGPL, binds us too.
@@ -532,7 +818,7 @@ available under the AGPL, binds us too.
 # openGym, before the fork
 
 Everything below is openGym's changelog as it stood at the fork, by Duarte Santos. Canonical
-upstream: <https://gitea.com/DuarteSantos/openGym>. It describes openGym, not GymBuddy — the
+upstream: <https://gitea.com/DuarteSantos/openGym>. It describes openGym, not GymYar — the
 storage model, the sign-in options and the distribution channels it refers to have all since
 changed. It is kept for provenance and for the attribution trail.
 

@@ -11,18 +11,30 @@
 import {
   inviteClient, acceptInvite, declineInvite, endLink, setScopes, findLinkByCode,
   roster, coachesOf, requireScope, activeLink, linkById,
-  proposeRoutine, pendingProposals, acceptProposal, declineProposal,
+  propose, pendingProposals, acceptProposal, declineProposal,
   sendMessage, readThread, SCOPES
-} from '@gymbuddy/db/coaching.js'
-import { pullAll } from '@gymbuddy/db/sync.js'
-import { forMessages } from '@gymbuddy/db/attachments.js'
-import { db } from '@gymbuddy/db'
+} from '@gymyar/db/coaching.js'
+import { weekStartsFor } from '@gymyar/domain'
+import { notify, otherSide } from '../notify.js'
+import { pullAll } from '@gymyar/db/sync.js'
+import { forMessages } from '@gymyar/db/attachments.js'
+import { db } from '@gymyar/db'
 import { requireUser } from '../session.js'
 import { requireCoach, requireCapacity, capacityFor } from '../entitlement.js'
 import { billingEnabled } from '../payments/pricing.js'
 import { withUrls } from '../media.js'
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status })
+
+/* Tell whoever wrote a proposal what became of it.
+ *
+ * The coach is `proposed_by`, which is on the row — so this needs no lookup and works for a
+ * proposal authored months ago by a coach whose relationship has since been paused. What it
+ * deliberately does not say is *which* routine: the answer is either "they took it" or "they
+ * did not", and the coach opens the client to see anything more than that. */
+const notifyAuthor = (proposal, event, clientName) =>
+  notify(proposal.proposed_by, event, { from: clientName, kind: proposal.kind })
+
 
 export default async function coachingRoutes(app) {
   /* ------------------------------------------------------- as a coach ---- */
@@ -33,7 +45,9 @@ export default async function coachingRoutes(app) {
     // Capacity rides along with the roster because that is the screen it is about. A coach who
     // can see "23 of 25" coming is not one who finds out mid-invitation.
     const [clients, capacity] = await Promise.all([
-      roster(user.id, { days }),
+      // The coach's own week, so "this week's habits" on this screen means the same days as the
+      // grid their client is ticking. `users.locale` is the only place the server knows it from.
+      roster(user.id, { days, weekStartsOn: weekStartsFor(user.locale) }),
       capacityFor(user.id)
     ])
     return { clients, windowDays: days, capacity }
@@ -80,14 +94,36 @@ export default async function coachingRoutes(app) {
     return view
   })
 
+  /**
+   * Propose something to a client.
+   *
+   * `routineId` and a named payload is the shape this endpoint has always taken and still is —
+   * every caller sends it, and a route that renamed its fields to look tidier next to `kind`
+   * would break the app in the field to save a word here. A habit names `kind` and `subjectId`
+   * instead; which fields a payload must carry is a question only the kind can answer, so the
+   * check is per kind rather than one condition trying to describe both.
+   */
   app.post('/api/coach/clients/:id/propose', async req => {
     const user = await requireUser(req)
     await requireCoach(user.id, 'propose')
-    const { routineId, payload, note } = req.body || {}
-    if (!routineId || !payload?.name) throw bad('routineId and a named payload are required')
+    const { kind = 'routine', routineId, subjectId, payload, note } = req.body || {}
+    const subject = kind === 'routine' ? routineId : subjectId
+    if (!subject) throw bad(kind === 'routine' ? 'routineId is required' : 'subjectId is required')
+    if (kind === 'routine' && !payload?.name) throw bad('a named payload is required')
+    if (kind === 'habit' && !String(payload?.title ?? '').trim()) throw bad('a habit needs a title')
+
     const link = await activeLink(user.id, req.params.id)
     if (!link) throw bad('not your client', 403)
-    return { proposal: await proposeRoutine({ linkId: link.id, coachId: user.id, routineId, payload, note }) }
+    const proposal = await propose({
+      linkId: link.id, coachId: user.id, kind, subjectId: subject, payload, note
+    })
+    /* The subject is named in the notification because "a change to your programme" is a
+     * sentence somebody can act on and "you have a proposal" is not. A habit's name is its
+     * whole content; a routine's is what tells them which one moved. */
+    await notify(link.client_id, 'proposal', {
+      from: user.name, kind, subject: payload?.title || payload?.name || ''
+    })
+    return { proposal }
   })
 
   /* ------------------------------------------------------ as a client ---- */
@@ -152,13 +188,16 @@ export default async function coachingRoutes(app) {
 
   app.post('/api/proposals/:id/accept', async req => {
     const user = await requireUser(req)
-    return { proposal: await acceptProposal({ revisionId: req.params.id, clientId: user.id }) }
+    const proposal = await acceptProposal({ revisionId: req.params.id, clientId: user.id })
+    await notifyAuthor(proposal, 'accepted', user.name)
+    return { proposal }
   })
 
   app.post('/api/proposals/:id/decline', async req => {
     const user = await requireUser(req)
     const rev = await declineProposal({ revisionId: req.params.id, clientId: user.id })
     if (!rev) throw bad('proposal not found', 404)
+    await notifyAuthor(rev, 'declined', user.name)
     return { proposal: rev }
   })
 
@@ -187,11 +226,18 @@ export default async function coachingRoutes(app) {
     const body = String(req.body?.body || '').trim()
     if (!body) throw bad('a message body is required')
     if (body.length > 4000) throw bad('message too long')
+    const message = await sendMessage({
+      linkId: req.params.linkId, senderId: user.id, body,
+      workoutId: req.body?.workoutId ?? null, exerciseId: req.body?.exerciseId ?? null
+    })
+    /* Awaited rather than fired and forgotten: an unawaited promise that rejects after the
+     * response has gone out is an unhandled rejection with no request to blame it on. `notify`
+     * cannot reject and cannot be slow enough to matter — it is one row and one HTTP call that
+     * is allowed to fail. */
+    const other = otherSide(link, user.id)
+    if (other) await notify(other, 'message', { from: user.name })
     return {
-      message: await sendMessage({
-        linkId: req.params.linkId, senderId: user.id, body,
-        workoutId: req.body?.workoutId ?? null, exerciseId: req.body?.exerciseId ?? null
-      })
+      message
     }
   })
 }

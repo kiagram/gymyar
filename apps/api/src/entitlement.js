@@ -2,7 +2,7 @@
  *
  * ## Billing off means everything is free
  *
- * This is the first check in every function here and it is not a convenience. GymBuddy is AGPL
+ * This is the first check in every function here and it is not a convenience. GymYar is AGPL
  * and meant to be self-hosted; somebody running it on a machine in their flat for themselves
  * and four friends has no gateway configured, nobody to charge, and no business being told to
  * upgrade. With `ZARINPAL_MERCHANT_ID` unset the coach features are simply free, exactly as
@@ -18,9 +18,9 @@
  * routes — asking about a client who is not yours — and collapsing the two would put a
  * pay-to-continue prompt in front of people who need an error message instead.
  */
-import { entitlement, capacity, nextTierAfter } from '@gymbuddy/domain/entitlement.js'
-import { subscriptionFor, ensureTrial } from '@gymbuddy/db/billing.js'
-import { countClients } from '@gymbuddy/db/coaching.js'
+import { entitlement, capacity, nextTierAfter } from '@gymyar/domain/entitlement.js'
+import { subscriptionFor, ensureTrial } from '@gymyar/db/billing.js'
+import { countClients } from '@gymyar/db/coaching.js'
 import { billingEnabled } from './payments/pricing.js'
 
 /** Everything allowed, which is what an instance with no gateway hands out. */

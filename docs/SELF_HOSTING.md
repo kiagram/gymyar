@@ -1,4 +1,4 @@
-# Self-hosting GymBuddy
+# Self-hosting GymYar
 
 Three containers and a Postgres volume: nginx serving the built app, the Fastify API, and the
 database. This guide takes you from "just cloned it" to "using it from my phone over the
@@ -13,8 +13,8 @@ Requirements: [Docker](https://docs.docker.com/get-docker/) with the Compose plu
 needed — the images build the app for you.
 
 ```bash
-git clone <your-repo> gymbuddy
-cd gymbuddy
+git clone <your-repo> gymyar
+cd gymyar
 cp .env.example .env
 docker compose up -d --build
 ```
@@ -42,7 +42,7 @@ Logs: `docker compose logs -f`. Stop: `docker compose down` — the database vol
 |---|---|---|
 | `web` | nginx: serves the built React app **and** proxies `/api` to the API, so everything is one origin — which WebAuthn requires. Also serves the exercise media. | none |
 | `api` | Fastify on :3000, internal only. Migrates and seeds on every boot; both are idempotent, so every boot after the first is a no-op. | none |
-| `db` | Postgres 16. **Every account and every set ever logged.** | `gymbuddy_db` volume |
+| `db` | Postgres 16. **Every account and every set ever logged.** | `gymyar_db` volume |
 | `media` | One-shot: clones the exercise dataset into `./media`, then exits. Skipped if the files are already there. | `./media` |
 
 The exercise media is © [Gym visual](https://gymvisual.com/) and licensed separately from this
@@ -51,7 +51,7 @@ its own licence or its own assets.
 
 ## 3. Sign-in, and why HTTPS matters
 
-GymBuddy signs you in two ways: **passkeys** (WebAuthn) and **email + password**. Passkeys are
+GymYar signs you in two ways: **passkeys** (WebAuthn) and **email + password**. Passkeys are
 what the UI leads with; the password path exists because "sign up" cannot be a dead end on a
 device whose browser will not do passkeys.
 
@@ -64,13 +64,13 @@ So `http://localhost:8080` works on the machine running Docker, but **another de
 `http://<your-LAN-ip>:8080`** — that is neither localhost nor HTTPS, so the passkey prompt never
 appears. Email and password work over plain HTTP, but sending a password in clear text across
 your network is not a plan, and the session cookie is only marked `Secure` when `ORIGIN` is
-`https:`. To use GymBuddy from your phone, get a real HTTPS hostname.
+`https:`. To use GymYar from your phone, get a real HTTPS hostname.
 
 (You can also open it over LAN in **guest mode**, which keeps data in that browser only.)
 
 ## 4. Expose it over HTTPS on your own domain
 
-Put GymBuddy behind something that terminates TLS for a hostname you control, then point it at
+Put GymYar behind something that terminates TLS for a hostname you control, then point it at
 the `web` container. Pick whichever you already run:
 
 ### Option A — Cloudflare Tunnel (no open ports)
@@ -89,7 +89,7 @@ gym.example.com {
 ### Option C — Traefik / nginx / Nginx Proxy Manager
 
 Route `gym.example.com` (HTTPS) → `web:80` (or `<docker-host>:8080`). Any reverse proxy works —
-GymBuddy only needs the browser to reach it over `https://gym.example.com`.
+GymYar only needs the browser to reach it over `https://gym.example.com`.
 
 Then set your domain in `.env` and restart:
 
@@ -97,7 +97,7 @@ Then set your domain in `.env` and restart:
 # .env
 RP_ID=gym.example.com
 ORIGIN=https://gym.example.com
-RP_NAME=GymBuddy
+RP_NAME=GymYar
 WEB_PORT=8080
 ```
 
@@ -170,7 +170,7 @@ Admin is a column on the user row rather than an environment variable, so there 
 admin of an instance you have not registered on. Register first, then:
 
 ```bash
-docker compose exec db psql -U gymbuddy -d gymbuddy -c "update users set is_admin = true where email = 'you@example.com'"
+docker compose exec db psql -U gymyar -d gymyar -c "update users set is_admin = true where email = 'you@example.com'"
 ```
 
 Sign out and back in, and Settings grows an **Admin dashboard**: everyone on the instance with
@@ -187,13 +187,13 @@ Cloudflare Access…) in front still works, and composes with the above.
 **Two things, and only one of them is the database.**
 
 ```bash
-docker compose exec -T db pg_dump -U gymbuddy gymbuddy | gzip > gymbuddy-$(date +%F).sql.gz
+docker compose exec -T db pg_dump -U gymyar gymyar | gzip > gymyar-$(date +%F).sql.gz
 ```
 
 Restore into an empty database:
 
 ```bash
-gunzip -c gymbuddy-2026-08-23.sql.gz | docker compose exec -T db psql -U gymbuddy -d gymbuddy
+gunzip -c gymyar-2026-08-23.sql.gz | docker compose exec -T db psql -U gymyar -d gymyar
 ```
 
 That dump holds every profile, passkey credential, coaching relationship and set ever logged.
@@ -205,13 +205,13 @@ alone and you get an instance where every attachment is a broken link — the ro
 pointing at bytes that are not. So take the volume too:
 
 ```bash
-docker run --rm -v gymbuddy_media:/data -v "$PWD":/out alpine tar czf /out/gymbuddy-media-$(date +%F).tar.gz -C /data .
+docker run --rm -v gymyar_media:/data -v "$PWD":/out alpine tar czf /out/gymyar-media-$(date +%F).tar.gz -C /data .
 ```
 
 and put it back the same way:
 
 ```bash
-docker run --rm -v gymbuddy_media:/data -v "$PWD":/in alpine tar xzf /in/gymbuddy-media-2026-08-25.tar.gz -C /data
+docker run --rm -v gymyar_media:/data -v "$PWD":/in alpine tar xzf /in/gymyar-media-2026-08-25.tar.gz -C /data
 ```
 
 The two are not required to be from the same instant. An attachment row whose bytes are missing
@@ -226,7 +226,7 @@ not an instance backup — it carries no other accounts, no credentials and no c
 
 ## 8. Email, and getting back into an account
 
-Somebody will forget their password. Without a mail relay there is nothing GymBuddy can do about
+Somebody will forget their password. Without a mail relay there is nothing GymYar can do about
 that, so the feature is simply not offered: `passwordReset` is false, the app does not show the
 link, and the endpoint refuses. Passkeys are unaffected — their recovery is the platform's job.
 
@@ -238,7 +238,7 @@ MAIL_SMTP_HOST=smtp.example.com
 MAIL_SMTP_PORT=587
 MAIL_SMTP_USER=
 MAIL_SMTP_PASS=
-MAIL_FROM=GymBuddy <no-reply@example.com>
+MAIL_FROM=GymYar <no-reply@example.com>
 ```
 
 Two things decide whether this works in practice, and neither is in this file. **`ORIGIN` must
@@ -264,7 +264,7 @@ old password.
 
 ## 9. Notifications
 
-GymBuddy can push a rest-timer-over alert to your phone or desktop even when the app is not open.
+GymYar can push a rest-timer-over alert to your phone or desktop even when the app is not open.
 Turn it on per-profile in **Settings → Notifications** — it needs a signed-in profile and HTTPS,
 see section 4.
 
@@ -315,5 +315,5 @@ Take a backup before an upgrade that carries a migration (section 7). Migrations
 | No "Notifications" option in Settings | Needs a signed-in profile, HTTPS (or `localhost`), and VAPID keys on the server (section 8). Guest mode cannot subscribe. |
 | Everyone signed out after a deploy | `SESSION_SECRET` was not set, so a new one was generated. Set it and it stops. |
 | A stuck login | Delete the cookie in your browser; sessions are just signed cookies. |
-| Demo accounts on a real instance | `SEED_DEMO` was set on first boot. Clear it *first*, restart, then delete the four accounts — the seed skips only while `coach@gymbuddy.test` exists, so deleting them with `SEED_DEMO` still set recreates them on the next boot. |
+| Demo accounts on a real instance | `SEED_DEMO` was set on first boot. Clear it *first*, restart, then delete the four accounts — the seed skips only while `coach@gymyar.test` exists, so deleting them with `SEED_DEMO` still set recreates them on the next boot. |
 | Signed-in users see an app with no sign-in | You deployed the *mobile* bundle. `npm run sync:mobile` leaves a backend-less build in `apps/client/dist`; deploy with `npm run build`. See [RELEASING.md](RELEASING.md). |

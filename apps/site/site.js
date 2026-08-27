@@ -1,7 +1,7 @@
 // The repository this project lives in — the repo root, no trailing slash. Every source
 // link on the site is hidden while this is empty, so a fork that has not published yet
 // shows no dead links rather than links into somebody else's tree. See docs/PUBLISHING.md.
-const REPO = 'https://github.com/kiagram/gymbuddy'
+const REPO = 'https://github.com/kiagram/gymyar'
 
 // Paths use /blob/HEAD/, which GitHub resolves to whatever the default branch is. Not
 // /blob/main/: the main branch here is the openGym import, kept as the attribution trail,

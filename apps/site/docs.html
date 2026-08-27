@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Docs — GymBuddy</title>
-<meta name="description" content="How to self-host GymBuddy with Docker, install it on Android or iPhone, connect a coach to a client, import your training history, and keep backups.">
+<title>Docs — GymYar</title>
+<meta name="description" content="How to self-host GymYar with Docker, install it on Android or iPhone, connect a coach to a client, import your training history, and keep backups.">
 <meta name="theme-color" content="#0c0e12">
 <meta property="og:locale" content="en_US">
 <link rel="alternate" hreflang="en" href="/docs.html">
@@ -20,7 +20,7 @@
 <nav><div class="wrap nav-in">
   <a class="brand" href="/">
     <img src="icon-180.png" alt="" width="26" height="26" style="border-radius:6px">
-    GymBuddy
+    GymYar
   </a>
   <div class="nav-links">
     <a href="/#coaching" class="hide-s">Coaching</a>
@@ -37,7 +37,7 @@
 
 <main class="wrap prose">
   <h1>Docs</h1>
-  <p class="lead">Everything you need to get GymBuddy running — on your own server, or as an
+  <p class="lead">Everything you need to get GymYar running — on your own server, or as an
      app on a phone. The maintainer-level documents (architecture, releasing, store listings)
      live in the repository under <code>docs/</code>.</p>
 
@@ -56,8 +56,8 @@
   <p>This is the complete product: accounts, sync, coaching, and the PWA people install on
      their phones. You need <a href="https://docs.docker.com/get-docker/" rel="noopener">Docker</a>
      with the Compose plugin. No local Node — the images build the app for you.</p>
-  <pre><code>git clone &lt;your-repo&gt; gymbuddy
-cd gymbuddy
+  <pre><code>git clone &lt;your-repo&gt; gymyar
+cd gymyar
 cp .env.example .env
 docker compose up -d --build</code></pre>
   <p>Open <code>http://localhost:8080</code> and create a profile. The first start downloads
@@ -96,7 +96,7 @@ docker compose up -d --build</code></pre>
      configured, coaching is simply free. See <a href="/#pricing">pricing</a>.</p>
 
   <h2 id="iphone">Use on iPhone</h2>
-  <p>Open your GymBuddy instance in Safari, then <b>Share</b> → <b>Add to Home Screen</b>. You
+  <p>Open your GymYar instance in Safari, then <b>Share</b> → <b>Add to Home Screen</b>. You
      get a full-screen app with its own icon, passkey sign-in, sync and all of the coaching —
      no expiry, no fees, no store.</p>
   <p>This is not a consolation prize: the PWA is the <i>complete</i> product, and the native
@@ -167,7 +167,7 @@ docker compose up -d --build</code></pre>
      client, and never anyone's training log. Self-host with no payment provider and coaching
      is free too.</p>
 
-  <h3>What data does GymBuddy collect?</h3>
+  <h3>What data does GymYar collect?</h3>
   <p>None. There is no telemetry, no analytics and no crash reporting. A self-hosted instance
      talks only to your own server; the Android app talks to no server at all.</p>
 
@@ -190,7 +190,7 @@ docker compose up -d --build</code></pre>
   <p>The names and instructions come from the
      <a href="https://github.com/hasaneyldrm/exercises-dataset" rel="noopener">hasaneyldrm/exercises-dataset</a>
      project. <b>The images and animations are © <a href="https://gymvisual.com/" rel="noopener">Gym visual</a>
-     and are not covered by GymBuddy's licence</b> — they are downloaded from the upstream
+     and are not covered by GymYar's licence</b> — they are downloaded from the upstream
      source on first run rather than redistributed here, and they are not ours to sublicense.
      A commercial deployment needs its own licence for them, or its own artwork; exercise rows
      carry the media URLs, so swapping the source is a database update. Full details are in the
@@ -203,7 +203,7 @@ docker compose up -d --build</code></pre>
      <code>.env.example</code>.</p>
 
   <h3>I used openGym. Can I bring my data?</h3>
-  <p>Yes. GymBuddy stores the same training in a relational schema instead of one JSON
+  <p>Yes. GymYar stores the same training in a relational schema instead of one JSON
      document, and the code that turns an openGym state file into rows lives in the project
      rather than in a one-off script — the demo seeder runs through it too, so the migration
      is exercised on every seed. For a single account, an openGym backup file goes in through
@@ -211,7 +211,7 @@ docker compose up -d --build</code></pre>
 </main>
 
 <footer><div class="wrap foot">
-  <span>GymBuddy · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
+  <span>GymYar · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
   <div class="links">
     <a href="docs.html">Docs</a>
     <a href="about.html" class="hide-s">About</a>

@@ -1,21 +1,21 @@
 # openGym's README, archived
 
-> **This describes openGym, not GymBuddy. Nothing in it is instructions for this project.**
+> **This describes openGym, not GymYar. Nothing in it is instructions for this project.**
 >
-> It is the README of the upstream project as it stood when GymBuddy forked it, kept here for
-> provenance: GymBuddy is an AGPL derivative work, and [NOTICE.md](../NOTICE.md) carries the
+> It is the README of the upstream project as it stood when GymYar forked it, kept here for
+> provenance: GymYar is an AGPL derivative work, and [NOTICE.md](../NOTICE.md) carries the
 > licence chain and the App Store additional permission inherited along with the code. Canonical
 > upstream: <https://gitea.com/DuarteSantos/openGym>.
 >
 > Much of what follows is no longer true of this codebase. openGym stored each account as JSON
 > files under `./data`, signed in with passkeys only, and ran without a database server;
-> GymBuddy replaced all three — see [ARCHITECTURE.md](ARCHITECTURE.md) for why. So the
+> GymYar replaced all three — see [ARCHITECTURE.md](ARCHITECTURE.md) for why. So the
 > configuration table, the `./data` layout, `ADMIN_UIDS`, the auto-generated push keys and the
-> `docker compose pull` step below all belong to openGym. For GymBuddy, read the
+> `docker compose pull` step below all belong to openGym. For GymYar, read the
 > [README](../README.md) and [SELF_HOSTING.md](SELF_HOSTING.md).
 >
 > The original header — banner, badges, screenshots and demo links — is dropped rather than
-> repointed: those image paths now resolve to GymBuddy's own assets, and the badges reported
+> repointed: those image paths now resolve to GymYar's own assets, and the badges reported
 > live counts from a repository that is not this one. The text below is otherwise unedited,
 > except that its relative links, which pointed at files in openGym's tree, are given as plain
 > text so they do not resolve to files here that say something different.

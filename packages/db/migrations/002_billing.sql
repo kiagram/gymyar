@@ -1,4 +1,4 @@
--- GymBuddy 002 — subscriptions, and a record of every payment attempt.
+-- GymYar 002 — subscriptions, and a record of every payment attempt.
 --
 -- Two tables and one hard rule: a payment is credited exactly once, and the database is what
 -- enforces that rather than the code that happens to call it. See `payments_ref_key` below.

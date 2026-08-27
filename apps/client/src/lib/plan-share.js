@@ -1,16 +1,16 @@
 // Share a weekly plan.
 //
 // Two jobs:
-//  1. A small, self-contained file a friend can import into THEIR GymBuddy — just the
+//  1. A small, self-contained file a friend can import into THEIR GymYar — just the
 //     routines + the week schedule + the custom exercises those routines use. It never
 //     carries workouts, weigh-ins or settings, and importing MERGES (adds routines with
 //     fresh ids) so nothing the friend already has is touched.
 //  2. A clean, printable page (Save as PDF) where a single exercise never splits across
 //     a page break — each exercise, and each routine that fits, stays in one place.
 
-import { EXIDX, isBodyweightEq } from '@gymbuddy/domain'
-import { modeOf, fmtSec, isBw, isPerSide, sideReps } from '@gymbuddy/domain'
-import { uid, todayISO, DAYN, fmtNum, exCount } from '@gymbuddy/domain'
+import { EXIDX, isBodyweightEq } from '@gymyar/domain'
+import { modeOf, fmtSec, isBw, isPerSide, sideReps } from '@gymyar/domain'
+import { uid, todayISO, DAYN, fmtNum, exCount } from '@gymyar/domain'
 import { t } from './i18n.js'
 
 const PLAN_FMT = 1
@@ -59,7 +59,7 @@ export function buildPlanBundle(S, name) {
     .map(c => ({ id: c.id, n: c.n, bp: c.bp, ...(c.desc ? { desc: c.desc } : {}) }))
   const week = {}
   WEEK_ORDER.forEach(d => { if (S.week?.[d]) week[d] = S.week[d] })
-  return { gymbuddy_plan: PLAN_FMT, exported: todayISO(), name: name || '', week, routines, customEx }
+  return { gymyar_plan: PLAN_FMT, exported: todayISO(), name: name || '', week, routines, customEx }
 }
 
 /**
@@ -73,8 +73,8 @@ export function buildPlanBundle(S, name) {
  */
 export function parsePlan(raw) {
   const data = typeof raw === 'string' ? JSON.parse(raw) : raw
-  if (!data || !data.gymbuddy_plan || !Array.isArray(data.routines)) {
-    throw new Error(t('this isn’t an GymBuddy plan file'))
+  if (!data || !data.gymyar_plan || !Array.isArray(data.routines)) {
+    throw new Error(t('this isn’t an GymYar plan file'))
   }
   const customEx = (Array.isArray(data.customEx) ? data.customEx : []).filter(c => c && c.id)
   const known = new Set(customEx.map(c => c.id))
@@ -251,7 +251,7 @@ export function planPrintHTML(S, owner) {
 </style></head>
 <body><div class="doc">
   <header>
-    <div class="kicker">GymBuddy</div>
+    <div class="kicker">GymYar</div>
     <h1>${esc(t('Weekly Training Plan'))}</h1>
     ${sub ? `<div class="sub">${sub}</div>` : ''}
   </header>
@@ -259,7 +259,7 @@ export function planPrintHTML(S, owner) {
   ${weekHTML(S)}
   <h3 class="block">${esc(t('Routines'))}</h3>
   ${body}
-  <footer>${esc(t('Made with GymBuddy'))} · gymbuddy.duarte-santos.ch</footer>
+  <footer>${esc(t('Made with GymYar'))} · gymyar.duarte-santos.ch</footer>
 </div></body></html>`
 }
 

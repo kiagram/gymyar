@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createAI, nullProvider, anthropicProvider, providerFromEnv } from './index.js'
 import { interpretBriefLocally, explainChangeLocally } from './fallback.js'
-import { EXIDX } from '@gymbuddy/domain'
+import { EXIDX } from '@gymyar/domain'
 
 const fakeProvider = answer => ({
   name: 'fake', available: true,

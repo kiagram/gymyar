@@ -10,10 +10,10 @@
  */
 import {
   buildProgramme, reviewTraining, proposeAdaptation, normaliseBrief, msg, EXIDX
-} from '@gymbuddy/domain'
-import { createAI } from '@gymbuddy/ai'
-import { requireScope, activeLink } from '@gymbuddy/db/coaching.js'
-import { db } from '@gymbuddy/db'
+} from '@gymyar/domain'
+import { createAI } from '@gymyar/ai'
+import { requireScope, activeLink } from '@gymyar/db/coaching.js'
+import { db } from '@gymyar/db'
 import { requireUser } from '../session.js'
 import { stateForUser } from '../state.js'
 import { limit } from '../rate-limit.js'

@@ -1,4 +1,4 @@
-name: gymbuddy
+name: gymyar
 
 # One command: `docker compose up -d --build`, then http://localhost:8080
 #
@@ -10,15 +10,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-gymbuddy}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gymbuddy}
-      POSTGRES_DB: ${POSTGRES_DB:-gymbuddy}
+      POSTGRES_USER: ${POSTGRES_USER:-gymyar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gymyar}
+      POSTGRES_DB: ${POSTGRES_DB:-gymyar}
     volumes:
       - db:/var/lib/postgresql/data     # every account, every set ever logged — BACK THIS UP
     healthcheck:
       # The api waits on this. Without it the first boot races the database's own
       # initialisation and dies on connection refused before Postgres is listening.
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gymbuddy} -d ${POSTGRES_DB:-gymbuddy}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gymyar} -d ${POSTGRES_DB:-gymyar}"]
       interval: 3s
       timeout: 3s
       retries: 20
@@ -54,7 +54,7 @@ services:
     env_file: .env
     environment:
       PORT: 3000                       # internal only — nginx proxies here
-      DATABASE_URL: postgres://${POSTGRES_USER:-gymbuddy}:${POSTGRES_PASSWORD:-gymbuddy}@db:5432/${POSTGRES_DB:-gymbuddy}
+      DATABASE_URL: postgres://${POSTGRES_USER:-gymyar}:${POSTGRES_PASSWORD:-gymyar}@db:5432/${POSTGRES_DB:-gymyar}
       SEED_DEMO: ${SEED_DEMO:-}
       # Optional. Without it every AI feature still works, in fewer words.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

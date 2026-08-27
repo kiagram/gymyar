@@ -1,10 +1,10 @@
 # Security policy
 
-GymBuddy is a self-hosted app: you run the server, you hold the data. This file says which
+GymYar is a self-hosted app: you run the server, you hold the data. This file says which
 versions get fixes, how to report something privately, and — the part most people actually
 need — what the app protects you from and what it doesn't.
 
-If you host GymBuddy for other people, read the [security model](#security-model) before you
+If you host GymYar for other people, read the [security model](#security-model) before you
 invite anybody. Coaching means one account can read another's training, and that is a bigger
 promise than a single-user tracker ever makes.
 
@@ -21,7 +21,7 @@ git pull && docker compose up -d --build
 
 ## Reporting a vulnerability
 
-> **This section is not usable yet.** GymBuddy has no public repository, so there is no private
+> **This section is not usable yet.** GymYar has no public repository, so there is no private
 > reporting channel to point you at — see [docs/PUBLISHING.md](docs/PUBLISHING.md). Until there
 > is one, contact the maintainer directly. **Do not open a public issue containing a working
 > exploit against other people's instances.**
@@ -90,7 +90,7 @@ disclose publicly, say so — there is no objection and no request to sit on it 
   user record, so every cookie ever issued for the account stops verifying at once — on every
   device, including one somebody walked off with. Passkeys and passwords are untouched.
 - **A coach never writes a client's rows.** A coach-authored programme lands in
-  `routine_revisions` and becomes real only when the client accepts it, at which point it is
+  `proposals` and becomes real only when the client accepts it, at which point it is
   written as the client's own row through the normal sync path. This is structural, not a
   permission check: there is only ever one writer per row.
 - **Every coach-side read is gated on a granted scope.** `requireScope()` throws 403 unless the
@@ -121,7 +121,7 @@ disclose publicly, say so — there is no objection and no request to sit on it 
   ever logged, passkey public keys, password hashes and body-weight history. Anyone who can
   read that volume — you, whoever holds the backups, whoever gets into the host — can read
   every user's data, and with `SESSION_SECRET` can mint a valid session cookie for any account.
-  **If you host GymBuddy for other people, they are trusting you exactly as much as they would
+  **If you host GymYar for other people, they are trusting you exactly as much as they would
   trust any server operator.**
 - **Admins can read everything.** A user flagged `is_admin` gets every user's data and can
   disable accounts and manage invite codes. Off by default — a fresh instance has no admin.
@@ -165,13 +165,13 @@ disclose publicly, say so — there is no objection and no request to sit on it 
 
 ## Inherited code
 
-GymBuddy is a derivative of [openGym](https://gitea.com/DuarteSantos/openGym); the session
+GymYar is a derivative of [openGym](https://gitea.com/DuarteSantos/openGym); the session
 scheme and the passkey handshakes carry across from it in substance. A vulnerability in that
 shared lineage likely affects both projects — please say so in your report, so upstream can be
 told. See [NOTICE.md](NOTICE.md).
 
 **If you deployed anything built from the `arvids-unavailable/openGym` GitHub re-upload**,
 rotate your secrets now: that tree had a live instance's session signing secret, VAPID private
-key and user records committed to it. GymBuddy does not carry them — `data/` and `media/` were
+key and user records committed to it. GymYar does not carry them — `data/` and `media/` were
 dropped at the fork and are gitignored — but anything derived from the re-upload is signing
 cookies with a public key.

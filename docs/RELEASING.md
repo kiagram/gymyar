@@ -2,7 +2,7 @@
 
 ## What actually ships, and where
 
-GymBuddy is three products from one codebase, and they do not go to the same places.
+GymYar is three products from one codebase, and they do not go to the same places.
 
 | | What it is | How people get it |
 |---|---|---|
@@ -41,7 +41,7 @@ What that leaves:
 - **iOS — sideloading** (Xcode free signing, AltStore) re-signs every seven days. Fine for the
   maintainer's own phone; not a distribution channel.
 
-If GymBuddy is ever operated by a non-Iranian entity, the App Store and Play paths open up —
+If GymYar is ever operated by a non-Iranian entity, the App Store and Play paths open up —
 and at that point the store builds would need either to stay free and account-less as they are
 now, or to add the platform's own in-app purchase. Do not add a link to Zarinpal checkout
 inside a native build shipped to Apple or Google; that is a guideline 3.1.1 rejection.
@@ -72,20 +72,20 @@ repository, and never commit it.** `.gitignore` covers `*.keystore`, `*.jks` and
 One time:
 
 ```bash
-keytool -genkeypair -v -keystore gymbuddy-release.jks -alias gymbuddy -keyalg RSA -keysize 4096 -validity 10950
+keytool -genkeypair -v -keystore gymyar-release.jks -alias gymyar -keyalg RSA -keysize 4096 -validity 10950
 ```
 
 Then either write `apps/client/android/keystore.properties`:
 
 ```properties
-storeFile=/absolute/path/to/gymbuddy-release.jks
+storeFile=/absolute/path/to/gymyar-release.jks
 storePassword=…
-keyAlias=gymbuddy
+keyAlias=gymyar
 keyPassword=…
 ```
 
-…or set `GYMBUDDY_KEYSTORE_FILE`, `GYMBUDDY_KEYSTORE_PASSWORD`, `GYMBUDDY_KEY_ALIAS` and
-`GYMBUDDY_KEY_PASSWORD` in the environment, which is what CI uses. With neither, the release
+…or set `GYMYAR_KEYSTORE_FILE`, `GYMYAR_KEYSTORE_PASSWORD`, `GYMYAR_KEY_ALIAS` and
+`GYMYAR_KEY_PASSWORD` in the environment, which is what CI uses. With neither, the release
 build still compiles — unsigned, and it says so — so a contributor can check the build without
 holding a key.
 

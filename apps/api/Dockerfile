@@ -7,7 +7,7 @@ COPY package.json package-lock.json* ./
 COPY apps/api/package.json apps/api/
 COPY packages/db/package.json packages/db/
 COPY packages/domain/package.json packages/domain/
-RUN npm install --omit=dev --workspace @gymbuddy/api --include-workspace-root \
+RUN npm install --omit=dev --workspace @gymyar/api --include-workspace-root \
  && npm cache clean --force
 
 COPY packages/domain/ packages/domain/

@@ -13,7 +13,7 @@ import { useUI } from '../store/useUI.js'
 import { Section, Row, Button, Check } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { t, exName } from '../lib/i18n.js'
-import { fmtDate, EXIDX, modeOf } from '@gymbuddy/domain'
+import { fmtDate, EXIDX, modeOf } from '@gymyar/domain'
 import {
   fetchCoaches, previewInvite, acceptInvite, declineInvite, updateScopes, endCoaching,
   acceptProposal, declineProposal, SCOPE_INFO
@@ -64,7 +64,9 @@ function ProposalSheet({ proposal, close, onResolved }) {
   const S = useStore(s => s.S)
   const syncNow = useStore(s => s.syncNow)
   const [busy, setBusy] = useState(false)
-  const current = (S.routines || []).find(r => r.id === proposal.routine_id)
+  // `subject_id` is whatever the proposal is about, and for a routine proposal that is the
+  // routine's id — which is how the diff finds the version this one would replace.
+  const current = (S.routines || []).find(r => r.id === proposal.subject_id)
 
   const act = async (fn, message) => {
     setBusy(true)

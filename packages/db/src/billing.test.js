@@ -10,7 +10,7 @@ import {
   subscriptionFor, subscriptionsFor, ensureTrial, startPayment, attachAuthority,
   paymentByAuthority, paymentsFor, credit, settleUnpaid, stalePayments, setPaidThrough
 } from './billing.js'
-import { entitlement, TRIAL_DAYS, capFor } from '@gymbuddy/domain/entitlement.js'
+import { entitlement, TRIAL_DAYS, capFor } from '@gymyar/domain/entitlement.js'
 
 beforeAll(async () => { await setupDb() })
 beforeEach(async () => { await truncateUsers() })

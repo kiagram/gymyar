@@ -2,8 +2,8 @@
  * Off unless a user is flagged is_admin, so a fresh instance stays open with no admin at all.
  */
 import crypto from 'node:crypto'
-import { db } from '@gymbuddy/db'
-import { setDisabled } from '@gymbuddy/db/users.js'
+import { db } from '@gymyar/db'
+import { setDisabled } from '@gymyar/db/users.js'
 import { requireAdmin } from '../session.js'
 import { priceIndex } from '../payments/pricing.js'
 

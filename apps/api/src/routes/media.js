@@ -40,12 +40,12 @@ import { createReadStream } from 'node:fs'
 import crypto from 'node:crypto'
 import {
   buildKey, sniff, kindFor, mimeForKey, verify, supportedTypes, SNIFF_BYTES
-} from '@gymbuddy/storage'
+} from '@gymyar/storage'
 import {
   reserve, finish, remove, byId, forWorkout, progressFor, usageFor, publicView
-} from '@gymbuddy/db/attachments.js'
-import { requireScope, linkById } from '@gymbuddy/db/coaching.js'
-import { db } from '@gymbuddy/db'
+} from '@gymyar/db/attachments.js'
+import { requireScope, linkById } from '@gymyar/db/coaching.js'
+import { db } from '@gymyar/db'
 import { requireUser } from '../session.js'
 import { requireCoach } from '../entitlement.js'
 import { config } from '../config.js'

@@ -37,15 +37,15 @@ const signIn = async (page, email) => {
   await page.goto(BASE, { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: /email and password/i }).click()
   await page.getByPlaceholder('Email').fill(email)
-  await page.getByPlaceholder('Password').fill('gymbuddy-demo-1')
+  await page.getByPlaceholder('Password').fill('gymyar-demo-1')
   await page.getByRole('button', { name: /^Sign in$/ }).click()
   await page.waitForTimeout(3500)
 }
 
-console.log('coach@gymbuddy.test')
+console.log('coach@gymyar.test')
 {
   const { ctx, page, errors } = await newPage()
-  await signIn(page, 'coach@gymbuddy.test')
+  await signIn(page, 'coach@gymyar.test')
   await page.goto(BASE + '/#/coach', { waitUntil: 'networkidle' }); await page.waitForTimeout(1800)
   const roster = await page.textContent('body')
   check(/Sam Okonkwo/.test(roster) && /Ava Lindqvist/.test(roster) && /Theo Marsh/.test(roster), 'roster lists all three clients')
@@ -64,10 +64,10 @@ console.log('coach@gymbuddy.test')
   await ctx.close()
 }
 
-console.log('\ntheo@gymbuddy.test — programmes only')
+console.log('\ntheo@gymyar.test — programmes only')
 {
   const { ctx, page, errors } = await newPage()
-  await signIn(page, 'coach@gymbuddy.test')
+  await signIn(page, 'coach@gymyar.test')
   await page.goto(BASE + '/#/coach', { waitUntil: 'networkidle' }); await page.waitForTimeout(1500)
   await page.getByText('Theo Marsh').first().click(); await page.waitForTimeout(2000)
   const detail = await page.textContent('body')
@@ -76,10 +76,10 @@ console.log('\ntheo@gymbuddy.test — programmes only')
   await ctx.close()
 }
 
-console.log('\nsam@gymbuddy.test')
+console.log('\nsam@gymyar.test')
 {
   const { ctx, page, errors } = await newPage()
-  await signIn(page, 'sam@gymbuddy.test')
+  await signIn(page, 'sam@gymyar.test')
   const local = await page.evaluate(() => {
     const S = JSON.parse(localStorage.getItem('gym_state_v1') || '{}')
     return { workouts: S.workouts?.length, d: S.workouts?.[0]?.d, cursor: localStorage.getItem('gym_sync_cursor') }
@@ -134,7 +134,7 @@ console.log('\nsam@gymbuddy.test')
 console.log('\nplan builder')
 {
   const { ctx, page, errors } = await newPage()
-  await signIn(page, 'ava@gymbuddy.test')
+  await signIn(page, 'ava@gymyar.test')
 
   await page.goto(BASE + '/#/plan/build', { waitUntil: 'networkidle' })
   await page.waitForTimeout(1500)
@@ -171,7 +171,7 @@ console.log('\nplan builder')
 console.log('\ntraining review')
 {
   const { ctx, page, errors } = await newPage()
-  await signIn(page, 'theo@gymbuddy.test')     // stopped training three weeks ago
+  await signIn(page, 'theo@gymyar.test')     // stopped training three weeks ago
   await page.goto(BASE + '/#/plan/build', { waitUntil: 'networkidle' })
   await page.waitForTimeout(1200)
   await page.getByRole('button', { name: /Review my training/i }).click()
@@ -187,7 +187,7 @@ console.log('\ntraining review')
 console.log('\ncoach drafts a change')
 {
   const { ctx, page, errors } = await newPage()
-  await signIn(page, 'coach@gymbuddy.test')
+  await signIn(page, 'coach@gymyar.test')
   await page.goto(BASE + '/#/coach', { waitUntil: 'networkidle' })
   await page.waitForTimeout(1500)
   await page.getByText('Theo Marsh').first().click()
@@ -220,7 +220,7 @@ console.log('\ncoach drafts a change')
 console.log('\nlogging by typing')
 {
   const { ctx, page, errors } = await newPage()
-  await signIn(page, 'ava@gymbuddy.test')
+  await signIn(page, 'ava@gymyar.test')
   await page.goto(BASE + '/#/history', { waitUntil: 'networkidle' })
   await page.waitForTimeout(1500)
   await page.getByLabel(/Log by typing/i).click()

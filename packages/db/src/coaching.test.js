@@ -4,7 +4,7 @@ import { createUser } from './users.js'
 import { push, pullAll } from './sync.js'
 import {
   inviteClient, acceptInvite, declineInvite, endLink, setScopes, activeLink, requireScope,
-  roster, coachesOf, proposeRoutine, pendingProposals, acceptProposal, declineProposal,
+  roster, coachesOf, propose, proposeRoutine, pendingProposals, acceptProposal, declineProposal,
   sendMessage, readThread, countClients, countCommitted
 } from './coaching.js'
 import { db } from './index.js'
@@ -206,6 +206,89 @@ describe('proposals', () => {
     const [open] = await pendingProposals(client.id)
     await expect(acceptProposal({ revisionId: open.id, clientId: coach.id }))
       .rejects.toMatchObject({ status: 404 })
+  })
+})
+
+/* Migration 006 made this table hold more than routines. These are about the seam rather than
+ * about any second kind — nothing can propose one yet, and that is the point: the schema knows
+ * the word before the code does, so adding nutrition or habits is code and not another
+ * migration. */
+describe('proposals of more than one kind', () => {
+  it('records what kind a programme proposal is, and what it is about', async () => {
+    const { coach, client, link } = await linked()
+    await proposeRoutine({ linkId: link.id, coachId: coach.id, routineId: 'r1', payload: plan })
+    const [open] = await pendingProposals(client.id)
+    expect(open.kind).toBe('routine')
+    expect(open.subject_id).toBe('r1')
+  })
+
+  it('refuses a kind nothing in this build can propose', async () => {
+    const { coach, client, link } = await linked()
+    await expect(propose({
+      linkId: link.id, coachId: coach.id, kind: 'nutrition', subjectId: 'targets', payload: plan
+    })).rejects.toMatchObject({ status: 400 })
+    expect(await pendingProposals(client.id)).toHaveLength(0)
+  })
+
+  it('refuses to accept a kind it cannot apply, rather than applying it as a routine', async () => {
+    // Written straight to the table, because nothing in this build can create one — which is
+    // exactly the situation an API container running last week's build is in.
+    const { coach, client, link } = await linked()
+    await db()`
+      insert into proposals (kind, subject_id, user_id, link_id, proposed_by, payload)
+      values ('nutrition', 'targets', ${client.id}, ${link.id}, ${coach.id}, ${db().json({ kcal: 2400 })})`
+    const [open] = await pendingProposals(client.id)
+
+    await expect(acceptProposal({ revisionId: open.id, clientId: client.id }))
+      .rejects.toMatchObject({ status: 409, code: 'unknown_kind' })
+    // The client's routines are untouched: no macro target has become a programme.
+    expect((await pullAll(client.id)).changes.routines ?? []).toHaveLength(0)
+  })
+
+  it('lets a client decline a kind nobody can accept, so an inbox is never stuck', async () => {
+    const { coach, client, link } = await linked()
+    await db()`
+      insert into proposals (kind, subject_id, user_id, link_id, proposed_by, payload)
+      values ('habit', 'h1', ${client.id}, ${link.id}, ${coach.id}, ${db().json({ title: '10k steps' })})`
+    const [open] = await pendingProposals(client.id)
+
+    expect(await declineProposal({ revisionId: open.id, clientId: client.id })).toBeTruthy()
+    expect(await pendingProposals(client.id)).toHaveLength(0)
+  })
+
+  it('keeps one open proposal per subject without blocking another client\'s', async () => {
+    /* The old index was on the routine id alone, so two clients holding the same id — ids are
+     * generated client-side from a timestamp and five random characters, unique by luck rather
+     * than by construction — would have had the second proposal rejected outright. */
+    const coach = await createUser({ name: 'Coach', email: 'c@x.test', isCoach: true })
+    const one = await createUser({ name: 'One', email: 'one@x.test' })
+    const two = await createUser({ name: 'Two', email: 'two@x.test' })
+    const linkFor = async client => {
+      const inv = await inviteClient({ coachId: coach.id, email: client.email, scopes: ['programmes'] })
+      return acceptInvite({ inviteCode: inv.invite_code, clientId: client.id })
+    }
+    const l1 = await linkFor(one)
+    const l2 = await linkFor(two)
+
+    await proposeRoutine({ linkId: l1.id, coachId: coach.id, routineId: 'r1', payload: plan })
+    await proposeRoutine({ linkId: l2.id, coachId: coach.id, routineId: 'r1', payload: plan })
+
+    expect(await pendingProposals(one.id)).toHaveLength(1)
+    expect(await pendingProposals(two.id)).toHaveLength(1)
+  })
+
+  it('supersedes only the same client\'s open proposal for that subject', async () => {
+    const { coach, client, link } = await linked()
+    await proposeRoutine({ linkId: link.id, coachId: coach.id, routineId: 'r1', payload: plan })
+    await proposeRoutine({ linkId: link.id, coachId: coach.id, routineId: 'r2', payload: plan })
+    await proposeRoutine({
+      linkId: link.id, coachId: coach.id, routineId: 'r1', payload: { ...plan, name: 'Push B' }
+    })
+
+    const open = await pendingProposals(client.id)
+    expect(open).toHaveLength(2)                                   // r2 is untouched
+    expect(open.find(p => p.subject_id === 'r1').payload.name).toBe('Push B')
+    expect(open.find(p => p.subject_id === 'r2').payload.name).toBe('Push A')
   })
 })
 

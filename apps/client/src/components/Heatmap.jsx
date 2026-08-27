@@ -1,6 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { fmtVol, isoOf, todayISO, startOfWeek, MONTHS } from '@gymbuddy/domain'
+import { fmtVol, fmtDur, isoOf, todayISO, startOfWeek, weekdayLabels, dateParts, monthLabel } from '@gymyar/domain'
 import { t } from '../lib/i18n.js'
+
+/* Every other row is labelled and the rest are spacers, as before. Which weekday each row *is*
+ * depends on where the week starts, though, so the labels come off the same rotation the grid
+ * is built from rather than being written down as Mon/Wed/Fri — those were the first, third and
+ * fifth rows only because the week began on Monday. */
+const LABELLED_ROWS = new Set([0, 2, 4])
 
 // GitHub-style activity heatmap, shaded by time trained per day.
 export default function Heatmap({ S, onDay }) {
@@ -26,10 +32,14 @@ export default function Heatmap({ S, onDay }) {
   let lastMonth = -1
   for (let wk = 0; wk <= 52; wk++) {
     const colStart = new Date(start); colStart.setDate(start.getDate() + wk * 7)
-    const mo = colStart.getMonth()
-    const showM = mo !== lastMonth && colStart.getDate() <= 7 && wk < 51
-    months.push(<span key={wk}>{showM ? t(MONTHS[mo]) : ''}</span>)
-    if (colStart.getDate() <= 7) lastMonth = mo
+    // Both the month a column belongs to and the test for "this column opens a month" are read
+    // in the locale's calendar. `day <= 7` says the same thing the old `getDate() <= 7` did,
+    // only about Shahrivar rather than about August.
+    const { month: mo, day } = dateParts(colStart)
+    const opensMonth = day <= 7
+    const showM = mo !== lastMonth && opensMonth && wk < 51
+    months.push(<span key={wk}>{showM ? monthLabel(colStart, { long: false }) : ''}</span>)
+    if (opensMonth) lastMonth = mo
     const cells = []
     for (let d = 0; d < 7; d++) {
       const day = new Date(colStart); day.setDate(colStart.getDate() + d)
@@ -37,7 +47,7 @@ export default function Heatmap({ S, onDay }) {
       const a = agg[key]
       const cls = 'hm-c l' + level(a) + (key === todayISO() ? ' today' : '') + (day > today ? ' future' : '')
       cells.push(<div key={d} className={cls}
-        title={key + (a ? ` · ${t(a.n === 1 ? '{0} workout' : '{0} workouts', a.n)} · ${a.min} min · ${fmtVol(a.vol, S.unit)}` : '')}
+        title={key + (a ? ` · ${t(a.n === 1 ? '{0} workout' : '{0} workouts', a.n)} · ${fmtDur(a.min * 60000)} · ${fmtVol(a.vol, S.unit)}` : '')}
         onClick={a ? () => onDay(key) : undefined} />)
     }
     cols.push(<div key={wk} className="hm-col">{cells}</div>)
@@ -47,7 +57,8 @@ export default function Heatmap({ S, onDay }) {
     <div className="hm-wrap" ref={wrapRef}>
       <div className="hm-months" style={{ marginLeft: 30 }}>{months}</div>
       <div className="hm-body">
-        <div className="hm-days"><span>{t('Mon')}</span><span /><span>{t('Wed')}</span><span /><span>{t('Fri')}</span><span /><span /></div>
+        <div className="hm-days">{weekdayLabels().map((lbl, i) =>
+          <span key={i}>{LABELLED_ROWS.has(i) ? t(lbl) : ''}</span>)}</div>
         <div className="hm-grid">{cols}</div>
       </div>
     </div>

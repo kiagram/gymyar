@@ -5,8 +5,8 @@
  * client could compute are the same review. The alternative — a second, server-flavoured
  * implementation reading rows directly — is exactly the drift that eats correctness.
  */
-import { pullAll } from '@gymbuddy/db/sync.js'
-import { applyRows, makeModeResolver } from '@gymbuddy/domain'
+import { pullAll } from '@gymyar/db/sync.js'
+import { applyRows, makeModeResolver } from '@gymyar/domain'
 
 export async function stateForUser(userId) {
   const { changes } = await pullAll(userId)

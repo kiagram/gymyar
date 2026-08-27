@@ -1,6 +1,6 @@
 /* Password reset tokens, against a real database.
  *
- * This is the one feature in GymBuddy where a bug hands somebody an account. So the tests are
+ * This is the one feature in GymYar where a bug hands somebody an account. So the tests are
  * mostly about refusals: a spent link, an expired one, a token that was almost right, and the
  * two requests that arrive together carrying the same one.
  */

@@ -13,7 +13,7 @@ import { t } from './i18n.js'
 
 export const MOBILE = import.meta.env.VITE_MOBILE === '1'
 
-const FILE = 'gymbuddy-state.json'
+const FILE = 'gymyar-state.json'
 
 export async function nativeLoad() {
   try {

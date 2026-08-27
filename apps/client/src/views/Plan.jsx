@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
-import { DAYN, uid, exCount } from '@gymbuddy/domain'
+import { DAYN, uid, exCount } from '@gymyar/domain'
 import { t } from '../lib/i18n.js'
 import { dayAssignSheet, loadStarterPlan, planToolsSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'

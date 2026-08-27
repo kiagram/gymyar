@@ -15,7 +15,7 @@ COPY packages/domain/package.json packages/domain/
 RUN npm ci 2>/dev/null || npm install
 COPY packages/domain/ packages/domain/
 COPY apps/client/ apps/client/
-RUN npm run build -w @gymbuddy/client
+RUN npm run build -w @gymyar/client
 
 FROM nginx:alpine
 COPY infra/web/nginx.conf /etc/nginx/conf.d/default.conf

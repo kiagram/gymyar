@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { build } from './app.js'
 import { client } from './test-client.js'
-import { db, close } from '@gymbuddy/db'
+import { db, close } from '@gymyar/db'
 import { config } from './config.js'
 
 let app
@@ -10,7 +10,7 @@ const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
 beforeAll(async () => {
   process.env.SESSION_SECRET = 'test-secret-not-for-production'
   app = await build({ databaseUrl: URL, rateLimit: false })
-  const { seedExercises } = await import('@gymbuddy/db/seed-exercises.js')
+  const { seedExercises } = await import('@gymyar/db/seed-exercises.js')
   await seedExercises()
 })
 beforeEach(async () => {

@@ -1,5 +1,5 @@
 {
-  "name": "@gymbuddy/mail",
+  "name": "@gymyar/mail",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "vitest": "^4.1.10",
-    "@gymbuddy/domain": "*",
-    "@gymbuddy/db": "*"
+    "@gymyar/domain": "*",
+    "@gymyar/db": "*"
   }
 }

@@ -1,12 +1,12 @@
-/* GymBuddy project site — matches the app: dark, brand red, cards, system font. */
+/* GymYar project site — matches the app: dark, brand emerald, cards, system font. */
 :root {
   --bg: #0c0e12; --card: #16181d; --card2: #1c1f26; --line: #23262d;
   --fg: #f2f2f7; --dim: #8e8e93; --faint: #6e6e73;
-  --acc: #e63935; --acc-dim: rgba(230, 57, 53, .12);
-  /* Brand red carries text at 4.6:1 on --bg, but white on it is only 4.2:1. Filled
-   * controls therefore sit one step darker so their white label clears AA. Same red
+  --acc: #1fa774; --acc-dim: rgba(31, 167, 116, .12);
+  /* Brand emerald carries text at 6.3:1 on --bg, but white on it is only 3.1:1. Filled
+   * controls therefore sit one step darker so their white label clears AA. Same emerald
    * to the eye; the difference is only there to make the contrast legal. */
-  --acc-fill: #d42e2a;
+  --acc-fill: #17835b;
   color-scheme: dark;
 }
 * { margin: 0; box-sizing: border-box; }

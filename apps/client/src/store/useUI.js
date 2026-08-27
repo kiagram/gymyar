@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { uid } from '@gymbuddy/domain'
+import { uid } from '@gymyar/domain'
 import { beep, vibrate } from '../lib/sound.js'
 import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'

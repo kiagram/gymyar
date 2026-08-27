@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
-import { effectiveRoutine, effectiveRoutineId, streakWeeks, lastBW, setsDoneActive } from '@gymbuddy/domain'
-import { fmtNum, fmtDate, todayISO, isoOf, weekKey, startOfWeek, DAYS } from '@gymbuddy/domain'
+import { effectiveRoutine, effectiveRoutineId, streakWeeks, lastBW, setsDoneActive } from '@gymyar/domain'
+import { fmtNum, fmtDate, todayISO, isoOf, weekKey, startOfWeek, DAYS, dayNum, monthLabel, fmtInt } from '@gymyar/domain'
 import { t, dateLocale } from '../lib/i18n.js'
-import { bwSheet, goalSheet, dayOverrideSheet, calendarSheet, startFlow, loadStarterPlan, bwDeltaColor } from '../sheets.jsx'
+import { bwSheet, goalSheet, dayOverrideSheet, calendarSheet, checkinSheet, startFlow, loadStarterPlan, bwDeltaColor } from '../sheets.jsx'
 import LineChart from '../components/LineChart.jsx'
+import Habits from '../components/Habits.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import { glyphOf } from '../lib/glyphs.js'
@@ -33,29 +34,36 @@ export default function Home() {
     const eff = effectiveRoutineId(S, iso), ovr = S.dayPlan[iso] !== undefined, done = doneDays.has(iso)
     const dot = done ? ' done' : ovr && eff ? ' ovr' : eff ? ' plan' : ''
     strip.push(<div key={i} className={'wday' + (iso === todayISO() ? ' today' : '')} onClick={() => dayOverrideSheet(iso)}>
-      <div className="lbl">{t(DAYS[d.getDay()])}</div><div className="num">{d.getDate()}</div><div className={'dot' + dot} /></div>)
+      <div className="lbl">{t(DAYS[d.getDay()])}</div><div className="num">{dayNum(d)}</div><div className={'dot' + dot} /></div>)
   }
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6)
-  const wkLabel = weekOffset === 0 ? t('This week') : `${weekStart.getDate()} ${weekStart.toLocaleDateString(dateLocale(), { month: 'short' })} – ${weekEnd.getDate()} ${weekEnd.toLocaleDateString(dateLocale(), { month: 'short' })}`
+  /* Both halves of the range come from the same calendar. Taking the day from `getDate()` and
+   * the month name from `toLocaleDateString` put a Gregorian number beside a Jalali month —
+   * "۲۳ شهریور" for a day that is the 1st — which is not a formatting slip but a wrong date. */
+  const wkLabel = weekOffset === 0 ? t('This week')
+    : `${dayNum(weekStart)} ${monthLabel(weekStart, { long: false })} – ${dayNum(weekEnd)} ${monthLabel(weekEnd, { long: false })}`
 
   const wThisWeek = S.workouts.filter(w => weekKey(w.d) === weekKey(todayISO())).length
   const plannedPerWeek = Object.keys(S.week).filter(k => S.week[k]).length
   const bwPoints = S.bodyweight.slice(-30).map(b => ({ t: b.t || new Date(b.d).getTime(), y: b.w, d: b.d }))
+  /* Answered for *this* week, in the reader's week — the same bucket the check-in itself is
+   * filed under, so a Saturday-start locale does not call last Friday's answer this week's. */
+  const checkinDone = (S.checkins || []).some(c => c.at && weekKey(c.d) === weekKey(todayISO()))
 
   // today's session shown right under the week strip
   const onToday = () => { if (S.active) nav('/workout'); else if (routine) startFlow(routine.id); else dayOverrideSheet(todayISO()) }
 
   return <div className="narrow">
     <div className="hdr">
-      <div><h1>{user ? t('Hi {0}', user.name) : 'GymBuddy'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
+      <div><h1>{user ? t('Hi {0}', user.name) : t('GymYar')}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
       <button className="iconbtn" onClick={() => nav('/settings')} aria-label={t('Settings')}><Icon name="gear" /></button>
     </div>
 
     <div className="card">
       <div className="row between" style={{ marginBottom: 8 }}>
-        <button className="iconbtn" style={{ width: 30, height: 30, fontSize: 15 }} onClick={() => setWeekOffset(w => w - 1)} aria-label="Previous week"><Icon name="chevronLeft" /></button>
+        <button className="iconbtn" style={{ width: 30, height: 30, fontSize: 15 }} onClick={() => setWeekOffset(w => w - 1)} aria-label={t('Previous week')}><Icon name="chevronLeft" /></button>
         <div className="small muted" style={{ fontWeight: 500 }}>{wkLabel}</div>
-        <button className="iconbtn" style={{ width: 30, height: 30, fontSize: 15 }} onClick={() => setWeekOffset(w => w + 1)} aria-label="Next week"><Icon name="chevronRight" /></button>
+        <button className="iconbtn" style={{ width: 30, height: 30, fontSize: 15 }} onClick={() => setWeekOffset(w => w + 1)} aria-label={t('Next week')}><Icon name="chevronRight" /></button>
       </div>
       <div className="week">{strip}</div>
       <div className="today-row" onClick={onToday}>
@@ -116,6 +124,26 @@ export default function Home() {
       </> : <div className="muted small">{t("No entries yet — log your weight to start the curve. It's also asked before every workout.")}</div>}
     </div>
 
+    <Habits />
+
+    {/* The week's check-in, and only when there is something to do about it. A row that says
+      * "already sent" every day for six days is a row people stop reading, so once it is
+      * answered this collapses into the quiet version of itself. */}
+    <div className="card tappable" style={{ cursor: 'pointer' }} onClick={checkinSheet}>
+      <div className="row between">
+        <div className="row" style={{ gap: 9, minWidth: 0 }}>
+          <span className="lrow-i" style={{ background: checkinDone ? 'var(--surface-3)' : 'var(--acc)' }}>
+            <Icon name={checkinDone ? 'check' : 'clipboard'} />
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div className="lbl2">{t('Check-in')}</div>
+            <div className="ttl">{checkinDone ? t('Sent for this week') : t('How was your week?')}</div>
+          </div>
+        </div>
+        <Icon name="chevronRight" className="chev" />
+      </div>
+    </div>
+
     <div className="card tappable" style={{ cursor: 'pointer' }} onClick={() => calendarSheet()}>
       <div className="row between">
         <div>
@@ -123,7 +151,7 @@ export default function Home() {
             <Icon name="flame" style={{ color: 'var(--orange)' }} />
             {t('{0} week streak', streakWeeks(S))}
           </div>
-          <div className="muted small" style={{ marginTop: 2 }}>{wThisWeek}{plannedPerWeek ? ' / ' + plannedPerWeek : ''} {t('this week')} · {t(S.workouts.length === 1 ? '{0} workout total' : '{0} workouts total', S.workouts.length)}</div>
+          <div className="muted small" style={{ marginTop: 2 }}>{fmtInt(wThisWeek)}{plannedPerWeek ? ' / ' + fmtInt(plannedPerWeek) : ''} {t('this week')} · {t(S.workouts.length === 1 ? '{0} workout total' : '{0} workouts total', S.workouts.length)}</div>
         </div>
         <Icon name="calendar" className="chev" style={{ fontSize: 20 }} />
       </div>

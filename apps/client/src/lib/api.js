@@ -3,6 +3,17 @@ import { MOBILE } from './mobile.js'
 import { getLang } from './i18n.js'
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
 export const IS_ANDROID = /Android/.test(navigator.userAgent)
+/* These are translation *keys*, not finished text, and callers must render them through `t()`.
+ *
+ * They cannot be translated here: this module is imported at boot, before a locale pack has
+ * loaded, so a `t()` at this line would freeze the English into a constant. Interpolating them
+ * raw is what put "پس‌کی‌ها از your fingerprint, face or PIN استفاده می‌کنند" on the sign-in
+ * screen — a Persian sentence with an English clause inside it, which reads worse than either
+ * language alone would.
+ *
+ * Being keys assembled at runtime, they are invisible to a scan for `t('…')` literals, so the
+ * locale packs carry them by hand. Apple's and Google's product names stay as they are: they
+ * are brands, and Persian writes them that way too. */
 export const BIO = IS_APPLE ? 'Face ID / Touch ID' : IS_ANDROID ? 'fingerprint or face unlock' : 'your fingerprint, face or PIN'
 export const VAULT = IS_APPLE ? 'iCloud Keychain' : IS_ANDROID ? 'Google Password Manager' : 'your password manager'
 export const webauthnOK = () => !!(window.PublicKeyCredential && navigator.credentials)

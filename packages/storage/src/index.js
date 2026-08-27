@@ -1,6 +1,6 @@
 /* Where uploaded bytes live.
  *
- * This is the first user data in GymBuddy that is not a row in Postgres. Everything else — every
+ * This is the first user data in GymYar that is not a row in Postgres. Everything else — every
  * set, every programme, every message — is in the database, which is why `docs/SELF_HOSTING.md`
  * has been able to say "the database is the backup" and mean it. Form-check video and progress
  * photos cannot be that, so this package is the seam where they stop being the database's

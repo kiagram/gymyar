@@ -16,7 +16,7 @@ import { Section, Row, Button, TextArea, Check, Segmented } from '../components/
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
 import { t, say } from '../lib/i18n.js'
-import { DAYN, uid } from '@gymbuddy/domain'
+import { DAYN, uid } from '@gymyar/domain'
 import {
   aiStatus, draftProgramme, reviewMe,
   GOAL_OPTIONS, EXPERIENCE_OPTIONS, EQUIPMENT_OPTIONS

@@ -5,7 +5,7 @@
  * one someone walked off with. That is the only revocation there is, and it is worth keeping.
  */
 import crypto from 'node:crypto'
-import { findUserById } from '@gymbuddy/db/users.js'
+import { findUserById } from '@gymyar/db/users.js'
 import { config, secureCookies } from './config.js'
 
 const COOKIE = 'gymsid'

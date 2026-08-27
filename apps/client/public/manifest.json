@@ -1,6 +1,6 @@
 {
-  "name": "GymBuddy",
-  "short_name": "GymBuddy",
+  "name": "GymYar",
+  "short_name": "GymYar",
   "description": "Train, track and coach. Log every set, follow a programme, and work with a coach who can see what you actually did.",
   "start_url": "./",
   "scope": "./",

@@ -22,7 +22,7 @@
  * A row the server rejects as belonging to someone else is dropped from the outbox rather than
  * retried forever, because retrying will never start working.
  */
-import { stateToRows, makeModeResolver, applyRows } from '@gymbuddy/domain'
+import { stateToRows, makeModeResolver, applyRows } from '@gymyar/domain'
 import { api } from './api.js'
 
 const CURSOR_KEY = 'gym_sync_cursor'
@@ -84,6 +84,10 @@ export function diffState(S, snapshot = {}) {
     exercises: Object.fromEntries(rows.exercises.map(e => [e.id, fingerprint(e)])),
     weekPlan: Object.fromEntries(rows.weekPlan.map(p => [String(p.weekday), fingerprint(p)])),
     dayOverrides: Object.fromEntries(rows.dayOverrides.map(d => [String(d.on_date), fingerprint(d)])),
+    checkins: Object.fromEntries(rows.checkins.map(c => [String(c.on_date), fingerprint(c)])),
+    habits: Object.fromEntries(rows.habits.map(h => [h.id, fingerprint(h)])),
+    habitTicks: Object.fromEntries(
+      rows.habitTicks.map(t => [`${t.habit_id}:${t.on_date}`, fingerprint(t)])),
     settings: fingerprint(rows.settings)
   }
 
@@ -94,7 +98,11 @@ export function diffState(S, snapshot = {}) {
     bodyweight: indexBy(rows.bodyweight, 'on_date'),
     exercises: indexBy(rows.exercises),
     weekPlan: indexBy(rows.weekPlan, 'weekday'),
-    dayOverrides: indexBy(rows.dayOverrides, 'on_date')
+    dayOverrides: indexBy(rows.dayOverrides, 'on_date'),
+    checkins: indexBy(rows.checkins, 'on_date'),
+    habits: indexBy(rows.habits),
+    // Two columns make the address, so the generic `indexBy` cannot build it.
+    habitTicks: new Map(rows.habitTicks.map(t => [`${t.habit_id}:${t.on_date}`, t]))
   }
 
   for (const key of Object.keys(byId)) {
@@ -119,7 +127,13 @@ export function diffState(S, snapshot = {}) {
 
 function deletionFor(key, id) {
   if (key === 'weekPlan') return { weekday: Number(id), routine_id: null }
-  if (key === 'dayOverrides' || key === 'bodyweight') return { on_date: id, deleted: true }
+  if (key === 'dayOverrides' || key === 'bodyweight' || key === 'checkins') {
+    return { on_date: id, deleted: true }
+  }
+  // Unticking is a deletion, and the row it names is the pair in its address.
+  if (key === 'habitTicks') {
+    return { habit_id: id.slice(0, -11), on_date: id.slice(-10), deleted: true }
+  }
   return { id, deleted: true }
 }
 
