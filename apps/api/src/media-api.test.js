@@ -13,19 +13,19 @@ import { build } from './app.js'
 import { client } from './test-client.js'
 import { resetStorage } from './media.js'
 import { sweepOnce } from './sweeper.js'
-import { db, close } from '@gymbuddy/db'
+import { db, close } from '@gymyar/db'
 
 let app, root
 const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
 
 beforeAll(async () => {
   process.env.SESSION_SECRET = 'test-secret-not-for-production'
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'gymbuddy-media-'))
+  root = await fs.mkdtemp(path.join(os.tmpdir(), 'gymyar-media-'))
   process.env.STORAGE_PATH = root
   process.env.STORAGE_DRIVER = 'fs'
   resetStorage()
   app = await build({ databaseUrl: URL, rateLimit: false })
-  const { seedExercises } = await import('@gymbuddy/db/seed-exercises.js')
+  const { seedExercises } = await import('@gymyar/db/seed-exercises.js')
   await seedExercises()
 })
 beforeEach(async () => {

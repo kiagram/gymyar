@@ -11,7 +11,7 @@
  * writes first and treats the unique violation as the success it is.
  */
 import { db } from './index.js'
-import { extend, trialEnd, capFor, DEFAULT_TIER } from '@gymbuddy/domain/entitlement.js'
+import { extend, trialEnd, capFor, DEFAULT_TIER } from '@gymyar/domain/entitlement.js'
 
 /** Postgres' unique_violation. The only error `credit()` is allowed to swallow. */
 const UNIQUE_VIOLATION = '23505'

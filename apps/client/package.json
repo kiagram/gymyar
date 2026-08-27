@@ -1,5 +1,5 @@
 {
-  "name": "@gymbuddy/client",
+  "name": "@gymyar/client",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -22,7 +22,7 @@
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.2",
     "zustand": "^5.0.14",
-    "@gymbuddy/domain": "*"
+    "@gymyar/domain": "*"
   },
   "devDependencies": {
     "@capacitor/android": "^7.6.8",

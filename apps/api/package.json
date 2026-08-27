@@ -1,5 +1,5 @@
 {
-  "name": "@gymbuddy/api",
+  "name": "@gymyar/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,11 +13,11 @@
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
     "@fastify/rate-limit": "^11.2.0",
-    "@gymbuddy/ai": "*",
-    "@gymbuddy/db": "*",
-    "@gymbuddy/domain": "*",
-    "@gymbuddy/mail": "*",
-    "@gymbuddy/storage": "*",
+    "@gymyar/ai": "*",
+    "@gymyar/db": "*",
+    "@gymyar/domain": "*",
+    "@gymyar/mail": "*",
+    "@gymyar/storage": "*",
     "@simplewebauthn/server": "^13.1.1",
     "fastify": "^5.12.1",
     "web-push": "^3.6.7"

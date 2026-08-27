@@ -59,7 +59,7 @@ describe('request', () => {
   it('sends the amount, currency and callback, and returns somewhere to send the payer', async () => {
     const f = fakeFetch({ json: ok({ code: 100, authority: 'A-123' }) })
     const out = await gw(f).request({
-      amount: 1_490_000, description: 'GymBuddy coaching — 1 month', callbackUrl: 'http://x/cb'
+      amount: 1_490_000, description: 'GymYar coaching — 1 month', callbackUrl: 'http://x/cb'
     })
 
     expect(f.calls[0].body).toMatchObject({

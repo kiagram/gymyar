@@ -31,7 +31,7 @@ import { assertKey } from './keys.js'
 
 /* Domain separation. Changing this string rotates every outstanding URL and nothing else, which
  * is what the version suffix is there to make possible. */
-const LABEL = 'gymbuddy/storage-url/v1'
+const LABEL = 'gymyar/storage-url/v1'
 
 /** How long a link lives when nobody says. Minutes — see the header. */
 export const DEFAULT_TTL_SECONDS = 300

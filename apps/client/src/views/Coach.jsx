@@ -10,6 +10,7 @@ import { useUI } from '../store/useUI.js'
 import { Section, Row, Button, TextField, Check } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { t } from '../lib/i18n.js'
+import { weekKey, todayISO } from '@gymyar/domain'
 import { fetchRoster, createInvite, SCOPE_INFO, daysSince } from '../lib/coaching.js'
 import { fetchBilling, describeEntitlement, isPaymentRequired, isCapReached, capacityLabel } from '../lib/billing.js'
 
@@ -42,6 +43,13 @@ function Adherence({ stats }) {
   )
 }
 
+/* Whether their latest answer belongs to the week now running.
+ *
+ * `weekKey` rather than a day count, so this follows the coach's own week — the same bucket the
+ * client's app filed the answer under. Seven days back from today would call last Saturday's
+ * answer current on a Friday. */
+const answeredThisWeek = lastOn => !!lastOn && weekKey(lastOn) === weekKey(todayISO())
+
 function clientSubtitle(c) {
   if (c.status === 'pending') return t('Invitation not accepted yet')
   const s = c.stats
@@ -55,6 +63,10 @@ function clientSubtitle(c) {
   bits.push(t('{0} of {1} sessions', s.sessions, s.expected || '—'))
   if (s.unreadMessages) bits.push(t('{0} unread', s.unreadMessages))
   if (s.pendingProposals) bits.push(t('{0} awaiting reply', s.pendingProposals))
+  /* Only when they are actually being asked. A client with no check-in on them is not overdue
+   * for one, and `checkinDay` is null both for that and for somebody who did not share it —
+   * neither of which is a thing to chase them about. */
+  if (s.checkinDay != null && !answeredThisWeek(s.lastCheckin)) bits.push(t('check-in due'))
   return bits.join(' · ')
 }
 
@@ -140,7 +152,7 @@ function InviteSheet({ close, nav }) {
 /* The way into the subscription screen, and the only place the roster mentions money.
  *
  * Hidden entirely on an instance with no gateway — `describeEntitlement` answers null for
- * `unbilled`, and a self-hosted GymBuddy should have no idea subscriptions exist. */
+ * `unbilled`, and a self-hosted GymYar should have no idea subscriptions exist. */
 function SubscriptionRow({ billing, capacity, nav }) {
   const status = describeEntitlement(billing?.entitlement)
   if (!status) return null
@@ -224,6 +236,11 @@ export default function Coach() {
               : t('Nobody yet')}
           </div>
         </div>
+        {/* The questions live here rather than under a client, because they are written once
+          * and put on several people. */}
+        <button className="iconbtn" onClick={() => nav('/coach/checkins')} aria-label={t('Check-ins')}>
+          <Icon name="clipboard" />
+        </button>
       </header>
 
       {!clients.length ? (

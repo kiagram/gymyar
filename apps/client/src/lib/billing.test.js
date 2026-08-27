@@ -12,7 +12,7 @@ const inDays = n => new Date(Date.now() + n * DAY).toISOString()
 
 describe('describing an entitlement', () => {
   it('says nothing at all on an instance that does not bill', () => {
-    // The whole subscription UI hides on this. A self-hosted GymBuddy should not know the
+    // The whole subscription UI hides on this. A self-hosted GymYar should not know the
     // concept exists, let alone advertise it.
     expect(describeEntitlement({ state: 'unbilled', can: {} })).toBeNull()
   })

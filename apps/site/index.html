@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GymBuddy — coaching, training, and a log that stays yours</title>
-<meta name="description" content="GymBuddy is an open-source coaching platform. Coaches program for their clients; clients own every row of their training log. Self-host it with Docker, or install the offline Android app.">
+<title>GymYar — coaching, training, and a log that stays yours</title>
+<meta name="description" content="GymYar is an open-source coaching platform. Coaches program for their clients; clients own every row of their training log. Self-host it with Docker, or install the offline Android app.">
 <meta name="theme-color" content="#0c0e12">
-<meta property="og:title" content="GymBuddy — AI. Training. Results.">
+<meta property="og:title" content="GYMYAR — Strength in motion, together in growth">
 <meta property="og:description" content="Open-source coaching platform. Coach and client programming, a full training log, 12 languages. Self-hosted with Docker, or an offline Android app.">
-<!-- Replace gymbuddy.example with the real domain before deploying: Open Graph needs absolute URLs. -->
-<meta property="og:image" content="https://gymbuddy.example/img/banner.png">
-<meta property="og:url" content="https://gymbuddy.example/">
+<!-- Replace gymyar.example with the real domain before deploying: Open Graph needs absolute URLs. -->
+<meta property="og:image" content="https://gymyar.example/img/banner.png">
+<meta property="og:url" content="https://gymyar.example/">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="en_US">
 <meta property="og:locale:alternate" content="fa_IR">
@@ -22,11 +22,11 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="styles.css">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"GymBuddy",
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"GymYar",
  "operatingSystem":"Android, Web","applicationCategory":"HealthApplication",
  "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
  "license":"https://www.gnu.org/licenses/agpl-3.0.html",
- "url":"https://gymbuddy.example/",
+ "url":"https://gymyar.example/",
  "isBasedOn":"https://gitea.com/DuarteSantos/openGym"}
 </script>
 </head>
@@ -35,7 +35,7 @@
 <nav><div class="wrap nav-in">
   <a class="brand" href="/">
     <img src="icon-180.png" alt="" width="26" height="26" style="border-radius:6px">
-    GymBuddy
+    GymYar
   </a>
   <div class="nav-links">
     <a href="#coaching" class="hide-s">Coaching</a>
@@ -52,14 +52,14 @@
 
 <header class="hero"><div class="wrap">
   <div class="logo">
-    <img src="icon-512.png" alt="GymBuddy icon" width="108" height="108" style="border-radius:26px">
+    <img src="icon-512.png" alt="GymYar icon" width="108" height="108" style="border-radius:26px">
   </div>
-  <h1>GymBuddy</h1>
-  <p class="tag">AI. Training. Results.</p>
+  <h1>GymYar</h1>
+  <p class="tag">Strength in motion, together in growth.</p>
   <p class="sub">An open-source coaching platform. Coaches program for their clients; clients
      keep a training log that stays theirs. Run the whole thing on your own server.</p>
   <div class="hero-btns">
-    <a class="btn" href="#download">Get GymBuddy</a>
+    <a class="btn" href="#download">Get GymYar</a>
     <a class="btn ghost" href="#coaching">How coaching works</a>
     <a class="btn ghost" href="docs.html#selfhost">Self-hosting guide</a>
   </div>
@@ -69,7 +69,7 @@
   <p class="kicker">Coach and client</p>
   <h2>A coach can propose. Only the client can accept.</h2>
   <p class="lead">Most coaching apps make your training log an account your coach
-     administers. GymBuddy inverts that: the client owns every row, and a coach's work
+     administers. GymYar inverts that: the client owns every row, and a coach's work
      arrives as a proposal that does nothing at all until it is accepted.</p>
   <div class="grid">
     <div class="feat"><div class="ic">📋</div><h3>Programmes as proposals</h3><p>A coach drafts a week and sends it. It waits until the client says yes — and only then is it written, as the client's own data, through the same sync path their phone uses.</p></div>
@@ -84,7 +84,7 @@
     computed against the real exercise library and the same progression rules the app already
     runs on. A language model is asked to do two things — turn free text into a structured
     brief, and write the note explaining a change — and both have a deterministic
-    implementation underneath. With no model configured at all, GymBuddy builds the same
+    implementation underneath. With no model configured at all, GymYar builds the same
     plans and finds the same stalls; it phrases them from a template instead. Nothing can
     invent a lift that is not in the library, or put 140&nbsp;kg on a beginner's bar.
   </div>
@@ -93,7 +93,7 @@
 <section id="features"><div class="wrap">
   <p class="kicker">Everything a training log needs</p>
   <h2>Built in the gym, not in a boardroom</h2>
-  <p class="lead">GymBuddy is built on <a href="about.html">openGym</a>, whose tracker was
+  <p class="lead">GymYar is built on <a href="about.html">openGym</a>, whose tracker was
      sharpened on the gym floor long before any of the coaching existed. All of it is still
      here, and none of it is behind a paywall.</p>
   <div class="grid">
@@ -119,7 +119,7 @@
   <p class="kicker">Screenshots</p>
   <h2>Five screens, zero clutter</h2>
   <div class="shots">
-    <figure><img src="img/home.png" alt="GymBuddy home screen with weekly overview and body-weight chart" loading="lazy" width="1170" height="2532"><figcaption>Home</figcaption></figure>
+    <figure><img src="img/home.png" alt="GymYar home screen with weekly overview and body-weight chart" loading="lazy" width="1170" height="2532"><figcaption>Home</figcaption></figure>
     <figure><img src="img/workout.png" alt="Guided workout screen with sets, rest timer and pre-filled weights" loading="lazy" width="1170" height="2532"><figcaption>Workout</figcaption></figure>
     <figure><img src="img/stats.png" alt="Stats screen with activity heatmap and charts" loading="lazy" width="1170" height="2532"><figcaption>Stats</figcaption></figure>
     <figure><img src="img/plan.png" alt="Weekly plan screen with routines per weekday" loading="lazy" width="1170" height="2532"><figcaption>Plan</figcaption></figure>
@@ -181,7 +181,7 @@
 </div></section>
 
 <section id="download"><div class="wrap">
-  <p class="kicker">Get GymBuddy</p>
+  <p class="kicker">Get GymYar</p>
   <h2>One codebase, two products</h2>
   <p class="lead">These are genuinely different apps, on purpose. The web app is the whole
      thing. The Android build is an offline tracker with no accounts and no backend — and it
@@ -220,11 +220,11 @@
 
 <section id="story"><div class="wrap">
   <div class="story">
-    <p class="kicker">Why GymBuddy exists</p>
+    <p class="kicker">Why GymYar exists</p>
     <blockquote>openGym solved <strong>one person tracking their own training</strong>, and
       solved it well. It could not become two people — a coach and a client — without changing
       how the data was stored, because a whole-account overwrite silently destroys one of two
-      simultaneous edits. That rewrite is GymBuddy.</blockquote>
+      simultaneous edits. That rewrite is GymYar.</blockquote>
     <p class="who"><a href="about.html">The fork, and what changed →</a></p>
   </div>
 </div></section>
@@ -232,7 +232,7 @@
 <section id="opensource"><div class="wrap">
   <p class="kicker">Open source</p>
   <h2>AGPL-licensed, forever</h2>
-  <p class="lead">GymBuddy is a derivative work of openGym and stays on its licence. Every
+  <p class="lead">GymYar is a derivative work of openGym and stays on its licence. Every
      fork stays open, every hosted instance owes its source to the people using it, and there
      is no closed commercial version waiting behind a curtain.</p>
   <div class="os">
@@ -242,7 +242,7 @@
     <div class="stat"><b>0</b><span>trackers</span></div>
   </div>
   <div class="hero-btns" style="justify-content:flex-start;margin-top:24px">
-    <a class="btn ghost" href="#" data-repo="" hidden>GymBuddy source</a>
+    <a class="btn ghost" href="#" data-repo="" hidden>GymYar source</a>
     <a class="btn ghost" href="#" data-repo="/blob/HEAD/CONTRIBUTING.md" hidden>Contributing</a>
     <a class="btn ghost" href="#" data-repo="/blob/HEAD/CHANGELOG.md" hidden>Changelog</a>
     <a class="btn ghost" href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym, upstream</a>
@@ -250,7 +250,7 @@
 </div></section>
 
 <footer><div class="wrap foot">
-  <span>GymBuddy · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
+  <span>GymYar · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
   <div class="links">
     <a href="docs.html">Docs</a>
     <a href="about.html" class="hide-s">About</a>

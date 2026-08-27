@@ -1,9 +1,9 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="logo/gymbuddy-hero-dark.png">
-  <img src="logo/gymbuddy-hero.png" alt="GymBuddy — AI. Training. Results." width="460">
+  <source media="(prefers-color-scheme: dark)" srcset="logo/gymyar-hero-dark.png">
+  <img src="logo/gymyar-hero.png" alt="GYMYAR — Strength in motion, together in growth" width="460">
 </picture>
 
-# GymBuddy
+# GymYar
 
 A coaching platform built on [openGym](https://gitea.com/DuarteSantos/openGym) — the gym and
 body-weight tracker, extended with coach ↔ client programming, delivered as a web app, an iOS app
@@ -24,10 +24,10 @@ first boot creates a coach and three clients with twelve weeks of training each:
 
 | Account | Password | What it shows |
 |---|---|---|
-| `coach@gymbuddy.test` | `gymbuddy-demo-1` | The roster: adherence, who has drifted, an open proposal |
-| `sam@gymbuddy.test` | `gymbuddy-demo-1` | Shares everything; has a proposal waiting |
-| `ava@gymbuddy.test` | `gymbuddy-demo-1` | Shares programmes and workouts, not body weight |
-| `theo@gymbuddy.test` | `gymbuddy-demo-1` | Shares programmes only, and stopped training three weeks ago |
+| `coach@gymyar.test` | `gymyar-demo-1` | The roster: adherence, who has drifted, an open proposal |
+| `sam@gymyar.test` | `gymyar-demo-1` | Shares everything; has a proposal waiting |
+| `ava@gymyar.test` | `gymyar-demo-1` | Shares programmes and workouts, not body weight |
+| `theo@gymyar.test` | `gymyar-demo-1` | Shares programmes only, and stopped training three weeks ago |
 
 Turn `SEED_DEMO` off for a real instance and set a real `SESSION_SECRET`. For a real deployment —
 HTTPS, passkeys on a domain you own, backups, invite-only signup — see
@@ -55,7 +55,7 @@ last write wins. That is elegant for one person on their own server and fatal fo
 coach editing a programme while their client is mid-session silently destroys one of the two
 edits, and the server can never answer a question about data it never parses.
 
-GymBuddy stores rows. Every write bumps a per-user counter and records what changed at that
+GymYar stores rows. Every write bumps a per-user counter and records what changed at that
 value; a client remembers the last counter it saw and asks for what came after. The client still
 holds the blob in memory — that part was never the problem, and it is what keeps the app working
 offline — but the wire format and the database are relational.
@@ -76,7 +76,7 @@ them, which is what an outage, a lapsed key and a blocked route all look like fr
 tiers, because the note a client actually reads is worth a better model than the parse nobody
 sees. See `.env.example`.
 
-With no key set at all, GymBuddy builds the same plans, finds the same stalls and parses the
+With no key set at all, GymYar builds the same plans, finds the same stalls and parses the
 same logs — it phrases things from a template instead of writing prose, in whichever language
 the person is using, and `/api/ai/status` says so. That is what makes it safe to expose: nothing
 can invent a lift that is not in the library, or put 140 kg on a beginner's bar.
@@ -104,7 +104,7 @@ reconciliation, not by hoping.
 
 ### Video, photos, and the bytes that are not rows
 
-Everything else GymBuddy holds is a row, which is why "the database is the backup" was true.
+Everything else GymYar holds is a row, which is why "the database is the backup" was true.
 Form-check video and progress photos cannot be, so they live on a volume and `attachments` is
 the index — see [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) section 7, because a `pg_dump`
 alone restores an instance where every attachment is a broken link.
@@ -122,7 +122,7 @@ not obtained consent for the second.
 
 ### The rule that makes coaching safe
 
-**A coach never writes a client's rows.** A proposed programme lands in `routine_revisions` and
+**A coach never writes a client's rows.** A proposed programme lands in `proposals` and
 becomes real only when the client accepts it, at which point it is written as the client's own
 row through the normal sync path. There is only ever one writer per row, so there is nothing to
 merge — and a client's own edit cannot be erased by a coach's sync.

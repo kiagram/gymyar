@@ -1,4 +1,4 @@
-package com.gymbuddy.app;
+package com.gymyar.app;
 
 import com.getcapacitor.BridgeActivity;
 

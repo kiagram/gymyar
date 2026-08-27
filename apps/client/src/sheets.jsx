@@ -1,24 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
-import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf } from '@gymbuddy/domain'
-import { fmtDate, fmtNum, fmtVol, fmtDur, durPart, todayISO, uid, exCount, weekdayOffset, weekdayLabels, DAYN, MONTHS_LONG, ACCENTS } from '@gymbuddy/domain'
-import { lastEntryFor, bestWeightFor, buildSets, effectiveRoutineId, workoutVolume, setsDone, setsDoneActive, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, isBw, isPerSide, sideReps } from '@gymbuddy/domain'
+import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf } from '@gymyar/domain'
+import { fmtDate, fmtNum, fmtVol, fmtDur, durPart, todayISO, isoOf, uid, exCount, weekdayOffset, weekdayLabels, DAYN, ACCENTS } from '@gymyar/domain'
+import { startOfMonth, monthDays, sameMonth, stepMonth, monthYearLabel, dayNum } from '@gymyar/domain'
+import { normaliseHabit, datesFor, habitStreakWeeks, fmtInt } from '@gymyar/domain'
+import { addHabit, archiveHabit, removeHabit } from './lib/habits.js'
+import { fetchCheckinForm, currentCheckin, saveCheckin, stillMissing, BUILT_IN } from './lib/checkins.js'
+import { lastEntryFor, bestWeightFor, buildSets, effectiveRoutineId, workoutVolume, setsDone, setsDoneActive, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, isBw, isPerSide, sideReps } from '@gymyar/domain'
 import { beep, vibrate } from './lib/sound.js'
-import { t, instrFor, exName, exSearchText, getLang } from './lib/i18n.js'
+import { t, instrFor, exName, exSearchText, getLang, listSeparator } from './lib/i18n.js'
 import { nav } from './lib/nav.js'
-import { starterRoutines } from '@gymbuddy/domain'
+import { starterRoutines } from '@gymyar/domain'
 import Media, { Thumb } from './components/Media.jsx'
 import Stepper from './components/Stepper.jsx'
 import Icon from './components/Icon.jsx'
-import { Button, Slider, Switch, Segmented, SelectRow, Row } from './components/ui.jsx'
+import { Button, Slider, Switch, Segmented, SelectRow, Row, TextField, TextArea, NumberField } from './components/ui.jsx'
 import { glyphOf, GLYPH_GROUPS, DEFAULT_GLYPH } from './lib/glyphs.js'
 import BodyMap from './components/BodyMap.jsx'
-import { loadOfWorkouts } from '@gymbuddy/domain'
-import { parseImport, mergeImport } from '@gymbuddy/domain'
+import { loadOfWorkouts } from '@gymyar/domain'
+import { parseImport, mergeImport } from '@gymyar/domain'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
-import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from '@gymbuddy/domain'
-import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS } from '@gymbuddy/domain'
+import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from '@gymyar/domain'
+import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS } from '@gymyar/domain'
 import { MOBILE, shareExport } from './lib/mobile.js'
 import Attachments from './components/Attachments.jsx'
 import { formChecksFor, uploadFormCheck } from './lib/media.js'
@@ -636,7 +640,7 @@ function PlanTools({ close }) {
   const exportFile = async () => {
     const bundle = buildPlanBundle(st, user?.name ? t('{0}’s plan', user.name) : '')
     const json = JSON.stringify(bundle, null, 2)
-    const name = 'gymbuddy-plan-' + todayISO() + '.json'
+    const name = 'gymyar-plan-' + todayISO() + '.json'
     if (MOBILE) { try { await shareExport(json, name) } catch (e) { /* dismissed */ } close(); return }
     const blob = new Blob([json], { type: 'application/json' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href)
@@ -656,7 +660,7 @@ function PlanTools({ close }) {
     <h3>{t('Share your plan')}</h3>
     <div className="muted small" style={{ marginBottom: 16 }}>{t('Send your routines to a friend, or put your week on paper.')}</div>
     <Button variant="primary" icon="upload" onClick={exportFile} disabled={!hasRoutines}>{t('Export plan file')}</Button>
-    <div className="dim small" style={{ margin: '7px 2px 0', lineHeight: 1.4 }}>{t('A small file a friend imports into their own GymBuddy — routines only, none of your workouts or weigh-ins.')}</div>
+    <div className="dim small" style={{ margin: '7px 2px 0', lineHeight: 1.4 }}>{t('A small file a friend imports into their own GymYar — routines only, none of your workouts or weigh-ins.')}</div>
     {!MOBILE && <>
       <div style={{ height: 12 }} />
       <Button variant="tinted" icon="download" onClick={() => { close(); printPlan(st, user?.name || '') }} disabled={!hasRoutines}>{t('Print / Save as PDF')}</Button>
@@ -819,32 +823,34 @@ export const workoutDetailSheet = w => ui().openSheet(close => <WorkoutDetail w=
 /* ============================ calendar ============================ */
 function Calendar({ start, close }) {
   const st = useStore(s => s.S)
-  const [cur, setCur] = useState(() => { const d = start ? new Date(start) : new Date(); d.setDate(1); return d })
-  const y = cur.getFullYear(), mo = cur.getMonth()
+  /* The month is held as a day inside it rather than as (year, month), because "which month"
+   * is a question only the reader's calendar can answer — under fa-IR this grid runs Shahrivar
+   * to Shahrivar, not August to August, and `new Date(y, mo, 1)` has no way to say that. */
+  const [cur, setCur] = useState(() => startOfMonth(start || new Date()))
+  const days = monthDays(cur)
   const byDay = {}
   st.workouts.forEach(w => (byDay[w.d] = byDay[w.d] || []).push(w))
-  const startOffset = weekdayOffset(new Date(y, mo, 1))
-  const daysIn = new Date(y, mo + 1, 0).getDate()
-  const monthWs = st.workouts.filter(w => w.d.startsWith(y + '-' + String(mo + 1).padStart(2, '0')))
+  const startOffset = weekdayOffset(days[0])
+  const monthWs = st.workouts.filter(w => sameMonth(w.d, cur))
   const monthVol = monthWs.reduce((a, w) => a + (w.vol || 0), 0)
   const monthMs = monthWs.reduce((a, w) => a + Math.max(0, (w.end || w.start) - w.start), 0)
   const cells = []
   for (let i = 0; i < startOffset; i++) cells.push(<div key={'e' + i} />)
-  for (let d = 1; d <= daysIn; d++) {
-    const iso = y + '-' + String(mo + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0')
+  for (const day of days) {
+    const iso = isoOf(day)
     const ws = byDay[iso], effId = effectiveRoutineId(st, iso), ovr = st.dayPlan[iso] !== undefined
     const dotCls = ws ? 'done' : ovr && effId ? 'ovr' : effId ? 'plan' : ''
-    cells.push(<button key={d} className={'cal-d' + (ws ? ' has' : '') + (iso === todayISO() ? ' today' : '')} onClick={() => {
+    cells.push(<button key={iso} className={'cal-d' + (ws ? ' has' : '') + (iso === todayISO() ? ' today' : '')} onClick={() => {
       if (!ws) { close(); dayOverrideSheet(iso); return }
       if (ws.length === 1) { close(); workoutDetailSheet(ws[0]); return }
       close(); ui().openSheet(c2 => <><h3>{fmtDate(iso, true)}</h3><div className="list">{ws.map(w => <WorkoutRow key={w.id} w={w} onClick={() => { c2(); workoutDetailSheet(w) }} />)}</div></>)
-    }}><span>{d}</span><i className={dotCls} /></button>)
+    }}><span>{dayNum(day)}</span><i className={dotCls} /></button>)
   }
   return <>
     <div className="row between" style={{ marginBottom: 2 }}>
-      <button className="iconbtn" onClick={() => setCur(new Date(y, mo - 1, 1))} aria-label="Previous month"><Icon name="chevronLeft" /></button>
-      <h3 style={{ margin: 0 }}>{t(MONTHS_LONG[mo])} {y}</h3>
-      <button className="iconbtn" onClick={() => setCur(new Date(y, mo + 1, 1))} aria-label="Next month"><Icon name="chevronRight" /></button>
+      <button className="iconbtn" onClick={() => setCur(stepMonth(cur, -1))} aria-label={t('Previous month')}><Icon name="chevronLeft" /></button>
+      <h3 style={{ margin: 0 }}>{monthYearLabel(cur)}</h3>
+      <button className="iconbtn" onClick={() => setCur(stepMonth(cur, 1))} aria-label={t('Next month')}><Icon name="chevronRight" /></button>
     </div>
     <div className="small muted" style={{ textAlign: 'center' }}>{monthWs.length ? `${t(monthWs.length === 1 ? '{0} workout' : '{0} workouts', monthWs.length)} · ${fmtDur(monthMs)} · ${fmtVol(monthVol, st.unit)}` : t('No workouts this month')}</div>
     <div className="cal-grid">{weekdayLabels().map(l => <div key={l} className="cal-h">{t(l)}</div>)}{cells}</div>
@@ -1101,3 +1107,185 @@ function TextLogSheet({ close }) {
 export function textLogSheet() {
   ui().openSheet(close => <TextLogSheet close={close} />)
 }
+
+/* ============================ habits ============================ */
+
+/* One habit, its target, and the two ways to stop doing it.
+ *
+ * Archive and delete are both here and are not the same button. Archiving keeps the ticks — six
+ * months of somebody doing the thing is the record, and it outlives their interest in carrying
+ * on. Deleting is for the one added by mistake, and it says what it takes with it.
+ */
+function HabitSheet({ id, close }) {
+  const S = useStore(s => s.S)
+  const existing = id ? (S.habits || []).find(h => h.id === id) : null
+  const [title, setTitle] = useState(existing?.title ?? '')
+  const [target, setTarget] = useState(existing?.target ?? 7)
+
+  const save = () => {
+    const clean = normaliseHabit({ title, target })
+    if (!clean) { toast(t('Give it a name first')); return }
+    let full = false
+    update(s => {
+      if (existing) {
+        const h = s.habits.find(x => x.id === id)
+        h.title = clean.title
+        h.target = clean.target
+      } else if (!addHabit(s, clean)) {
+        // The only reason left, once the title is known to be good.
+        full = true
+      }
+    })
+    if (full) { toast(t('That is as many habits as one list can carry')); return }
+    close()
+  }
+
+  const dates = existing ? datesFor(S.habitTicks, id) : []
+  const streak = existing ? habitStreakWeeks(existing, dates, todayISO()) : 0
+
+  return <>
+    <h3>{existing ? t('Habit') : t('New habit')}</h3>
+    <TextField value={title} onChange={e => setTitle(e.target.value)} maxLength={80}
+      placeholder={t('Walk 10,000 steps')} autoFocus={!existing} />
+
+    <h4 className="sec">{t('Days a week')}</h4>
+    <div className="muted small" style={{ marginBottom: 8 }}>
+      {t('How many days count as a full week. Seven is every day; fewer builds the rest in.')}
+    </div>
+    <Segmented value={target} onChange={setTarget}
+      options={[1, 2, 3, 4, 5, 6, 7].map(n => ({ value: n, label: fmtInt(n) }))} />
+
+    <div style={{ height: 14 }} />
+    <Button variant="primary" onClick={save}>{existing ? t('Save') : t('Add habit')}</Button>
+
+    {existing && <>
+      {dates.length > 0 && <p className="sect-f">
+        {t('{0} days ticked so far', fmtInt(dates.length))}
+        {streak > 0 ? ' · ' + t('{0} weeks on target', fmtInt(streak)) : ''}
+      </p>}
+      <h4 className="sec">{t('Stop doing it')}</h4>
+      <Button icon="folder" onClick={() => {
+        update(s => archiveHabit(s, id))
+        close()
+        toast(t('Archived — its history stays'))
+      }}>{t('Archive')}</Button>
+      <div style={{ height: 8 }} />
+      <Button variant="danger" icon="trash" onClick={() => confirmSheet({
+        title: t('Delete this habit?'),
+        message: t('Every day you ticked it goes too. Archiving keeps them.'),
+        confirmText: t('Delete'),
+        danger: true,
+        onConfirm: () => { update(s => removeHabit(s, id)); close(); toast(t('Habit deleted')) }
+      })}>{t('Delete')}</Button>
+    </>}
+  </>
+}
+
+export const habitSheet = id => ui().openSheet(close => <HabitSheet id={id} close={close} />)
+export const newHabitSheet = () => ui().openSheet(close => <HabitSheet close={close} />)
+
+/* ============================ check-in ============================ */
+
+/* The weekly form, built from whatever questions apply.
+ *
+ * The questions are fetched, because a coach's template lives on the server and is the one part
+ * of this that cannot be known offline. Everything else is local: a failed fetch falls back to
+ * the built-in set rather than showing an error, because those are the same questions somebody
+ * with no coach answers, and a form that refuses to open on a bad connection is worse than one
+ * that asks slightly less.
+ */
+function CheckinSheet({ close }) {
+  const S = useStore(s => s.S)
+  const [form, setForm] = useState(null)
+  const [answers, setAnswers] = useState(null)
+
+  useEffect(() => {
+    let live = true
+    const start = f => {
+      if (!live) return
+      setForm(f)
+      // Seeded from whatever is already saved for that week, so reopening an answered week
+      // edits it rather than starting again — it is the same row either way.
+      setAnswers(currentCheckin(useStore.getState().S, f, todayISO()).answers)
+    }
+    fetchCheckinForm()
+      .then(r => start(r.scheduled?.[0] ?? r.builtIn ?? BUILT_IN))
+      .catch(() => start(BUILT_IN))
+    return () => { live = false }
+  }, [])
+
+  if (!form || answers === null) {
+    return <><h3>{t('Check-in')}</h3><div className="ss dim">{t('Loading…')}</div></>
+  }
+
+  const current = currentCheckin(S, form, todayISO())
+  const set = (key, value) => setAnswers(a => ({ ...a, [key]: value }))
+  const missing = stillMissing(form.fields, answers)
+
+  const send = (submit = true) => {
+    update(s => saveCheckin(s, {
+      date: current.date, templateId: form.templateId, fields: form.fields, answers, submit
+    }))
+    close()
+    toast(submit ? t('Check-in sent') : t('Saved as a draft'))
+  }
+
+  return <>
+    <h3>{form.title || t('Check-in')}</h3>
+    <div className="muted small">
+      {form.coachName ? t('Asked by {0}', form.coachName) : t('For the week of {0}', fmtDate(current.date, true))}
+      {current.submitted ? ' · ' + t('already sent — this edits it') : ''}
+    </div>
+
+    <div style={{ height: 10 }} />
+    {form.fields.map(f => <div key={f.key} style={{ marginBottom: 14 }}>
+      <div className="row between" style={{ marginBottom: 6 }}>
+        <span>{t(f.label)}{f.required ? ' *' : ''}</span>
+        {f.unit && <span className="dim small">{f.unit}</span>}
+      </div>
+      <CheckinField field={f} value={answers[f.key]} onChange={v => set(f.key, v)} unit={S.unit} />
+    </div>)}
+
+    {missing.length > 0 && <div className="muted small" style={{ marginBottom: 8 }}>
+      {t('Still to answer: {0}', missing.map(k => t(labelFor(form.fields, k))).join(listSeparator()))}
+    </div>}
+    <Button variant="primary" onClick={() => send(true)} disabled={missing.length > 0}>
+      {current.submitted ? t('Update') : t('Send')}
+    </Button>
+    <div style={{ height: 8 }} />
+    <Button variant="ghost" className="dim" onClick={() => send(false)}>{t('Save as draft')}</Button>
+  </>
+}
+
+const labelFor = (fields, key) => fields.find(f => f.key === key)?.label ?? key
+
+/* One question, rendered as whatever it is.
+ *
+ * A photo field draws no input at all. The picture is an attachment behind the `photos` scope
+ * and is added where progress photos already live; a control here would quietly file it
+ * somewhere nobody asked permission for, which is the one thing that scope exists to prevent.
+ */
+function CheckinField({ field, value, onChange, unit }) {
+  if (field.type === 'scale') {
+    return <Segmented value={value ?? null} onChange={onChange}
+      options={[1, 2, 3, 4, 5].map(n => ({ value: n, label: fmtInt(n) }))} />
+  }
+  if (field.type === 'bool') {
+    return <div className="row between">
+      <span className="dim small">{t('Done')}</span>
+      <Switch checked={!!value} onChange={onChange} />
+    </div>
+  }
+  if (field.type === 'bodyweight' || field.type === 'measure') {
+    return <NumberField value={value ?? ''} onChange={onChange}
+      placeholder={field.type === 'bodyweight' ? unit : field.unit || ''} />
+  }
+  if (field.type === 'photo') {
+    return <div className="muted small">
+      {t('Add it under Progress photos in Stats — photos are shared separately.')}
+    </div>
+  }
+  return <TextArea value={value ?? ''} onChange={e => onChange(e.target.value)} rows={3} maxLength={2000} />
+}
+
+export const checkinSheet = () => ui().openSheet(close => <CheckinSheet close={close} />)

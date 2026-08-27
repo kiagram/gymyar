@@ -196,6 +196,94 @@ describe('whole state', () => {
   })
 })
 
+describe('check-ins across the boundary', () => {
+  const state = {
+    unit: 'kg',
+    checkins: [{ d: '2026-08-22', tpl: 't1', a: { sleep: 4, notes: 'fine' }, at: '2026-08-22T09:00:00.000Z' }]
+  }
+
+  it('maps to a row keyed by its date, with no id to generate', () => {
+    const { checkins } = stateToRows(state, { userId: 'u1', modeFor: modeReps })
+    expect(checkins).toEqual([{
+      user_id: 'u1', on_date: '2026-08-22', template_id: 't1',
+      answers: { sleep: 4, notes: 'fine' }, submitted_at: '2026-08-22T09:00:00.000Z'
+    }])
+  })
+
+  it('carries a draft with no submitted_at rather than dropping it', () => {
+    // A half-filled check-in still syncs — that is what stops it dying with the tab.
+    const { checkins } = stateToRows(
+      { checkins: [{ d: '2026-08-22', a: { notes: 'I was' } }] }, { userId: 'u1', modeFor: modeReps })
+    expect(checkins[0].submitted_at).toBeNull()
+    expect(checkins[0].template_id).toBeNull()
+  })
+
+  it('comes back out of a delta in the same shape it went in', () => {
+    const { checkins } = stateToRows(state, { userId: 'u1', modeFor: modeReps })
+    const back = applyRows({}, { checkins }, { modeFor: modeReps })
+    expect(back.checkins).toEqual(state.checkins)
+  })
+
+  it('drops one that was deleted elsewhere', () => {
+    const back = applyRows(state, {
+      checkins: [{ on_date: '2026-08-22', deleted_at: new Date() }]
+    }, { modeFor: modeReps })
+    expect(back.checkins).toHaveLength(0)
+  })
+})
+
+describe('habits across the boundary', () => {
+  const state = {
+    habits: [{ id: 'h1', title: 'Walk', target: 5, by: 'coach1', link: 'link1', arch: null }],
+    habitTicks: [{ h: 'h1', d: '2026-08-17' }, { h: 'h1', d: '2026-08-18' }]
+  }
+
+  it('maps a habit to a row that records who wrote it', () => {
+    const { habits } = stateToRows(state, { userId: 'u1', modeFor: modeReps })
+    expect(habits[0]).toMatchObject({
+      id: 'h1', user_id: 'u1', author_id: 'coach1', assigned_by: 'link1',
+      title: 'Walk', target_per_week: 5, position: 0
+    })
+  })
+
+  it('makes a habit somebody invented their own, with no coach attached', () => {
+    const { habits } = stateToRows(
+      { habits: [{ id: 'h1', title: 'Walk' }] }, { userId: 'u1', modeFor: modeReps })
+    expect(habits[0].author_id).toBe('u1')
+    expect(habits[0].assigned_by).toBeNull()
+  })
+
+  it('maps a tick to its two keys and nothing else', () => {
+    const { habitTicks } = stateToRows(state, { userId: 'u1', modeFor: modeReps })
+    expect(habitTicks).toEqual([
+      { user_id: 'u1', habit_id: 'h1', on_date: '2026-08-17' },
+      { user_id: 'u1', habit_id: 'h1', on_date: '2026-08-18' }
+    ])
+  })
+
+  it('comes back out of a delta in the shape it went in', () => {
+    const rows = stateToRows(state, { userId: 'u1', modeFor: modeReps })
+    const back = applyRows({}, { habits: rows.habits, habitTicks: rows.habitTicks }, { modeFor: modeReps })
+    expect(back.habits).toEqual(state.habits)
+    expect(back.habitTicks).toEqual(state.habitTicks)
+  })
+
+  it('drops an untick, and reads its date whichever shape it arrives in', () => {
+    const back = applyRows(state, {
+      habitTicks: [{ habit_id: 'h1', on_date: new Date('2026-08-17T00:00:00Z'), deleted_at: new Date() }]
+    }, { modeFor: modeReps })
+    expect(back.habitTicks).toEqual([{ h: 'h1', d: '2026-08-18' }])
+  })
+
+  it('drops a deleted habit without touching the others', () => {
+    const two = { habits: [...state.habits, { id: 'h2', title: 'Water', target: 7 }] }
+    const back = applyRows(two, {
+      habits: [{ id: 'h1', deleted_at: new Date() }]
+    }, { modeFor: modeReps })
+    expect(back.habits.map(h => h.id)).toEqual(['h2'])
+  })
+})
+
 describe('applying a delta', () => {
   const base = {
     unit: 'kg',
@@ -281,6 +369,17 @@ describe('dates survive the wire', () => {
     }, { modeFor: modeReps })
     expect(asDate.bodyweight[0].d).toBe('2026-08-01')
     expect(asString.bodyweight[0].d).toBe('2026-08-01')
+  })
+
+  it('does the same for check-ins, which are keyed by their date too', () => {
+    const asDate = applyRows({}, {
+      checkins: [{ on_date: new Date('2026-08-22T00:00:00Z'), answers: { sleep: 4 } }]
+    }, { modeFor: modeReps })
+    const asString = applyRows({}, {
+      checkins: [{ on_date: '2026-08-22T00:00:00.000Z', answers: { sleep: 4 } }]
+    }, { modeFor: modeReps })
+    expect(asDate.checkins[0].d).toBe('2026-08-22')
+    expect(asString.checkins[0].d).toBe('2026-08-22')
   })
 
   it('keeps start and end as real timestamps, not dates', () => {

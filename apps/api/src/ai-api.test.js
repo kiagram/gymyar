@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { build } from './app.js'
 import { client } from './test-client.js'
-import { db, close } from '@gymbuddy/db'
-import { createAI, nullProvider } from '@gymbuddy/ai'
-import { say } from '@gymbuddy/domain'
+import { db, close } from '@gymyar/db'
+import { createAI, nullProvider } from '@gymyar/ai'
+import { say } from '@gymyar/domain'
 
 let app
 const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
@@ -12,7 +12,7 @@ beforeAll(async () => {
   process.env.SESSION_SECRET = 'test-secret-not-for-production'
   // No key in CI and none wanted: these tests assert the product works without one.
   app = await build({ databaseUrl: URL, ai: createAI({ provider: nullProvider }), rateLimit: false })
-  const { seedExercises } = await import('@gymbuddy/db/seed-exercises.js')
+  const { seedExercises } = await import('@gymyar/db/seed-exercises.js')
   await seedExercises()
 })
 beforeEach(async () => { await db()`delete from users` })

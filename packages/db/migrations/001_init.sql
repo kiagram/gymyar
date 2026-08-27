@@ -1,4 +1,4 @@
--- GymBuddy 001 — replaces openGym's state-<uid>.json blob with rows.
+-- GymYar 001 — replaces openGym's state-<uid>.json blob with rows.
 --
 -- Two id conventions, on purpose:
 --   * server-minted uuid for identity and coaching (users, sessions, links, revisions)

@@ -4,7 +4,7 @@
  * data/state-<uid>.json goes in, their account comes out intact), and the demo seeder.
  * Both go through the same code so the migration is exercised every time we seed.
  */
-import { stateToRows, makeModeResolver, modeOf } from '@gymbuddy/domain'
+import { stateToRows, makeModeResolver, modeOf } from '@gymyar/domain'
 import { push } from './sync.js'
 import { db } from './index.js'
 
@@ -30,7 +30,7 @@ export async function importState(userId, S, s = db()) {
 /** Read a whole account back as a state blob — the inverse, used by tests and by export. */
 export async function exportState(userId, s = db()) {
   const { pullAll } = await import('./sync.js')
-  const { applyRows } = await import('@gymbuddy/domain')
+  const { applyRows } = await import('@gymyar/domain')
   const { changes } = await pullAll(userId, s)
   // The resolver needs the routine configs, which are in the delta we are about to apply —
   // so build it from those rather than from a state that does not exist yet.

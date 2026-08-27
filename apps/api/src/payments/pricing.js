@@ -10,7 +10,7 @@
  * drift apart. Longer terms are cheaper per month because the alternative — the same monthly
  * rate for a year up front — gives nobody a reason to commit.
  */
-import { TERMS, PURCHASABLE_TIERS, isPurchasableTier, capFor } from '@gymbuddy/domain/entitlement.js'
+import { TERMS, PURCHASABLE_TIERS, isPurchasableTier, capFor } from '@gymyar/domain/entitlement.js'
 import { zarinpal } from './zarinpal.js'
 import { priceIndex, indexed, offeredTerms } from './rate.js'
 

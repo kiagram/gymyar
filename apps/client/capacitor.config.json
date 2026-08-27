@@ -1,6 +1,6 @@
 {
-  "appId": "com.gymbuddy.app",
-  "appName": "GymBuddy",
+  "appId": "com.gymyar.app",
+  "appName": "GymYar",
   "webDir": "dist",
   "backgroundColor": "#0c0e12",
   "android": {

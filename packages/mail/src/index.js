@@ -1,6 +1,6 @@
 /* Sending email, and the decision not to pretend we can.
  *
- * GymBuddy has never sent an email. That was fine while everything it did was between a person
+ * GymYar has never sent an email. That was fine while everything it did was between a person
  * and their own server — and it stopped being fine the moment accounts had passwords, because
  * a password you can forget and cannot reset is an account you lose. This package is the
  * smallest thing that fixes that.

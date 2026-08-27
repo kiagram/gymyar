@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>About — GymBuddy</title>
-<meta name="description" content="GymBuddy is a fork of openGym, rebuilt so a coach and a client can work on the same training without overwriting each other. What changed, and why.">
+<title>About — GymYar</title>
+<meta name="description" content="GymYar is a fork of openGym, rebuilt so a coach and a client can work on the same training without overwriting each other. What changed, and why.">
 <meta name="theme-color" content="#0c0e12">
 <meta property="og:locale" content="en_US">
 <link rel="alternate" hreflang="en" href="/about.html">
@@ -20,7 +20,7 @@
 <nav><div class="wrap nav-in">
   <a class="brand" href="/">
     <img src="icon-180.png" alt="" width="26" height="26" style="border-radius:6px">
-    GymBuddy
+    GymYar
   </a>
   <div class="nav-links">
     <a href="/#coaching" class="hide-s">Coaching</a>
@@ -36,8 +36,8 @@
 </div></nav>
 
 <main class="wrap prose">
-  <h1>About GymBuddy</h1>
-  <p class="lead">GymBuddy is a fork of <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a>,
+  <h1>About GymYar</h1>
+  <p class="lead">GymYar is a fork of <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a>,
      rebuilt so that two people — a coach and a client — can work on the same training without
      one of them silently overwriting the other.</p>
 
@@ -47,7 +47,7 @@
      subscription and no account on someone else's machine. Guided sessions, 1,324 exercises
      with animations, a muscle map, progression that follows an actual rule, 12 languages. It
      was built by someone standing in a gym with the thing in their hand, and it shows.</p>
-  <p>Everything in GymBuddy's <a href="/#features">features list</a> that concerns tracking
+  <p>Everything in GymYar's <a href="/#features">features list</a> that concerns tracking
      came from there. None of it was rewritten for the sake of rewriting it.</p>
 
   <h2>The one thing that had to change</h2>
@@ -58,7 +58,7 @@
      one of those two edits is destroyed and nobody is told. And a server that never parses
      what it stores can never answer a question about it — so "which of my clients has
      stalled?" is not a query, it is a thing that cannot be asked.</p>
-  <p>So GymBuddy stores rows. Every write bumps a per-user counter and records what changed at
+  <p>So GymYar stores rows. Every write bumps a per-user counter and records what changed at
      that value; a client remembers the last counter it saw and asks for whatever came after
      it. The app still holds the whole state in memory — that part was never the problem, and
      it is what keeps the app working with no signal in a basement gym — but the wire format
@@ -82,7 +82,7 @@
      implementation underneath them.</p>
   <p>Which model does that is configuration — a hosted provider, or one on your own hardware
      as the failover underneath it, which is what an outage, a lapsed key and a blocked route
-     all look like from here. With no key set at all, GymBuddy builds the same plans, finds the
+     all look like from here. With no key set at all, GymYar builds the same plans, finds the
      same stalls and parses the same logs; it phrases things from a template instead of writing
      prose, in whichever language the person is using, and the app says so plainly.</p>
   <p>That is what makes it safe to expose. Nothing can invent a lift that is not in the
@@ -98,7 +98,7 @@
   <h2>Principles</h2>
   <ul>
     <li><b>Your data is yours.</b> Local-first, one-file backups, no lock-in — leaving
-        GymBuddy must always be one export away.</li>
+        GymYar must always be one export away.</li>
     <li><b>A client is never the product.</b> Training is free and ungated. The only thing a
         subscription can ever gate is a coach taking on new work.</li>
     <li><b>No telemetry, ever.</b> If a feature needs analytics to justify itself, it does not
@@ -111,7 +111,7 @@
   </ul>
 
   <h2>Licence and credit</h2>
-  <p>GymBuddy is licensed <b>AGPL-3.0-or-later</b>, inherited from openGym and kept
+  <p>GymYar is licensed <b>AGPL-3.0-or-later</b>, inherited from openGym and kept
      deliberately. Section 13 means anyone using a hosted instance is entitled to its source,
      which is the correct outcome for software that holds other people's training.</p>
   <p>Copyright in the parts derived from openGym remains with Duarte Santos, and the full
@@ -121,14 +121,14 @@
      is not ours to sublicense; see the <a href="docs.html#faq">FAQ</a>.</p>
 
   <div class="hero-btns" style="justify-content:flex-start;margin:30px 0 10px">
-    <a class="btn" href="/#download">Get GymBuddy</a>
+    <a class="btn" href="/#download">Get GymYar</a>
     <a class="btn ghost" href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym, upstream</a>
-    <a class="btn ghost" href="#" data-repo="" hidden>GymBuddy source</a>
+    <a class="btn ghost" href="#" data-repo="" hidden>GymYar source</a>
   </div>
 </main>
 
 <footer><div class="wrap foot">
-  <span>GymBuddy · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
+  <span>GymYar · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
   <div class="links">
     <a href="docs.html">Docs</a>
     <a href="about.html" class="hide-s">About</a>

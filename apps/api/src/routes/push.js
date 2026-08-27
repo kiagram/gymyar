@@ -5,7 +5,7 @@
  * and nobody finds out until their rest timer stops firing.
  */
 import webpush from 'web-push'
-import { db } from '@gymbuddy/db'
+import { db } from '@gymyar/db'
 import { config } from '../config.js'
 import { requireUser } from '../session.js'
 
@@ -42,7 +42,7 @@ const timers = new Map()
  * The words a notification shows, taken from the client and falling back to English.
  *
  * A push is the one string this side cannot translate. There is no language on a user or on
- * a subscription, and the twelve locale packs live in the client bundle — so a server that
+ * a subscription, and the locale packs live in the client bundle — so a server that
  * picks the wording sends "Rest over" to someone whose entire app is in Persian. The client
  * knows the language and is awake at the moment it schedules the timer, so it sends the text
  * it wants shown; English stands in when it sends none, which is what an older build and a
@@ -103,6 +103,6 @@ export default async function pushRoutes(app) {
     const user = await requireUser(req)
     // The title is the product's name in every language, so only the sentence is translated.
     const body = notificationText(req.body?.body, 'Notifications are working.')
-    return { sent: await sendPush(user.id, { title: 'GymBuddy', body }) }
+    return { sent: await sendPush(user.id, { title: 'GymYar', body }) }
   })
 }

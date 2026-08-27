@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { api } from '../lib/api.js'
-import { localTZ } from '@gymbuddy/domain'
-import { registerCustom } from '@gymbuddy/domain'
+import { localTZ } from '@gymyar/domain'
+import { registerCustom } from '@gymyar/domain'
 import { DEMO, DEMO_SEEDED } from '../lib/demo.js'
 import { detectLang } from '../lib/i18n.js'
 import { MOBILE, nativeLoad, nativeSave, syncReminder } from '../lib/mobile.js'
@@ -14,12 +14,20 @@ export const DEF = {
   unit: 'kg', restSec: 90, sound: true, keepAwake: true, lang: detectLang(),
   theme: 'dark', accent: 'red', body: 'male', targetW: null,
   bodyweight: [], routines: [], week: {}, dayPlan: {},
+  // Weekly answers, the habits somebody keeps, and every tick on them. Present on DEF rather
+  // than left undefined because saved state is overlaid on this — a profile from before these
+  // existed gets the empty arrays instead of a screen guarding against `undefined` everywhere.
+  checkins: [], habits: [], habitTicks: [],
   exWeights: {}, workouts: [], active: null, customEx: [], gifSize: 'full',
   // effort: which per-set effort scale is logged — 'none' | 'rir' | 'rpe'. null, not 'none', so
   // that a profile which never chose (loaded state is overlaid on DEF, on every path: local,
   // server pull, backup import) still falls back to the `showRir` boolean this replaced and
   // keeps the column it had. See effortOf.
-  reminder: { on: false, time: '08:00', tz: null }, effort: null
+  reminder: { on: false, time: '08:00', tz: null }, effort: null,
+  /* Null rather than an object of trues: somebody who has never touched this has not opted out
+   * of anything, and the server reads absent as yes. An object here would mean shipping a
+   * decision nobody made, and it would go stale the day a fifth kind is added. */
+  push: null
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 
@@ -173,7 +181,7 @@ export const useStore = create((set, get) => {
     // Demo build only: drop the seeded example profile back in (Settings → "Reset demo data").
     // Dynamic import so the generator never ships in a self-hosted bundle.
     async resetDemo() {
-      const { buildDemoState } = await import('@gymbuddy/domain/demo-seed.js')
+      const { buildDemoState } = await import('@gymyar/domain/demo-seed.js')
       localStorage.removeItem('gym_dirty')
       persist(Object.assign(clone(DEF), buildDemoState()), false)
     },

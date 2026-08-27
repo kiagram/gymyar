@@ -8,7 +8,7 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL,
   origin: process.env.ORIGIN || 'http://localhost:8080',
   rpId: process.env.RP_ID || 'localhost',
-  rpName: process.env.RP_NAME || 'GymBuddy',
+  rpName: process.env.RP_NAME || 'GymYar',
   inviteOnly: bool(process.env.INVITE_ONLY),
   // On by default. A single-user instance on a home server has nobody to rate limit, and the
   // test suite drives hundreds of requests through one client — both want it off.

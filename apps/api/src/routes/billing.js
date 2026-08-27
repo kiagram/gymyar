@@ -26,8 +26,8 @@
 import {
   ensureTrial, startPayment, attachAuthority, paymentByAuthority, paymentsFor,
   credit, settleUnpaid
-} from '@gymbuddy/db/billing.js'
-import { entitlement } from '@gymbuddy/domain/entitlement.js'
+} from '@gymyar/db/billing.js'
+import { entitlement } from '@gymyar/domain/entitlement.js'
 import { requireUser } from '../session.js'
 import { config } from '../config.js'
 import { limit } from '../rate-limit.js'
@@ -118,7 +118,7 @@ export default async function billingRoutes(app, opts = {}) {
         // what they are buying rather than naming an internal plan. The client count is in it
         // for the same reason: "studio" means nothing to somebody staring at a bank page, and
         // the number is the thing they are actually choosing between.
-        description: `GymBuddy coaching, up to ${capForTier(tier)} clients — ` +
+        description: `GymYar coaching, up to ${capForTier(tier)} clients — ` +
           (months === 1 ? '1 month' : `${months} months`),
         callbackUrl: `${config.origin}/api/billing/callback`,
         email: user.email || null

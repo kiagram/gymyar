@@ -1,9 +1,9 @@
-/* @gymbuddy/ai — the language layer, and the seam that makes it optional.
+/* @gymyar/ai — the language layer, and the seam that makes it optional.
  *
  * What this does and does not do
  * -----------------------------
  * It does not decide anything numeric. Sets, reps, loads, progression steps and exercise
- * selection all belong to `@gymbuddy/domain`, which is tested and cannot hallucinate. This
+ * selection all belong to `@gymyar/domain`, which is tested and cannot hallucinate. This
  * package handles the two things a language model is genuinely better at than code:
  *
  *   interpretBrief  free text  →  a structured brief the planner accepts
@@ -19,12 +19,12 @@
  * `normaliseBrief` throws away invented goals and equipment, and `parseLog` is the only thing
  * allowed to name an exercise. A model that returns nonsense costs a fallback, not a bad plan.
  */
-import { normaliseBrief, parseLog as parseLogLocal, say } from '@gymbuddy/domain'
+import { normaliseBrief, parseLog as parseLogLocal, say } from '@gymyar/domain'
 import { anthropicProvider } from './anthropic.js'
-import { openAICompatProvider, deepseekProvider, ollamaProvider } from './openai-compat.js'
+import { openAICompatProvider, deepseekProvider, ollamaProvider, openaiProvider } from './openai-compat.js'
 import { interpretBriefLocally, explainChangeLocally } from './fallback.js'
 
-export { anthropicProvider, openAICompatProvider, deepseekProvider, ollamaProvider }
+export { anthropicProvider, openAICompatProvider, deepseekProvider, ollamaProvider, openaiProvider }
 
 /** No key, no network, no problem. Everything still works, in fewer words. */
 export const nullProvider = { name: 'none', available: false, async complete() { return null } }
@@ -34,6 +34,8 @@ export const nullProvider = { name: 'none', available: false, async complete() {
  * you mean, and see .env.example for the pair this product is meant to run on. */
 const DEEPSEEK_DEFAULT = 'deepseek-chat'
 const ANTHROPIC_DEFAULT = 'claude-sonnet-4-5'
+const OPENAI_FAST_DEFAULT = 'gpt-5-mini'
+const OPENAI_DEEP_DEFAULT = 'gpt-5'
 
 /**
  * What the environment asks for: a fast model, a better one, and whatever is on your own hardware.
@@ -49,13 +51,31 @@ export function providersFromEnv(env = process.env) {
   const localFast = ollama(env.OLLAMA_MODEL_FAST || env.OLLAMA_MODEL)
   const localDeep = ollama(env.OLLAMA_MODEL_DEEP || env.OLLAMA_MODEL_FAST || env.OLLAMA_MODEL)
 
+  /* OpenAI is checked first because it is the one this deployment runs on. A second hosted key
+   * in the same environment is a deliberate act — an operator moving between vendors — and the
+   * one they are moving *to* is the one they just set, so first-wins with a documented order
+   * beats a resolution rule nobody can predict from reading the file. */
+  if (env.OPENAI_API_KEY) {
+    const gpt = model => openaiProvider({
+      apiKey: env.OPENAI_API_KEY, baseUrl: env.OPENAI_BASE_URL || undefined, model
+    })
+    return {
+      fast: gpt(env.GYMYAR_MODEL_FAST || OPENAI_FAST_DEFAULT),
+      // Falling back to the *deep* default rather than to the fast model, unlike the branches
+      // below: naming only one model here means naming the cheap one, and quietly sending the
+      // note a client reads to a mini model is the one substitution this split exists to stop.
+      deep: gpt(env.GYMYAR_MODEL_DEEP || OPENAI_DEEP_DEFAULT),
+      local: localFast
+    }
+  }
+
   if (env.DEEPSEEK_API_KEY) {
     const ds = model => deepseekProvider({
       apiKey: env.DEEPSEEK_API_KEY, baseUrl: env.DEEPSEEK_BASE_URL || undefined, model
     })
     return {
-      fast: ds(env.GYMBUDDY_MODEL_FAST || DEEPSEEK_DEFAULT),
-      deep: ds(env.GYMBUDDY_MODEL_DEEP || env.GYMBUDDY_MODEL_FAST || DEEPSEEK_DEFAULT),
+      fast: ds(env.GYMYAR_MODEL_FAST || DEEPSEEK_DEFAULT),
+      deep: ds(env.GYMYAR_MODEL_DEEP || env.GYMYAR_MODEL_FAST || DEEPSEEK_DEFAULT),
       local: localFast
     }
   }
@@ -66,10 +86,10 @@ export function providersFromEnv(env = process.env) {
       baseUrl: env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
       model
     })
-    const named = env.GYMBUDDY_AI_MODEL || ANTHROPIC_DEFAULT
+    const named = env.GYMYAR_AI_MODEL || ANTHROPIC_DEFAULT
     return {
-      fast: claude(env.GYMBUDDY_MODEL_FAST || named),
-      deep: claude(env.GYMBUDDY_MODEL_DEEP || named),
+      fast: claude(env.GYMYAR_MODEL_FAST || named),
+      deep: claude(env.GYMYAR_MODEL_DEEP || named),
       local: localFast
     }
   }

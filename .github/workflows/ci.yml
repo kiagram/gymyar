@@ -8,15 +8,15 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: gymbuddy
-          POSTGRES_PASSWORD: gymbuddy
-          POSTGRES_DB: gymbuddy_test
+          POSTGRES_USER: gymyar
+          POSTGRES_PASSWORD: gymyar
+          POSTGRES_DB: gymyar_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U gymbuddy" --health-interval 5s
+          --health-cmd "pg_isready -U gymyar" --health-interval 5s
           --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgres://gymbuddy:gymbuddy@localhost:5432/gymbuddy_test
+      DATABASE_URL: postgres://gymyar:gymyar@localhost:5432/gymyar_test
       SESSION_SECRET: ci-secret-not-for-production
     steps:
       - uses: actions/checkout@v4
@@ -32,17 +32,17 @@ jobs:
         # mid-sentence, silently, with nothing failing anywhere.
         run: node apps/client/scripts/check-locales.mjs
       - name: Domain tests
-        run: npm run test -w @gymbuddy/domain
+        run: npm run test -w @gymyar/domain
       - name: AI layer tests
-        run: npm run test -w @gymbuddy/ai
+        run: npm run test -w @gymyar/ai
       - name: Storage tests
-        run: npm run test -w @gymbuddy/storage
+        run: npm run test -w @gymyar/storage
       - name: Database tests
-        run: npm run test -w @gymbuddy/db
+        run: npm run test -w @gymyar/db
       - name: API tests
-        run: npm run test -w @gymbuddy/api
+        run: npm run test -w @gymyar/api
       - name: Client tests
-        run: npm run test -w @gymbuddy/client
+        run: npm run test -w @gymyar/client
       - name: Release tooling tests
         run: npm run test:release
       - name: Mobile build talks to nobody
@@ -54,14 +54,14 @@ jobs:
         # passes on an artifact nobody ships. `build:mobile` itself also runs `cap sync`,
         # which would need the native toolchains for a check that only reads the web bundle.
         run: |
-          npm run build:mobile:web -w @gymbuddy/client
+          npm run build:mobile:web -w @gymyar/client
           node infra/scripts/check-mobile-hosts.mjs
       - name: Web build
-        run: npm run build -w @gymbuddy/client
+        run: npm run build -w @gymyar/client
       - name: End-to-end smoke test
         run: |
           node packages/db/src/cli.js reset
-          npm start -w @gymbuddy/api &
+          npm start -w @gymyar/api &
           npx wait-on -t 30000 http://127.0.0.1:3000/api/health
           ./infra/scripts/smoke.sh http://127.0.0.1:3000
       - name: Browser end-to-end test
@@ -69,8 +69,8 @@ jobs:
           npx playwright install --with-deps chromium
           node packages/db/src/cli.js reset
           SEED_DEMO=1 node packages/db/src/cli.js demo
-          npm start -w @gymbuddy/api &
-          npm run dev -w @gymbuddy/client -- --port 5173 --host 127.0.0.1 &
+          npm start -w @gymyar/api &
+          npm run dev -w @gymyar/client -- --port 5173 --host 127.0.0.1 &
           npx wait-on -t 60000 http://127.0.0.1:5173/api/health
           node infra/scripts/e2e.mjs http://127.0.0.1:5173
 

@@ -1,4 +1,4 @@
-# The GymBuddy project site
+# The GymYar project site
 
 Source of the marketing site — plain hand-written HTML/CSS/JS, no build step, served by
 nginx. Three pages (`index`, `docs`, `about`), one stylesheet, one small script — and a
@@ -10,15 +10,15 @@ Not in this folder (added at deploy time):
   set that `fa/index.html` points at. Both come from `../../assets/screenshots/`.
 - `icon-180.png` / `icon-512.png` — copied from `../client/public/`, so the browser tab,
   the home-screen icon and the app itself all match
-- `GymBuddy.apk` — the signed release build, if you serve it directly (see `docs/RELEASING.md`)
+- `GymYar.apk` — the signed release build, if you serve it directly (see `docs/RELEASING.md`)
 
 ## Before deploying
 
-- **Set the domain.** `index.html` carries `https://gymbuddy.example/` in its Open Graph
+- **Set the domain.** `index.html` carries `https://gymyar.example/` in its Open Graph
   `og:url` and `og:image` and in the JSON-LD `url`. Open Graph needs absolute URLs, so these
   cannot be made relative — they have to be edited.
 - ~~**Set the repository.**~~ Done: `REPO` in `site.js` points at
-  `github.com/kiagram/gymbuddy`, so the `data-repo` links are live — nav, footer, and the
+  `github.com/kiagram/gymyar`, so the `data-repo` links are live — nav, footer, and the
   open-source button row, in both languages. Paths use `/blob/HEAD/`, which resolves to the
   default branch; `/blob/main/` would serve openGym's files, since `main` is the import.
 - **The screenshots are current.** `../../assets/screenshots/` holds the English set and
@@ -30,9 +30,9 @@ Not in this folder (added at deploy time):
 
 ## Colour
 
-The accent is GymBuddy red, `#e63935`, matching `--brand` in the app's `index.css`.
-Filled controls use `--acc-fill: #d42e2a` instead: white text on the brand red is 4.2:1,
-which misses AA, and one step darker clears it at 5:1 while reading as the same colour.
+The accent is GYMYAR emerald, `#1fa774`, matching `--brand` in the app's `index.css`.
+Filled controls use `--acc-fill: #17835b` instead: white text on the brand emerald is 3.1:1,
+which misses AA, and one step darker clears it at 4.7:1 while reading as the same colour.
 
 ## The Persian site
 

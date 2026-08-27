@@ -14,7 +14,7 @@
  *   npm run api
  *   npm run dev
  *
- * It signs in as sam@gymbuddy.test — the demo client who shares every scope and has twelve
+ * It signs in as sam@gymyar.test — the demo client who shares every scope and has twelve
  * weeks of training behind them, so no screen comes out empty. A store will reject a set that
  * shows placeholder data, which is the whole reason to shoot against the seed rather than a
  * fresh account.
@@ -96,11 +96,11 @@ console.log(`capturing ${FA ? 'fa' : 'en'} from ${BASE} → ${OUT}`)
 await page.goto(BASE, { waitUntil: 'networkidle' })
 await page.waitForTimeout(1200)
 await page.getByRole('button', { name: /email and password/i }).click()
-await page.getByPlaceholder('Email').fill('sam@gymbuddy.test')
-await page.getByPlaceholder('Password').fill('gymbuddy-demo-1')
+await page.getByPlaceholder('Email').fill('sam@gymyar.test')
+await page.getByPlaceholder('Password').fill('gymyar-demo-1')
 await page.getByRole('button', { name: /^Sign in$/ }).click()
 await page.waitForTimeout(3500)
-console.log('  signed in as sam@gymbuddy.test')
+console.log('  signed in as sam@gymyar.test')
 
 if (FA) {
   /* The UI language is a per-account setting, so the browser's locale alone does not touch it.

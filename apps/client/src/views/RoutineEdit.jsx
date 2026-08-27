@@ -1,18 +1,18 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useStore } from '../store/useStore.js'
-import { exOr } from '@gymbuddy/domain'
-import { uid } from '@gymbuddy/domain'
+import { exOr } from '@gymyar/domain'
+import { uid } from '@gymyar/domain'
 import { t, exName } from '../lib/i18n.js'
-import { supersetUnits, cleanupSg, exLine } from '@gymbuddy/domain'
+import { supersetUnits, cleanupSg, exLine } from '@gymyar/domain'
 import { Thumb } from '../components/Media.jsx'
 import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
 import { Button, SelectRow } from '../components/ui.jsx'
-import { POLICIES_FOR, POLICY_NAME, POLICY_DESC } from '@gymbuddy/domain'
+import { POLICIES_FOR, POLICY_NAME, POLICY_DESC } from '@gymyar/domain'
 import BodyMap from '../components/BodyMap.jsx'
-import { loadOfRoutine, rankOf, MUSCLE_NAME } from '@gymbuddy/domain'
+import { loadOfRoutine, rankOf, MUSCLE_NAME } from '@gymyar/domain'
 
 export default function RoutineEdit() {
   const nav = useNavigate()

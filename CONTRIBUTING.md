@@ -1,6 +1,6 @@
-# Contributing to GymBuddy
+# Contributing to GymYar
 
-Thanks for taking a look. GymBuddy is a coaching platform built on
+Thanks for taking a look. GymYar is a coaching platform built on
 [openGym](https://gitea.com/DuarteSantos/openGym) — the tracker half is deliberately small and
 dependency-light, and the goal is to keep it that way while the coaching half stays boringly
 strict about who may write what.
@@ -50,7 +50,7 @@ throwaway database will do.
 Three invariants hold this product together. A change that breaks one is wrong even if every
 test passes, so they get stated rather than left to be inferred.
 
-- **A coach never writes a client's rows.** Coach-authored changes land in `routine_revisions`
+- **A coach never writes a client's rows.** Coach-authored changes land in `proposals`
   and become real only when the client accepts, at which point they are written as the client's
   own row through the normal sync path. One writer per row is what makes two-party editing safe
   without merge machinery. Do not add a route that writes another user's training.
@@ -104,7 +104,7 @@ test passes, so they get stated rather than left to be inferred.
 
 ## Where to ask what
 
-> GymBuddy has no public repository yet, so there is nowhere to file an issue or open a pull
+> GymYar has no public repository yet, so there is nowhere to file an issue or open a pull
 > request — see [docs/PUBLISHING.md](docs/PUBLISHING.md). Until there is one, talk to the
 > maintainer directly. When it exists, this section should name its issue tracker and
 > discussions, and nothing else.
@@ -120,5 +120,5 @@ it is about coaching, say which side you were on and which scopes were granted.
 ## Licence
 
 By contributing you agree your work is licensed under the project's
-[GNU AGPL v3.0](LICENSE) or later. GymBuddy is a derivative work of openGym and stays on its
+[GNU AGPL v3.0](LICENSE) or later. GymYar is a derivative work of openGym and stays on its
 licence; see [NOTICE.md](NOTICE.md) for the attribution chain you are contributing into.

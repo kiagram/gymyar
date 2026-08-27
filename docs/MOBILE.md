@@ -1,6 +1,6 @@
 # Building the mobile app (iOS / Android)
 
-GymBuddy ships in two flavours from one codebase, and they are genuinely different products:
+GymYar ships in two flavours from one codebase, and they are genuinely different products:
 
 | | **Web / PWA** (the default) | **Native app** (`VITE_MOBILE=1`) |
 |---|---|---|
@@ -13,7 +13,7 @@ GymBuddy ships in two flavours from one codebase, and they are genuinely differe
 | Exercise media | served by your server (`img/`, `gif/`) | from the jsDelivr CDN |
 
 The native flavour never talks to a backend: no sign-in screen, no sync, no telemetry. State is
-mirrored from `localStorage` into `gymbuddy-state.json` in the app's private data directory on
+mirrored from `localStorage` into `gymyar-state.json` in the app's private data directory on
 every change — iOS may evict WebView storage under pressure, so the file is the durable copy
 and is restored on launch. Backups go out through the OS share sheet rather than a browser
 download.

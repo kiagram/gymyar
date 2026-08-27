@@ -56,7 +56,13 @@ const stamp = v => (v == null ? null : new Date(v).toISOString())
  * finished on the phone it was started on. */
 export const SETTING_KEYS = [
   'unit', 'restSec', 'sound', 'keepAwake', 'lang', 'theme', 'accent', 'body', 'targetW',
-  'gifSize', 'reminder', 'effort', 'showRir', 'exWeights'
+  'gifSize', 'reminder', 'effort', 'showRir', 'exWeights',
+  /* Which server-sent notifications this person wants. Here rather than in a table of its own
+   * because it is a preference like every other one in this list, and putting it in the blob the
+   * client already syncs means the switch somebody flips and the row the API reads before
+   * sending are the same row. `true`/absent is everything, `false` is nothing, an object is
+   * per kind — see apps/api/src/notify.js. */
+  'push'
 ]
 
 /* A logged workout entry does not carry the mode its sets were recorded in — that lives on the
@@ -292,11 +298,40 @@ export function stateToRows(S, { userId, modeFor }) {
     .map(([weekday, routineId]) => ({ user_id: userId, weekday: Number(weekday), routine_id: routineId }))
   const dayOverrides = Object.entries(S.dayPlan || {})
     .map(([on_date, routine_id]) => ({ user_id: userId, on_date, routine_id: routine_id || null }))
+  /* Same shape as a weigh-in and for the same reason: one per person per day, so the date is
+   * the key and there is no id to generate. `a` is the answers object, `tpl` the template they
+   * were answering, `at` when it was submitted — null while it is still a draft. */
+  const checkins = (S.checkins || []).map(c => ({
+    user_id: userId,
+    on_date: c.d,
+    template_id: c.tpl ?? null,
+    answers: c.a ?? {},
+    submitted_at: c.at ?? null
+  }))
+  /* A habit carries who wrote it, like a routine — that is how a coach-suggested one stays
+   * distinguishable from one somebody invented, after the proposal that delivered it is gone. */
+  const habits = (S.habits || []).map((h, i) => ({
+    id: h.id,
+    user_id: userId,
+    author_id: h.by ?? userId,
+    assigned_by: h.link ?? null,
+    title: h.title,
+    target_per_week: h.target ?? 7,
+    position: i,
+    archived_at: h.arch ?? null
+  }))
+  // A tick is its two keys and nothing else — the row's existence is the fact it records.
+  const habitTicks = (S.habitTicks || []).map(t => ({
+    user_id: userId, habit_id: t.h, on_date: t.d
+  }))
   const exercises = (S.customEx || []).map(ex => customToRow(ex, { userId }))
   const settings = {}
   for (const k of SETTING_KEYS) if (S[k] !== undefined) settings[k] = S[k]
 
-  return { routines, workouts, workoutSets, bodyweight, weekPlan, dayOverrides, exercises, settings }
+  return {
+    routines, workouts, workoutSets, bodyweight, weekPlan, dayOverrides, checkins,
+    habits, habitTicks, exercises, settings
+  }
 }
 
 /**
@@ -336,6 +371,45 @@ export function applyRows(S, changes, { modeFor }) {
       else by.set(d, { d, w: fromKg(num(row.weight_kg), unit) })
     }
     next.bodyweight = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1))
+  }
+
+  if (changes.checkins) {
+    const by = new Map((next.checkins || []).map(c => [c.d, c]))
+    for (const row of changes.checkins) {
+      const d = iso(row.on_date)
+      if (row.deleted_at) by.delete(d)
+      else by.set(d, { d, tpl: row.template_id ?? null, a: row.answers ?? {}, at: stamp(row.submitted_at) })
+    }
+    next.checkins = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1))
+  }
+
+  if (changes.habits) {
+    const by = new Map((next.habits || []).map(h => [h.id, h]))
+    for (const row of changes.habits) {
+      if (row.deleted_at) by.delete(row.id)
+      else {
+        by.set(row.id, {
+          id: row.id,
+          title: row.title,
+          target: row.target_per_week ?? 7,
+          by: row.author_id ?? null,
+          link: row.assigned_by ?? null,
+          arch: stamp(row.archived_at)
+        })
+      }
+    }
+    next.habits = [...by.values()]
+  }
+
+  if (changes.habitTicks) {
+    const by = new Map((next.habitTicks || []).map(t => [`${t.h}|${t.d}`, t]))
+    for (const row of changes.habitTicks) {
+      const d = iso(row.on_date)
+      const key = `${row.habit_id}|${d}`
+      if (row.deleted_at) by.delete(key)
+      else by.set(key, { h: row.habit_id, d })
+    }
+    next.habitTicks = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1))
   }
 
   if (changes.exercises) {

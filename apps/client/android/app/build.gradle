@@ -9,7 +9,7 @@ apply plugin: 'com.android.application'
  *
  * Two ways in, because releases happen in two places:
  *   - `android/keystore.properties` on a maintainer's machine (gitignored)
- *   - GYMBUDDY_KEYSTORE_* in the environment, for CI, where files are the wrong shape
+ *   - GYMYAR_KEYSTORE_* in the environment, for CI, where files are the wrong shape
  *
  * With neither, `assembleRelease` still builds — unsigned. That is deliberate: a contributor
  * checking that the release build compiles should not need a key, and an unsigned artifact
@@ -25,17 +25,17 @@ if (keystorePropertiesFile.exists()) {
  * signing DSL's own setters inside the closure below, where `storePassword storePassword`
  * can bind to the delegate's getter instead of this local and pass null to a build that
  * still succeeds — producing an unsigned artifact that looks signed. */
-def ksFile = keystoreProperties['storeFile'] ?: System.getenv('GYMBUDDY_KEYSTORE_FILE')
-def ksStorePassword = keystoreProperties['storePassword'] ?: System.getenv('GYMBUDDY_KEYSTORE_PASSWORD')
-def ksKeyAlias = keystoreProperties['keyAlias'] ?: System.getenv('GYMBUDDY_KEY_ALIAS')
-def ksKeyPassword = keystoreProperties['keyPassword'] ?: System.getenv('GYMBUDDY_KEY_PASSWORD')
+def ksFile = keystoreProperties['storeFile'] ?: System.getenv('GYMYAR_KEYSTORE_FILE')
+def ksStorePassword = keystoreProperties['storePassword'] ?: System.getenv('GYMYAR_KEYSTORE_PASSWORD')
+def ksKeyAlias = keystoreProperties['keyAlias'] ?: System.getenv('GYMYAR_KEY_ALIAS')
+def ksKeyPassword = keystoreProperties['keyPassword'] ?: System.getenv('GYMYAR_KEY_PASSWORD')
 def canSign = ksFile && ksStorePassword && ksKeyAlias && ksKeyPassword && file(ksFile).exists()
 
 android {
-    namespace "com.gymbuddy.app"
+    namespace "com.gymyar.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.gymbuddy.app"
+        applicationId "com.gymyar.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 10000
@@ -72,7 +72,7 @@ android {
             if (canSign) {
                 signingConfig signingConfigs.release
             } else {
-                logger.lifecycle('GymBuddy: no keystore configured — the release build will be UNSIGNED.')
+                logger.lifecycle('GymYar: no keystore configured — the release build will be UNSIGNED.')
             }
         }
     }

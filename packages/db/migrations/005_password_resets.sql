@@ -1,4 +1,4 @@
--- GymBuddy 005 — a way back into an account.
+-- GymYar 005 — a way back into an account.
 --
 -- Email and password sign-in shipped without one, which made "I forgot my password" the end of
 -- an account rather than an inconvenience. Passkeys have no equivalent problem — the

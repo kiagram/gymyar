@@ -7,9 +7,9 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest'
 import { build } from './app.js'
 import { client } from './test-client.js'
-import { db, close } from '@gymbuddy/db'
-import { setPaidThrough, ensureTrial, subscriptionFor } from '@gymbuddy/db/billing.js'
-import { TRIAL_DAYS, GRACE_DAYS } from '@gymbuddy/domain/entitlement.js'
+import { db, close } from '@gymyar/db'
+import { setPaidThrough, ensureTrial, subscriptionFor } from '@gymyar/db/billing.js'
+import { TRIAL_DAYS, GRACE_DAYS } from '@gymyar/domain/entitlement.js'
 
 const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
 const DAY = 86400000
@@ -51,7 +51,7 @@ beforeAll(async () => {
   // environment, because whether coaching is paid for is a property of the deployment.
   process.env.ZARINPAL_MERCHANT_ID = 'test-merchant'
   app = await build({ databaseUrl: URL, rateLimit: false, gateway: gatewayProxy })
-  const { seedExercises } = await import('@gymbuddy/db/seed-exercises.js')
+  const { seedExercises } = await import('@gymyar/db/seed-exercises.js')
   await seedExercises()
 })
 beforeEach(async () => {

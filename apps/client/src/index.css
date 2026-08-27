@@ -1,8 +1,34 @@
+/* Vazirmatn, the UI face for both languages. One variable file carries every weight the
+ * sheet asks for (100–900), which is why there is a single @font-face here rather than the
+ * usual seven.
+ *
+ * It is bundled rather than named-and-hoped-for. The previous stack listed 'Vazirmatn' and
+ * 'IRANSans' after the Latin system faces, but neither ships on Android or iOS, so Persian
+ * fell through to whatever Arabic face the platform happened to carry — a different
+ * typeface per device, and none of them chosen. It also leads the stack for English: the UI
+ * mixes scripts constantly ("بارگذاری برنامه آماده (PPL)", kg, exercise names), and with a
+ * Latin-first stack each of those runs was set in a different typeface inside one line.
+ *
+ * SIL OFL 1.1 — see assets/fonts/OFL.txt and NOTICE.md. */
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('./assets/fonts/vazirmatn-variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ============================================================================
-   GymBuddy — design system
+   GYMYAR — design system
    ----------------------------------------------------------------------------
-   Rebuilt around four rules, each aimed at a specific "generated" tell in the
+   Rebuilt around five rules, each aimed at a specific "generated" tell in the
    previous sheet:
+
+   0. ONE TYPEFACE, BOTH SCRIPTS. Vazirmatn is bundled and leads the stack in
+      English as well as Persian. The market is Persian and the UI mixes scripts
+      inside single lines — a Latin-first stack set each half of "برنامه (PPL)"
+      in a different face. See the @font-face above, and the Persian block at the
+      foot of this file, which undoes the Latin scale's tracking.
 
    1. ONE TYPE SCALE, MOSTLY REGULAR WEIGHT. The old sheet set font-weight 700/800
       on nearly every element, which flattens hierarchy — when everything shouts,
@@ -41,11 +67,11 @@
   --yellow:#ffd60a; --teal:#40c8e0; --indigo:#5e5ce6; --pink:#ff375f;
   --purple:#bf5af2; --mint:#63e6e2; --brown:#ac8e68; --grey:#8e8e93;
 
-  /* GymBuddy red. Not a system colour and not --red: --red is the error colour and stays
-   * Apple's, because a destructive action should look the way the OS says it looks. This is
-   * the brand's, it is the same in both themes, and it is what logo/ is drawn in. */
-  --brand:#e63935;
-  --brand-2:#b4231f;
+  /* GYMYAR emerald. Not a system colour and not --green: --green is a system accent and
+   * stays Apple's, so that a recolour to green still looks like the OS. This is the
+   * brand's, it is the same in both themes, and it is what logo/ is drawn in. */
+  --brand:#1fa774;
+  --brand-2:#177d57;
 
   /* accent (per-account, synced) */
   --acc:  var(--brand);
@@ -90,8 +116,10 @@
 }
 
 /* accents — Apple's system colours, so a recolour never looks off-system. The exception is
- * the first one, which is the brand's own red: it is the default, and picking it back is how
- * someone returns to the way the app ships. */
+ * the first one, which is the brand's own emerald: it is the default, and picking it back is
+ * how someone returns to the way the app ships. Its key is still "red" because that string is
+ * persisted per account and synced; renaming it would strand every account that has chosen it,
+ * and the key is never shown to anyone. */
 :root[data-accent="red"]   { --acc:var(--brand);  --acc-2:var(--brand-2); --on-acc:#fff }
 :root[data-accent="lime"]  { --acc:var(--green);  --acc-2:#248a3d; --on-acc:#000 }
 :root[data-accent="sky"]   { --acc:var(--blue);   --acc-2:#0060df; --on-acc:#fff }
@@ -103,9 +131,10 @@
 /* Label colour on a filled accent button is picked per accent by measured contrast,
    not by taste. Button text is 17px/600, so the AA bar is 3:1 (large text). White on
    the light-theme green is 2.22:1 and on teal 2.57:1 — both fail, so those two take
-   black, which scores 9.46 / 8.16. Blue, purple, pink and red keep white, which both
-   passes and matches the platform convention. Brand red is the strongest of them at
-   4.18:1, and it is the default, so the button the app ships with is the safest one. */
+   black, which scores 9.46 / 8.16. Blue, purple, pink and the brand keep white, which
+   both passes and matches the platform convention. Brand emerald clears the bar by the
+   least of them at 3.07:1, so it is the one to re-measure if this button ever takes
+   smaller text — below 18.66px the bar becomes 4.5:1 and emerald would no longer pass. */
 :root[data-theme="light"][data-accent="lime"],
 :root[data-theme="light"][data-accent="teal"]  { --on-acc:#000 }
 :root[data-theme="light"][data-accent="sky"],
@@ -121,7 +150,7 @@ html{
 }
 body{
   background:var(--bg);color:var(--label);
-  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Segoe UI',Roboto,system-ui,'Vazirmatn','IRANSans','Tahoma',sans-serif;
+  font-family:'Vazirmatn',-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Segoe UI',Roboto,system-ui,sans-serif;
   font-size:17px;line-height:1.29;letter-spacing:-.01em;
   min-height:100vh;overscroll-behavior-y:none;overflow-x:clip;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
@@ -284,11 +313,15 @@ h4.sec{
   position:fixed;left:0;right:0;bottom:0;z-index:50;
   display:flex;justify-content:space-around;align-items:flex-end;
   padding:7px 6px calc(6px + var(--sab));
-  background:color-mix(in srgb,var(--bg-el) 72%,transparent);
+  /* 72% left card text legible enough through the blur to read as a second row of labels
+   * behind the real ones. Persian makes it worse than English did — the labels are short
+   * (خانه, آمار) and the body text behind them is dense, so the ghost had more ink than the
+   * label. 88% still reads as glass over a scrolling list without competing with the tabs. */
+  background:color-mix(in srgb,var(--bg-el) 88%,transparent);
   backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);
   border-top:var(--hair) solid var(--sep-op);
 }
-:root[data-theme="light"] #tabbar{background:rgba(249,249,251,.78)}
+:root[data-theme="light"] #tabbar{background:rgba(249,249,251,.90)}
 #tabbar button{
   flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
   color:var(--label-3);font-size:10px;font-weight:500;letter-spacing:.005em;padding-top:3px;
@@ -994,3 +1027,22 @@ h4.sec{
 /* Chevrons and arrows point at something. Icons without a direction — a dumbbell, a cog —
  * are not marked `icn-dir` and stay as drawn. */
 [dir="rtl"] .icn-dir{transform:scaleX(-1)}
+
+/* ---------------------------------------------------------------- persian -- */
+/* The type scale above carries slight negative tracking at every step, which is how the
+ * Latin UI faces are meant to be set. Arabic script is cursive: the letters of a word are
+ * joined, and pulling them together tightens joins that are already touching, so Persian
+ * set on that scale reads as a smear rather than as words. There is no per-step Persian
+ * value to pick either — the right amount is none — so the whole scale is neutralised in
+ * one rule instead of restating thirty-six of them. Positive tracking is neutralised too:
+ * it exists here only under `text-transform:uppercase`, which Arabic script has no case
+ * for, leaving loose Persian labels and no capitals to show for it. */
+:root[lang="fa"] *{letter-spacing:normal}
+
+/* Persian needs more leading than the Latin scale allows. Its ascenders and descenders
+ * travel further from the baseline than Latin's, and the dots that distinguish پ from ب
+ * from ت sit below that again — at 1.29 the descenders of one line land in the dots of the
+ * next, which is the difference between a word being legible and being guessed. Only the
+ * inherited default moves; the scale's own tighter values stay where a component depends
+ * on a fixed line box. */
+:root[lang="fa"] body{line-height:1.5}

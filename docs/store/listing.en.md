@@ -15,7 +15,7 @@ bottom. It may not be the pitch.
 Field limits: Google Play 30 characters, App Store 30, Cafe Bazaar 50.
 
 ```
-GymBuddy — Workout Tracker
+GymYar — Workout Tracker
 ```
 25 characters.
 
@@ -40,7 +40,7 @@ Offline workout log
 Under 4000 characters everywhere that matters.
 
 ```
-GymBuddy is a gym and body-weight tracker that stays out of your way.
+GymYar is a gym and body-weight tracker that stays out of your way.
 
 No account. No sign-up. No internet connection. Open it and start logging — your training
 lives on your phone and never leaves it.
@@ -71,7 +71,7 @@ It is also free, with nothing to buy inside it.
 
 OPEN SOURCE
 
-GymBuddy is AGPL-3.0 and the source is public. It is built on openGym.
+GymYar is AGPL-3.0 and the source is public. It is built on openGym.
 
 If you train with a coach, there is a web version at [SITE URL] that adds accounts, sync
 across devices and coach-to-client programming. This app is the offline half, and it is

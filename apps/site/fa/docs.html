@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>راهنما — جیم‌بادی</title>
-<meta name="description" content="راه‌اندازی جیم‌بادی روی سرور خودتان با داکر، نصب روی اندروید و آیفون، وصل کردن مربی به شاگرد، آوردن سابقه تمرین، و گرفتن پشتیبان.">
+<title>راهنما — جیم‌یار</title>
+<meta name="description" content="راه‌اندازی جیم‌یار روی سرور خودتان با داکر، نصب روی اندروید و آیفون، وصل کردن مربی به شاگرد، آوردن سابقه تمرین، و گرفتن پشتیبان.">
 <meta name="theme-color" content="#0c0e12">
 <meta property="og:locale" content="fa_IR">
 <link rel="alternate" hreflang="en" href="/docs.html">
@@ -20,7 +20,7 @@
 <nav><div class="wrap nav-in">
   <a class="brand" href="/fa/">
     <img src="/icon-180.png" alt="" width="26" height="26" style="border-radius:6px">
-    GymBuddy
+    GymYar
   </a>
   <div class="nav-links">
     <a href="/fa/#coaching" class="hide-s">مربی‌گری</a>
@@ -37,7 +37,7 @@
 
 <main class="wrap prose">
   <h1>راهنما</h1>
-  <p class="lead">هرچه برای راه انداختن جیم‌بادی لازم دارید — روی سرور خودتان، یا به‌شکل یک
+  <p class="lead">هرچه برای راه انداختن جیم‌یار لازم دارید — روی سرور خودتان، یا به‌شکل یک
      برنامه روی گوشی. سندهای سطح نگهدارنده (معماری، انتشار، فهرست فروشگاه‌ها) در مخزن پروژه
      زیر پوشه <code>docs/</code> هستند و به انگلیسی نوشته شده‌اند.</p>
 
@@ -56,8 +56,8 @@
   <p>این محصول کامل است: حساب کاربری، همگام‌سازی، مربی‌گری، و همان PWA‌ای که مردم روی گوشیشان
      نصب می‌کنند. به <a href="https://docs.docker.com/get-docker/" rel="noopener">داکر</a> با
      افزونه Compose نیاز دارید. Node لازم نیست — ایمیج‌ها خودشان برنامه را می‌سازند.</p>
-  <pre><code>git clone &lt;your-repo&gt; gymbuddy
-cd gymbuddy
+  <pre><code>git clone &lt;your-repo&gt; gymyar
+cd gymyar
 cp .env.example .env
 docker compose up -d --build</code></pre>
   <p><code>http://localhost:8080</code> را باز کنید و یک پروفایل بسازید. اولین اجرا، یک‌بار
@@ -97,7 +97,7 @@ docker compose up -d --build</code></pre>
      رایگان است. <a href="/fa/#pricing">هزینه</a> را ببینید.</p>
 
   <h2 id="iphone">استفاده روی آیفون</h2>
-  <p>نمونه جیم‌بادی خودتان را در سافاری باز کنید، بعد <b>Share</b> ← <b>Add to Home Screen</b>.
+  <p>نمونه جیم‌یار خودتان را در سافاری باز کنید، بعد <b>Share</b> ← <b>Add to Home Screen</b>.
      یک برنامه تمام‌صفحه با نشان خودش می‌گیرید، با ورود گذرکلید، همگام‌سازی و تمام مربی‌گری —
      بدون انقضا، بدون هزینه، بدون فروشگاه.</p>
   <p>این جایزه دلداری نیست: PWA محصول <i>کامل</i> است و نسخه‌های بومی، همان نسخه‌های آفلاینِ
@@ -168,7 +168,7 @@ docker compose up -d --build</code></pre>
      هیچ‌وقت دفتر تمرین کسی. اگر خودتان میزبانی کنید و درگاه پرداختی نگذارید، مربی‌گری هم
      رایگان است.</p>
 
-  <h3>جیم‌بادی چه داده‌ای جمع می‌کند؟</h3>
+  <h3>جیم‌یار چه داده‌ای جمع می‌کند؟</h3>
   <p>هیچ. نه تله‌متری، نه ابزار تحلیل رفتار، نه گزارش خطا. نمونه‌ای که خودتان راه انداخته‌اید
      فقط با سرور خودتان حرف می‌زند؛ برنامه اندروید با هیچ سروری حرف نمی‌زند.</p>
 
@@ -191,7 +191,7 @@ docker compose up -d --build</code></pre>
   <p>نام‌ها و توضیح‌ها از پروژه
      <a href="https://github.com/hasaneyldrm/exercises-dataset" rel="noopener">hasaneyldrm/exercises-dataset</a>
      می‌آید. <b>تصویرها و انیمیشن‌ها © <a href="https://gymvisual.com/" rel="noopener">Gym visual</a>
-     هستند و مشمول مجوز جیم‌بادی نیستند</b> — در اولین اجرا از منبع اصلی دانلود می‌شوند و
+     هستند و مشمول مجوز جیم‌یار نیستند</b> — در اولین اجرا از منبع اصلی دانلود می‌شوند و
      اینجا بازتوزیع نشده‌اند، و اجازه واگذاری‌شان هم دست ما نیست. یک راه‌اندازی تجاری به مجوز
      خودش برای آن‌ها نیاز دارد، یا به تصویرهای خودش؛ نشانی رسانه در سطر هر حرکت است، پس عوض
      کردن منبع یک به‌روزرسانی پایگاه داده است. جزئیات کامل در <code>NOTICE.md</code> پروژه.</p>
@@ -203,14 +203,14 @@ docker compose up -d --build</code></pre>
      ببینید.</p>
 
   <h3>از openGym می‌آیم. داده‌ام را می‌توانم بیاورم؟</h3>
-  <p>بله. جیم‌بادی همان تمرین را به‌جای یک سند JSON در یک شِمای رابطه‌ای ذخیره می‌کند، و کدی
+  <p>بله. جیم‌یار همان تمرین را به‌جای یک سند JSON در یک شِمای رابطه‌ای ذخیره می‌کند، و کدی
      که فایل وضعیت openGym را به سطر تبدیل می‌کند داخل خود پروژه است نه در یک اسکریپت یک‌بارمصرف
      — دانه‌کار نمایشی هم از همان عبور می‌کند، پس این مهاجرت در هر بار کاشت آزموده می‌شود. برای
      یک حساب، فایل پشتیبان openGym از <b>تنظیمات ← داده‌ها ← ورود پشتیبان</b> وارد می‌شود.</p>
 </main>
 
 <footer><div class="wrap foot">
-  <span>GymBuddy · AGPL-3.0 · ساخته‌شده بر پایه <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> نوشته Duarte Santos</span>
+  <span>GymYar · AGPL-3.0 · ساخته‌شده بر پایه <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> نوشته Duarte Santos</span>
   <div class="links">
     <a href="docs.html">راهنما</a>
     <a href="about.html" class="hide-s">درباره</a>

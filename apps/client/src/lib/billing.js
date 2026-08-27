@@ -6,8 +6,8 @@
  * the moment of asking anyway.
  */
 import { api } from './api.js'
-import { extend } from '@gymbuddy/domain/entitlement.js'
-import { fmtNum } from '@gymbuddy/domain'
+import { extend } from '@gymyar/domain/entitlement.js'
+import { fmtNum } from '@gymyar/domain'
 import { t, getLang, dateLocale } from './i18n.js'
 
 export const fetchBilling = () => api('/api/billing/status')
@@ -121,7 +121,7 @@ export const readOutcome = key => (CHECKOUT_OUTCOMES[key] ? CHECKOUT_OUTCOMES[ke
  * What a tier is called on screen.
  *
  * Its capacity, not its internal name. "Studio" means nothing to somebody choosing between
- * three cards, and it would need translating into twelve languages to still mean nothing; the
+ * three cards, and it would need translating to still mean nothing; the
  * number of clients is the thing they are actually picking between, and it needs translating
  * once. Null is the uncapped case — a subscriber from before tiers existed, or a trial.
  */

@@ -4,7 +4,7 @@
  * too — the coach picking movements for someone else's programme is not that client, and the
  * AI worker has no bundle at all.
  */
-import { db } from '@gymbuddy/db'
+import { db } from '@gymyar/db'
 import { requireUser } from '../session.js'
 
 export default async function exerciseRoutes(app) {

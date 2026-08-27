@@ -1,4 +1,4 @@
-# How GymBuddy is put together
+# How GymYar is put together
 
 ## The problem this shape solves
 
@@ -58,7 +58,7 @@ The outbox is the difference between two states rather than a list that could be
 ## Coaching
 
 **A coach never writes a client's rows.** Their version of a programme lands in
-`routine_revisions` with a note, and the client sees what would change — sets and reps, before and
+`proposals` with a note, and the client sees what would change — sets and reps, before and
 after — before deciding. On accept it is written as the client's own row, in the same transaction
 that resolves the proposal.
 
@@ -111,6 +111,23 @@ coach says nothing about sharing a photograph of your body, and folding the two 
 decide that on the client's behalf. Files on a message are read by the two people in the
 conversation, which membership already settles. A coach never uploads into a client's account,
 for the same reason they never write a client's routine.
+
+**Check-ins.** The template is the coach's row and the answer is the client's, written through
+their own sync — one per person per day, keyed by the date like a weigh-in, so two offline
+devices answering the same Saturday merge rather than collide. A coach reads them through the
+`checkins` scope, which is in the default invitation because answering questions you have read
+is itself the consent. `photos` is not, and a check-in that asks for a picture still gets it as
+an attachment behind that scope rather than growing a column of its own. A check-in with no
+`submitted_at` is a draft: it syncs so it survives a closed app, and no coach ever sees it.
+
+**Habits.** Both the habit and its ticks are the client's rows, synced, because a habit is ticked
+on a phone that is often offline. A coach-suggested one arrives as a proposal of `kind = 'habit'`
+and carries `author_id` and `assigned_by` afterwards, exactly as an accepted programme does — so
+a suggested habit and a self-made one are the same row differing only in who is recorded as
+having written it. A tick has no `done` column: the row is the fact, unticking is a tombstone,
+and the pair `(habit, date)` is its address in the change log. Read through the `habits` scope,
+which is separate from `checkins` because a weekly summary and a daily tick grid are different
+disclosures.
 
 ## The AI layer
 

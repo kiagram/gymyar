@@ -14,7 +14,7 @@ import { Section, Row, Button } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
-import { fmtDate, fmtNum } from '@gymbuddy/domain'
+import { fmtDate, fmtNum } from '@gymyar/domain'
 import { daysSince } from '../lib/coaching.js'
 
 const lastSeen = at => {

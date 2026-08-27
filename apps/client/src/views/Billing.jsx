@@ -177,7 +177,7 @@ export default function Billing() {
       {status && <Notice tone={status.tone} title={status.title} detail={status.detail} />}
 
       {!data.enabled ? (
-        /* No gateway on this instance — a self-hosted GymBuddy. There is nothing to sell and
+        /* No gateway on this instance — a self-hosted GymYar. There is nothing to sell and
          * saying "subscribe" would be asking for money nobody can take. */
         <Section>
           <div style={{ padding: '28px 16px', textAlign: 'center' }}>

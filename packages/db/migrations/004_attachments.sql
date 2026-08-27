@@ -1,4 +1,4 @@
--- GymBuddy 004 — the index for bytes that are not in this database.
+-- GymYar 004 — the index for bytes that are not in this database.
 --
 -- Every table before this one holds the thing itself: a set is its numbers, a message is its
 -- text, and a pg_dump is the whole of what a person has. Form-check video is not that, so this

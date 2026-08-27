@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { imgSrc, gifSrc } from '@gymbuddy/domain'
+import { imgSrc, gifSrc } from '@gymyar/domain'
 import { useStore } from '../store/useStore.js'
 import { t, exName } from '../lib/i18n.js'
 import Icon from './Icon.jsx'

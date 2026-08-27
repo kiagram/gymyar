@@ -16,6 +16,7 @@
  * a coach editing a client's programme mid-session — is gone structurally, because a coach
  * never writes a client's rows at all; their version arrives as a proposal.
  */
+import { normaliseAnswers, fieldsOf } from '@gymyar/domain'
 import { db, logChange, cursorFor } from './index.js'
 
 /* A guarded upsert whose WHERE clause fails does not error — ON CONFLICT DO UPDATE simply
@@ -30,11 +31,22 @@ function assertWrote(rows, table, id) {
   }
 }
 
+/* A `date` column as the calendar day it names. postgres.js hands these back as Date objects at
+ * UTC midnight, and a row address built with local getters would be a different string west of
+ * Greenwich than east of it — for the same row. */
+const isoDay = v => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10))
+
 /* Which client-facing key each table is returned under, and how a row is addressed. */
 const TABLES = {
   routines:           { key: 'routines',     id: r => r.id },
   workouts:           { key: 'workouts',     id: r => r.id },
   bodyweight_entries: { key: 'bodyweight',   id: r => String(r.on_date) },
+  checkins:           { key: 'checkins',     id: r => String(r.on_date) },
+  habits:             { key: 'habits',       id: r => r.id },
+  /* Two columns in one address. The date is always the last ten characters of it, which is why
+   * `readRows` reads it off the end rather than splitting on a separator a habit id might one
+   * day contain. */
+  habit_ticks:        { key: 'habitTicks',   id: r => `${r.habit_id}:${isoDay(r.on_date)}` },
   exercises:          { key: 'exercises',    id: r => r.id },
   week_plan:          { key: 'weekPlan',     id: r => String(r.weekday) },
   day_overrides:      { key: 'dayOverrides', id: r => String(r.on_date) },
@@ -73,7 +85,8 @@ export async function pull(userId, since = 0, s = db()) {
 /** Everything a user has, as a first sync. Also how a coach reads a client's training. */
 export async function pullAll(userId, s = db()) {
   const cursor = await cursorFor(userId, s)
-  const [routines, workouts, bodyweight, exercises, weekPlan, dayOverrides, settings] =
+  const [routines, workouts, bodyweight, exercises, weekPlan, dayOverrides, checkins,
+         habits, habitTicks, settings] =
     await Promise.all([
       s`select * from routines where user_id = ${userId} and deleted_at is null order by position`,
       loadWorkouts(s, userId),
@@ -81,12 +94,16 @@ export async function pullAll(userId, s = db()) {
       s`select * from exercises where owner_id = ${userId} and deleted_at is null`,
       s`select * from week_plan where user_id = ${userId}`,
       s`select * from day_overrides where user_id = ${userId} and deleted_at is null`,
+      s`select * from checkins where user_id = ${userId} and deleted_at is null order by on_date`,
+      s`select * from habits where user_id = ${userId} and deleted_at is null order by position`,
+      s`select * from habit_ticks where user_id = ${userId} and deleted_at is null order by on_date`,
       s`select settings from user_settings where user_id = ${userId}`
     ])
   return {
     cursor,
     changes: {
-      routines, workouts, bodyweight, exercises, weekPlan, dayOverrides,
+      routines, workouts, bodyweight, exercises, weekPlan, dayOverrides, checkins,
+      habits, habitTicks,
       settings: settings[0]?.settings ?? {}
     }
   }
@@ -106,6 +123,23 @@ async function readRows(s, table, userId, ids) {
   }
   if (table === 'bodyweight_entries') {
     return s`select * from bodyweight_entries where user_id = ${userId} and on_date in ${s(ids)}`
+  }
+  if (table === 'checkins') {
+    return s`select * from checkins where user_id = ${userId} and on_date in ${s(ids)}`
+  }
+  if (table === 'habit_ticks') {
+    // `${habitId}:${YYYY-MM-DD}` — see the registry above. Postgres has no tuple `in` that
+    // postgres.js will parameterise, so the pairs are matched with an `or` per row; a delta is
+    // a handful of ticks, and the alternative is fetching a habit's whole history to find two.
+    const pairs = ids.map(id => ({ habit: id.slice(0, -11), day: id.slice(-10) }))
+    return s`
+      select * from habit_ticks
+      where user_id = ${userId} and ${pairs.reduce(
+        (acc, p, i) => (i === 0
+          ? s`(habit_id = ${p.habit} and on_date = ${p.day})`
+          : s`${acc} or (habit_id = ${p.habit} and on_date = ${p.day})`),
+        s``
+      )}`
   }
   const owner = table === 'exercises' ? s`owner_id = ${userId}` : s`user_id = ${userId}`
   return s`select * from ${s(table)} where ${owner} and id in ${s(ids)}`
@@ -214,6 +248,101 @@ export async function push(userId, payload = {}, s = db()) {
           on conflict (user_id, on_date) do update set
             weight_kg = excluded.weight_kg, deleted_at = null, updated_at = now()`
         await logChange(tx, userId, 'bodyweight_entries', String(b.on_date))
+      }
+      touched++
+    }
+
+    /* A check-in is the client's row and is written here rather than through a coaching
+     * endpoint, which is the whole reason it works on a phone with no signal. `(user, date)` is
+     * the key for the same reason a weigh-in's is: two devices answering the same Saturday
+     * merge instead of colliding, where a per-device id would push two rows and fail the whole
+     * transaction on the primary key.
+     *
+     * `template_id` is not validated against anything. It is a label saying which questions
+     * were answered, the foreign key already refuses an id that is not a template, and a coach
+     * who has since archived theirs must not retroactively invalidate a reply. */
+    for (const c of payload.checkins || []) {
+      if (c.deleted) {
+        await tx`update checkins set deleted_at = now(), updated_at = now()
+                 where user_id = ${userId} and on_date = ${c.on_date}`
+        await logChange(tx, userId, 'checkins', String(c.on_date), 'delete')
+      } else {
+        /* Answers are shaped against the questions here as well as on the phone that typed
+         * them. The domain says why both: the form has to reject 11 out of 5 at the moment
+         * somebody types it, and the server has to reject it too, because a client is not a
+         * thing you trust. Skipping this end was a real hole — a hand-made request could store
+         * a waist of 4,000 cm, and the thing that reads it next is a chart a coach looks at.
+         *
+         * Validated against whichever template the row names, falling back to the built-in set
+         * — which is also what an unknown id gets, rather than a rejection. The id is a label
+         * for which questions were asked and is deliberately not policed; what is policed is
+         * that a value fits the field it is filed under. */
+        const [tpl] = c.template_id
+          ? await tx`select fields from checkin_templates where id = ${c.template_id}`
+          : []
+        const answers = normaliseAnswers(fieldsOf(tpl ?? null), c.answers)
+        await tx`
+          insert into checkins (user_id, on_date, template_id, answers, submitted_at)
+          values (${userId}, ${c.on_date}, ${c.template_id ?? null},
+                  ${tx.json(answers)}, ${c.submitted_at ?? null})
+          on conflict (user_id, on_date) do update set
+            template_id = excluded.template_id, answers = excluded.answers,
+            submitted_at = excluded.submitted_at, deleted_at = null, updated_at = now()`
+        await logChange(tx, userId, 'checkins', String(c.on_date))
+      }
+      touched++
+    }
+
+    /* A habit and its ticks are both the client's, written here for the same reason a check-in
+     * is: it is ticked on a phone, often on a phone with no signal, and a coaching endpoint
+     * would make that impossible. A coach-suggested habit arrives as a proposal and becomes one
+     * of these on acceptance — `author_id` and `assigned_by` are what carry that, exactly as
+     * they do on a routine. */
+    for (const h of payload.habits || []) {
+      if (h.deleted) {
+        await tx`update habits set deleted_at = now(), updated_at = now()
+                 where id = ${h.id} and user_id = ${userId}`
+        await logChange(tx, userId, 'habits', h.id, 'delete')
+      } else {
+        const wrote = await tx`
+          insert into habits (id, user_id, author_id, assigned_by, title, target_per_week,
+                              position, archived_at)
+          values (${h.id}, ${userId}, ${h.author_id ?? userId}, ${h.assigned_by ?? null},
+                  ${h.title}, ${h.target_per_week ?? 7}, ${h.position ?? 0},
+                  ${h.archived_at ?? null})
+          on conflict (id) do update set
+            title = excluded.title, target_per_week = excluded.target_per_week,
+            position = excluded.position, archived_at = excluded.archived_at,
+            deleted_at = null, updated_at = now()
+          where habits.user_id = ${userId}
+          returning id`
+        assertWrote(wrote, 'habit', h.id)
+        await logChange(tx, userId, 'habits', h.id)
+      }
+      touched++
+    }
+
+    for (const t of payload.habitTicks || []) {
+      const addr = `${t.habit_id}:${t.on_date}`
+      if (t.deleted) {
+        await tx`update habit_ticks set deleted_at = now(), updated_at = now()
+                 where user_id = ${userId} and habit_id = ${t.habit_id} and on_date = ${t.on_date}`
+        await logChange(tx, userId, 'habit_ticks', addr, 'delete')
+      } else {
+        /* Written from a select over `habits` rather than with plain values, so a tick can only
+         * exist against a habit the pusher owns. The foreign key alone would let somebody file
+         * a tick under a habit that is not theirs — theirs to read afterwards, since every read
+         * is scoped by user, but a row in their name pointing at a stranger's habit all the
+         * same. Nothing writes zero rows silently here: `assertWrote` turns that into a 409. */
+        const wrote = await tx`
+          insert into habit_ticks (user_id, habit_id, on_date)
+          select ${userId}, h.id, ${t.on_date}
+          from habits h where h.id = ${t.habit_id} and h.user_id = ${userId}
+          on conflict (user_id, habit_id, on_date) do update set
+            deleted_at = null, updated_at = now()
+          returning habit_id`
+        assertWrote(wrote, 'habit tick', addr)
+        await logChange(tx, userId, 'habit_ticks', addr)
       }
       touched++
     }

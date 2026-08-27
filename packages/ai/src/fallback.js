@@ -9,7 +9,7 @@
  * API serves a Farsi lifter and an English one in the same second — a registered-global
  * translator would hand one of them the other's language.
  */
-import { EXIDX, say, loadNames, namerFor } from '@gymbuddy/domain'
+import { EXIDX, say, loadNames, namerFor } from '@gymyar/domain'
 import { translatorFor } from './planner-strings.js'
 
 /* Word boundaries are ASCII in JavaScript regex, so `\b` around a Persian word matches in the

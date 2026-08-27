@@ -8,12 +8,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useUI } from '../store/useUI.js'
-import { Section, Row, Button, TextField, TextArea } from '../components/ui.jsx'
+import { Section, Row, Button, TextField, TextArea, SelectRow, Segmented } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { t, exName, say } from '../lib/i18n.js'
-import { fmtDate, fmtNum, EXIDX, DAYN, setLabel, modeOf } from '@gymbuddy/domain'
+import { fmtDate, fmtNum, fmtInt, EXIDX, DAYN, setLabel, modeOf } from '@gymyar/domain'
+import { uid, todayISO, isoOf, startOfWeek } from '@gymyar/domain'
 import {
-  fetchClient, proposeRoutine, fetchThread, sendMessage, SCOPE_INFO, daysSince
+  fetchClient, proposeRoutine, proposeHabit, fetchThread, sendMessage, SCOPE_INFO, daysSince,
+  fetchTemplates, fetchSchedule, setSchedule as setSchedule_, clearSchedule,
+  clientCheckins, clientHabits
 } from '../lib/coaching.js'
 import { draftClientChange } from '../lib/ai.js'
 import { isPaymentRequired } from '../lib/billing.js'
@@ -141,7 +144,7 @@ function ProposeSheet({ clientId, routine, close, onDone, draft = null }) {
 /* What the client filmed of this session, read-only.
  *
  * A coach never uploads into a client's account — the same rule that puts a proposed programme
- * in `routine_revisions` rather than writing their routine — so there is no picker here and no
+ * in `proposals` rather than writing their routine — so there is no picker here and no
  * delete. A coach who wants to send a video back puts it on a message, which is theirs.
  *
  * A refusal is not an error to report: it means the client shared this session's numbers and
@@ -273,6 +276,198 @@ function ClientPhotos({ clientId }) {
         <Attachments subject="progress" files={files} readOnly onChange={() => {}} />}
     </Section>
   )
+}
+
+/* The check-in on this client: which questions, on which day, and what has come back.
+ *
+ * Both halves are here rather than on separate screens because they are one question a coach
+ * asks about somebody — "am I asking them anything, and did they answer" — and splitting it
+ * across two taps is how the second half stops being read.
+ */
+function ClientCheckins({ clientId }) {
+  const toast = useUI(s => s.toast)
+  const [schedule, setSchedule] = useState(null)
+  const [templates, setTemplates] = useState([])
+  const [rows, setRows] = useState(null)
+
+  const load = () => {
+    fetchSchedule(clientId).then(r => setSchedule(r.schedule)).catch(() => setSchedule(null))
+    clientCheckins(clientId).then(r => setRows(r.checkins)).catch(() => setRows([]))
+  }
+  useEffect(() => {
+    load()
+    fetchTemplates().then(r => setTemplates(r.templates)).catch(() => setTemplates([]))
+  }, [clientId])
+
+  const put = async (templateId, weekday) => {
+    try {
+      await setSchedule_(clientId, { templateId, weekday })
+      toast(t('They will be asked every week'))
+      load()
+    } catch (e) { toast(e.message) }
+  }
+
+  const stop = async () => {
+    await clearSchedule(clientId)
+    toast(t('Stopped asking'))
+    load()
+  }
+
+  return (
+    <Section title={t('Check-ins')}
+      footer={schedule ? t('They answer in their own app; you see it here once they send it.') : undefined}>
+      {templates.length === 0 && !schedule && (
+        <Row icon="clipboard" title={t('No check-in written yet')}
+          subtitle={t('Write one first, then put it on this client.')}
+          accessory="chevron" onClick={() => goTo('/coach/checkins')} />
+      )}
+
+      {templates.length > 0 && (
+        <SelectRow icon="clipboard" title={t('Ask them')}
+          value={schedule?.template_id ?? ''}
+          sheetTitle={t('Which check-in')}
+          options={[
+            { value: '', label: t('None') },
+            ...templates.map(tpl => ({ value: tpl.id, label: tpl.title }))
+          ]}
+          onChange={v => (v ? put(v, schedule?.weekday ?? 6) : stop())} />
+      )}
+
+      {schedule && (
+        <SelectRow icon="calendar" title={t('Due on')}
+          value={schedule.weekday}
+          sheetTitle={t('Which day')}
+          options={DAYN.map((d, i) => ({ value: i, label: t(d) }))}
+          onChange={w => put(schedule.template_id, w)} />
+      )}
+
+      {rows === null && <Row icon="clipboard" title={t('Loading…')} />}
+      {rows?.length === 0 && <Row icon="clipboard" title={t('Nothing answered yet')} />}
+      {rows?.map(c => (
+        <Row key={c.on_date} icon="clipboard" title={fmtDate(c.on_date, true)}
+          subtitle={answerLine(c)} />
+      ))}
+    </Section>
+  )
+}
+
+/* A check-in on one line: the questions and what was said, in the order they were asked.
+ *
+ * The label comes with the answer because a bare "4" means nothing — and it is the *template's*
+ * label, not a translation, because a coach wrote that question in their own words and this is
+ * the coach reading it back.
+ */
+function answerLine(c) {
+  const fields = c.fields || []
+  const said = fields
+    .filter(f => c.answers?.[f.key] !== undefined)
+    .map(f => `${f.label}: ${fmtAnswer(c.answers[f.key])}`)
+  return said.length ? said.join(' · ') : t('Sent, with nothing filled in')
+}
+
+const fmtAnswer = v =>
+  typeof v === 'number' ? fmtNum(v)
+    : typeof v === 'boolean' ? (v ? t('Yes') : t('No'))
+      : String(v).slice(0, 80)
+
+/* Their habits, and the last two weeks of ticks.
+ *
+ * A grid rather than a percentage: fourteen squares say which days somebody missed, and one
+ * number says only that they missed some. The weeks run in the reader's own week, so a coach
+ * and their client are looking at the same Saturday.
+ */
+function ClientHabits({ clientId }) {
+  const openSheet = useUI(s => s.openSheet)
+  const [data, setData] = useState(null)
+
+  const load = () => clientHabits(clientId).then(setData).catch(() => setData({ habits: [], ticks: [] }))
+  useEffect(() => { load() }, [clientId])
+
+  const days = []
+  const cur = startOfWeek(todayISO())
+  cur.setDate(cur.getDate() - 7)
+  for (let i = 0; i < 14; i++) {
+    days.push(isoOf(cur))
+    cur.setDate(cur.getDate() + 1)
+  }
+
+  const active = (data?.habits || []).filter(h => !h.archived_at)
+
+  return (
+    <Section title={t('Habits')}
+      footer={active.length ? t('The last two weeks. They tick these in their own app.') : undefined}>
+      {data === null && <Row icon="check" title={t('Loading…')} />}
+      {data && active.length === 0 && (
+        <Row icon="check" title={t('No habits yet')}
+          subtitle={t('Suggest one — they accept it, and it becomes theirs.')} />
+      )}
+
+      {active.map(h => {
+        const ticked = new Set(data.ticks.filter(x => x.h === h.id).map(x => x.d))
+        return (
+          <div key={h.id} className="lrow">
+            <span className="lrow-m">
+              <span className="lrow-t">{h.title}</span>
+              <span className="lrow-s">
+                {t('{0} of {1} days a week', fmtInt(ticked.size), fmtInt(h.target_per_week))}
+              </span>
+            </span>
+            <span className="row" style={{ gap: 3 }}>
+              {days.map(d => (
+                <i key={d} title={d} style={{
+                  width: 9, height: 9, borderRadius: 2,
+                  background: ticked.has(d) ? 'var(--acc)' : 'var(--surface-3)'
+                }} />
+              ))}
+            </span>
+          </div>
+        )
+      })}
+
+      <Row icon="plus" title={t('Suggest a habit')} accessory="chevron"
+        onClick={() => openSheet(close => (
+          <SuggestHabit clientId={clientId} close={close} onDone={load} />
+        ))} />
+    </Section>
+  )
+}
+
+function SuggestHabit({ clientId, close, onDone }) {
+  const toast = useUI(s => s.toast)
+  const [title, setTitle] = useState('')
+  const [target, setTarget] = useState(7)
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const send = async () => {
+    if (!title.trim()) { toast(t('Give it a name first')); return }
+    setBusy(true)
+    try {
+      await proposeHabit(clientId, { habitId: uid(), title, target, note })
+      close()
+      toast(t('Suggested — it is theirs once they accept'))
+      onDone?.()
+    } catch (e) { toast(e.message); setBusy(false) }
+  }
+
+  return <>
+    <h3>{t('Suggest a habit')}</h3>
+    <div className="muted small" style={{ marginBottom: 10 }}>
+      {t('They accept it before anything appears in their app. Nothing is written for them.')}
+    </div>
+    <TextField value={title} onChange={e => setTitle(e.target.value)} maxLength={80}
+      placeholder={t('Walk 10,000 steps')} autoFocus />
+    <h4 className="sec">{t('Days a week')}</h4>
+    <Segmented value={target} onChange={setTarget}
+      options={[1, 2, 3, 4, 5, 6, 7].map(n => ({ value: n, label: fmtInt(n) }))} />
+    <div style={{ height: 10 }} />
+    <TextArea value={note} onChange={e => setNote(e.target.value)} rows={2} maxLength={600}
+      placeholder={t('Why, in a sentence (optional)')} />
+    <div style={{ height: 12 }} />
+    <Button variant="primary" onClick={send} disabled={busy}>
+      {busy ? t('Sending…') : t('Suggest it')}
+    </Button>
+  </>
 }
 
 function NotShared({ what }) {
@@ -433,6 +628,10 @@ export default function CoachClient() {
               ))}
         </Section>
       ) : <NotShared what="bodyweight" />}
+
+      {scopes.includes('checkins') ? <ClientCheckins clientId={id} /> : <NotShared what="checkins" />}
+
+      {scopes.includes('habits') ? <ClientHabits clientId={id} /> : <NotShared what="habits" />}
 
       {scopes.includes('photos') ? <ClientPhotos clientId={id} /> : <NotShared what="photos" />}
 

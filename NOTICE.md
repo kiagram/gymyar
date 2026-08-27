@@ -1,11 +1,11 @@
 # Third-party notices
 
-GymBuddy — Copyright (C) 2026 kiarash.
-GymBuddy's own code is licensed under the **GNU AGPL v3.0** (see [LICENSE](LICENSE)).
+GymYar — Copyright (C) 2026 kiarash.
+GymYar's own code is licensed under the **GNU AGPL v3.0** (see [LICENSE](LICENSE)).
 
 ## Derived from openGym
 
-GymBuddy is a derivative work of **openGym** — Copyright (C) 2026 Duarte Santos, licensed
+GymYar is a derivative work of **openGym** — Copyright (C) 2026 Duarte Santos, licensed
 under the GNU AGPL v3.0. Canonical upstream: <https://gitea.com/DuarteSantos/openGym>.
 All notices below are inherited from openGym and remain in force for the parts of this
 codebase derived from it, including the App Store additional permission.
@@ -19,10 +19,23 @@ with the AGPL, provided the corresponding source code remains available under th
 the project repository. This permission applies to the distribution channel only and does
 not otherwise limit the license.
 
-> Inherited by GymBuddy: an additional permission granted under AGPL section 7 travels with the
+> Inherited by GymYar: an additional permission granted under AGPL section 7 travels with the
 > code to downstream works unless it is explicitly removed. It is not removed here, and the
-> condition attaches to us in turn — GymBuddy's corresponding source stays available under the
+> condition attaches to us in turn — GymYar's corresponding source stays available under the
 > AGPL at its own repository.
+
+## UI typeface
+
+The interface is set in [**Vazirmatn**](https://github.com/rastikerdar/vazirmatn) by Saber
+Rastikerdar, bundled at `apps/client/src/assets/fonts/vazirmatn-variable.woff2` and used under
+the **SIL Open Font License 1.1**, reproduced at `apps/client/src/assets/fonts/OFL.txt`. The
+file is the project's own `Vazirmatn[wght].woff2` variable build, renamed only because square
+brackets are not safe in a URL; the outlines are unmodified.
+
+Under the OFL the font may be bundled and redistributed with this application, including in
+the app-store builds. The licence's one hard condition is the Reserved Font Name: a *modified*
+version may not be distributed under the name "Vazirmatn". Nothing here modifies it, so the
+name stays — but that is the line to respect if the font is ever subset or re-hinted.
 
 ## Body diagram geometry
 

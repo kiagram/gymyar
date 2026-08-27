@@ -45,6 +45,10 @@ export function openAICompatProvider({
   requiresKey = true,
   structured = 'tools',
   maxTokens = 1024,
+  // What this endpoint calls that budget. OpenAI's reasoning models refuse the older
+  // `max_tokens` outright, and everything else still refuses the newer name — so it is a fact
+  // about the endpoint rather than a value, and it belongs next to the base URL.
+  maxTokensField = 'max_tokens',
   attempts = 2,
   // Local models on modest hardware are slower than a hosted one by an order of magnitude, so
   // this travels with the provider rather than being one number for every backend.
@@ -80,7 +84,7 @@ ${JSON.stringify(schema.input_schema, null, 2)}`
 
       const body = {
         model,
-        max_tokens: maxTokens,
+        [maxTokensField]: maxTokens,
         messages,
         ...(useTools
           ? { tools: [toFunction(schema)], tool_choice: { type: 'function', function: { name: schema.name } } }
@@ -137,4 +141,24 @@ export const ollamaProvider = ({ baseUrl = 'http://127.0.0.1:11434/v1', model, .
   openAICompatProvider({
     name: 'ollama', baseUrl, model,
     requiresKey: false, structured: 'json', timeoutMs: 90000, attempts: 1, ...rest
+  })
+
+/**
+ * OpenAI itself.
+ *
+ * Two differences from every other endpoint speaking this shape, both of them the reasoning
+ * models' doing:
+ *
+ * `max_completion_tokens` rather than `max_tokens` — the older name is refused outright by the
+ * newer models, and a 400 is not retryable, so getting this wrong costs the feature rather than
+ * a round trip. It is a provider-level fact, so it travels with the provider.
+ *
+ * And a larger budget, because that number now counts reasoning tokens as well as the answer.
+ * A note of two hundred words behind a thousand tokens of thinking is an empty `content` and a
+ * silent fall back to the template — which looks exactly like a model that answered badly.
+ */
+export const openaiProvider = ({ apiKey, baseUrl = 'https://api.openai.com/v1', model, ...rest } = {}) =>
+  openAICompatProvider({
+    name: 'openai', apiKey, baseUrl, model,
+    structured: 'tools', maxTokensField: 'max_completion_tokens', maxTokens: 2048, ...rest
   })

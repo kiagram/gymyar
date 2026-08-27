@@ -38,8 +38,8 @@
  * same work twice and reach the same state, which is what makes it safe to scale the process
  * out without electing a leader.
  */
-import { deleted, abandoned, purge, orphaned, forget } from '@gymbuddy/db/attachments.js'
-import { purgeDeadResets } from '@gymbuddy/db/passwords.js'
+import { deleted, abandoned, purge, orphaned, forget } from '@gymyar/db/attachments.js'
+import { purgeDeadResets } from '@gymyar/db/passwords.js'
 import { storage } from './media.js'
 
 /** How often the timer fires. Long: the work is small and none of it is urgent to the minute. */

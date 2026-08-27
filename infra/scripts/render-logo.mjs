@@ -26,12 +26,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const LOGO = join(ROOT, 'logo')
 const CHECK = process.argv.includes('--check')
 
-const ICON = 'gymbuddy-icon.svg'                 // rounded field — web, PWA, legacy launcher
-const SQUARE = 'gymbuddy-icon-square.svg'        // square field — iOS masks it itself
-const MASKABLE = 'gymbuddy-icon-maskable.svg'    // pulled-in mark — Android adaptive, maskable
-const MARK = 'gymbuddy-mark-white.svg'           // mark alone — adaptive foreground layer
-const MARK_RED = 'gymbuddy-mark.svg'             // mark alone, brand red — served to the app
-const LOCKUP = 'gymbuddy-lockup-white.svg'       // figure above wordmark — the full logo, on ink
+const ICON = 'gymyar-icon.svg'                 // rounded field — web, PWA, legacy launcher
+const SQUARE = 'gymyar-icon-square.svg'        // square field — iOS masks it itself
+const MASKABLE = 'gymyar-icon-maskable.svg'    // pulled-in mark — Android adaptive, maskable
+/* The mark alone, brand emerald: both the Android adaptive foreground layer and the copy
+ * served to the app. The foreground has to be emerald rather than the ivory cut, because the
+ * background layer under it is the ivory field — ivory on ivory is an invisible icon. */
+const MARK = 'gymyar-mark.svg'
+const LOCKUP = 'gymyar-lockup-white.svg'       // figure above wordmark — the full logo, on ink
 
 /* Android's adaptive layers are PNGs whose sizes were fixed when the project was
  * generated; read them off disk rather than restating the density table here. */
@@ -51,10 +53,10 @@ const add = (src, out, w, h, opts = {}) =>
  * smaller, leaving the figure's bounding circle inside the safe one. */
 const ADAPTIVE_FILL = 0.74
 
-/* The launch screen is the icon tile on the brand's off black, which is what the brand
- * system's own onboarding screens show. It is a layout, not artwork: a field and the icon
- * at a share of the shorter side, so it survives being centre-cropped to any device. */
-const SPLASH_FIELD = '#0D0D0D'
+/* The launch screen is the icon tile on the brand's onyx, which is what the brand system's
+ * own splash-screen sheet shows. It is a layout, not artwork: a field and the icon at a
+ * share of the shorter side, so it survives being centre-cropped to any device. */
+const SPLASH_FIELD = '#0B0D0E'
 /* Android has a splash per orientation, so the tile can take a generous share of the shorter
  * side. iOS has one square for every device: crop that to a 9:19.5 phone and only 46% of its
  * width survives, so the same share there would fill half the screen. It gets its own. */
@@ -219,7 +221,7 @@ for (const { src, out, w, h, shape, fill, field } of targets) {
 for (const [src, out] of [
   [ICON, 'apps/client/public/icon.svg'],
   [SQUARE, 'apps/client/resources/icon.svg'],
-  [MARK_RED, 'apps/client/src/assets/mark.svg'],
+  [MARK, 'apps/client/src/assets/mark.svg'],
 ]) {
   const note = `<!-- Generated from logo/${src}. Edit that, then: node infra/scripts/render-logo.mjs -->\n`
   const copy = Buffer.from(note + readFileSync(join(LOGO, src), 'utf8'), 'utf8')

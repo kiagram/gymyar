@@ -8,7 +8,7 @@
  * A phone that has been in a locker for a week costs one small request instead of the entire
  * training history in both directions.
  */
-import { pull, pullAll, push } from '@gymbuddy/db/sync.js'
+import { pull, pullAll, push } from '@gymyar/db/sync.js'
 import { requireUser } from '../session.js'
 
 const MAX_ROWS = 5000
