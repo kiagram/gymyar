@@ -723,6 +723,17 @@ incidental.
 - 🔐 **Release signing**, reading a gitignored `keystore.properties` or `GYMYAR_KEYSTORE_*`
   from the environment — and building unsigned with a warning when it has neither, so a
   contributor can check the release build compiles without holding a key.
+- 💾 **Backups are a command rather than a paragraph.** `infra/scripts/backup.sh` takes the
+  dump *and* the media volume — the pair that section 7 of the self-hosting guide had been
+  asking people to remember — and writes a manifest of what was in the instance at the time.
+  `--verify` restores the dump it just took into a throwaway Postgres container and counts
+  users, sets and applied migrations against the live ones, because a backup nobody has
+  restored is a hypothesis and a truncated upload looks like a success. `restore.sh` is the
+  inverse: it validates the archive *before* it drops anything, refuses a database that
+  already holds accounts unless told twice, stops the API so nothing writes mid-restore, and
+  recreates the schema rather than restoring over it — a plain dump does not remove rows it
+  does not contain, so restoring in place resurrects every account closed since it was taken.
+  `backups/` is gitignored, because a dump holds every passkey credential in the instance.
 - 📄 **Store listings in English and Persian**, written separately rather than translated, and
   both describing the offline app — a listing that promises coaching the binary does not have
   is a rejection. Plus privacy answers for Play Data safety, Apple's labels and Cafe Bazaar.
@@ -761,21 +772,56 @@ incidental.
 - **The app id** moved from `ch.duartesantos.opengym` to `com.gymyar.app` across Capacitor,
   the Android package and the iOS project.
 
+### The deployment nobody had run
+
+Every test in this project passed against Node running the code directly. `docker compose up -d
+--build` — the one command the README opens with, and the only way anybody but the maintainer
+will ever run this — did not work. Four separate faults, none of which a unit test can see,
+found by running it.
+
+- 🖼️ **Every uploaded photo 404'd, and video did not.** A storage key ends in the extension its
+  type implies, so an attachment is served from `/media/…/<uuid>.jpg` — and the block that
+  caches exercise artwork hard matches `\.jpg$`. nginx tries regex locations *before* prefix
+  ones, so the photo was matched by the cache block, looked for under the static root and
+  answered 404, while `.mp4` and `.webm` — not in that list — went to the right place and
+  worked. `location ^~ /media/` stops the match before the regexes, and the internal
+  `X-Accel-Redirect` target needed the same, because an internal redirect is matched against
+  these locations too. Caught by the media step of `smoke.sh`, which is the only test in the
+  project that runs against nginx rather than against Node serving the bytes itself.
+- 📦 **The API image was missing three of the five packages it imports.** Its Dockerfile copied
+  `packages/domain` and `packages/db`; the API also imports `@gymyar/ai`, `@gymyar/mail` and
+  `@gymyar/storage`. That is not a build error — the image builds, starts, and dies on the
+  first `import`. All five are copied now, and every workspace manifest goes into the
+  dependency layer so npm can resolve the links at all.
+- 🧱 **The web image could not build.** `npm ci` was failing — the lockfile describes seven
+  workspaces and the Dockerfile copied three manifests — and the failure was swallowed by
+  `2>/dev/null || npm install`, which resolves the tree afresh and walks into npm's
+  optional-dependency bug (npm/cli#4828): the linux-musl rolldown binding is in the lockfile
+  and does not get installed, and `vite build` dies claiming it cannot find a native binding.
+  Two changes: every manifest is copied, and the fallback is gone. A lockfile that does not
+  match its manifests is a bug to fix, not a condition to route around — routing around it is
+  what turned a one-line omission into an error message about native modules.
+- 🚫 **A `.dockerignore`, which there had never been.** Without one, `COPY apps/client/` also
+  carried the host's `apps/client/node_modules` into the image — a Windows tree, with that
+  platform's native bindings, landing on top of the linux ones npm had just installed — along
+  with 42 MB of Gradle intermediates, the built APK, and `.env`.
+
 ### Known limitations
 
 - 💾 **Uploaded media is not in the database dump.** Form-check video and progress photos live
-  on a volume and only the rows describing them are in Postgres, so a backup is now two things
-  rather than one. `docs/SELF_HOSTING.md` section 7 has both commands; restoring the dump alone
-  gives you an instance where every attachment is a broken link.
+  on a volume and only the rows describing them are in Postgres, so a backup is two things
+  rather than one. `infra/scripts/backup.sh` takes both and `restore.sh` puts them back;
+  restoring the dump alone gives you an instance where every attachment is a broken link.
 - 🖼️ **The exercise media is not licensed for a commercial deployment.** The 1,324 animations
   are © [Gym visual](https://gymvisual.com/) and the dataset grants us nothing; they are
   fetched from upstream on first run rather than redistributed here. Exercise rows carry
   `image_url` and `animation_url`, so replacing the source is an `UPDATE` — but until that
   happens or a licence is obtained, this cannot ship as a paid product.
-- 📦 **There is no public repository yet**, and the AGPL requires one before a hosted instance
-  takes payment. See `docs/PUBLISHING.md`. Until there is one, the app's "self-host GymYar"
-  links are hidden rather than pointed somewhere, `SECURITY.md` has no private reporting
-  channel to name, and `CONTRIBUTING.md` has no issue tracker to send anyone to.
+- 🔗 **The app's "self-host GymYar" links are still hidden** rather than pointed at the
+  repository. The repository itself now exists and is public — which is what the AGPL requires
+  before a hosted instance takes payment — so `SECURITY.md` names a private advisory channel
+  and `CONTRIBUTING.md` names an issue tracker. The in-app links are the one thing left
+  pointing nowhere.
 
 ### Fixed, inherited from openGym
 

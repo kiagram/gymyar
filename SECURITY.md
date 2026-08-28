@@ -21,13 +21,12 @@ git pull && docker compose up -d --build
 
 ## Reporting a vulnerability
 
-> **This section is not usable yet.** GymYar has no public repository, so there is no private
-> reporting channel to point you at — see [docs/PUBLISHING.md](docs/PUBLISHING.md). Until there
-> is one, contact the maintainer directly. **Do not open a public issue containing a working
-> exploit against other people's instances.**
->
-> When the repository is published, this section should name its private vulnerability
-> reporting link and nothing else.
+**Report it privately, here:**
+<https://github.com/kiagram/gymyar/security/advisories/new>
+
+That opens a draft advisory only you and the maintainer can read. **Do not open a public issue
+containing a working exploit** — every instance of this app is somebody's server, and they
+cannot patch faster than a reader can copy.
 
 Useful in a report: the version or commit, whether you are running a source build or your own
 images, your `RP_ID` / `ORIGIN` and what sits in front of the app, steps to reproduce, and what

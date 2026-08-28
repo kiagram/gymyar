@@ -74,10 +74,12 @@ NAME=$(field "$(call "$CLIENT_JAR" GET /api/sync/all)" "d.changes.routines[0].na
 
 # ---------------------------------------------------------------- media ----
 #
-# The only place the whole serving path is exercised. In CI this runs against the compose stack,
-# which sets STORAGE_ACCEL=1 — so this is the one test that proves nginx and the API agree about
-# X-Accel-Redirect. Every unit test above it runs with Node serving the bytes itself, and would
-# pass just as happily against a deployment that answers every media request with an empty body.
+# The only place the whole serving path is exercised. CI runs this script twice: once against
+# `npm start` with Node serving the bytes itself, and once against the compose stack, which sets
+# STORAGE_ACCEL=1 and puts nginx in front. The second run is the one that proves nginx and the
+# API agree about X-Accel-Redirect, and it is the only test in the project that can — every unit
+# test above would pass just as happily against a deployment that answers every media request
+# with a 404, which for a while is exactly what the compose stack did for photographs.
 
 step "client uploads a form check"
 JPEG=$(mktemp); trap 'rm -f "$COACH_JAR" "$CLIENT_JAR" "$JPEG"' EXIT
