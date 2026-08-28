@@ -186,6 +186,22 @@ Cloudflare Access…) in front still works, and composes with the above.
 
 **Two things, and only one of them is the database.**
 
+Both, in one step, into `./backups`:
+
+```bash
+./infra/scripts/backup.sh --verify
+```
+
+`--verify` restores the dump it just took into a throwaway Postgres container and counts what
+came back against what went in. Run it that way at least once, and on whatever schedule you
+can stand: a backup nobody has restored is a hypothesis, and a truncated upload, a wrong `-U`
+or a dump taken against the wrong database all look like success at the time. Putting one back
+is `./infra/scripts/restore.sh <dump> [media]`, which refuses a target that already has
+accounts in it unless you pass `--force`.
+
+The rest of this section is what those two scripts do, because you should be able to do it by
+hand — on a machine that has the archive and not this repository, for one.
+
 ```bash
 docker compose exec -T db pg_dump -U gymyar gymyar | gzip > gymyar-$(date +%F).sql.gz
 ```

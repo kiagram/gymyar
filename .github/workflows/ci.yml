@@ -80,5 +80,29 @@ jobs:
         # stay one identity is for all of them to be output.
         run: node infra/scripts/render-logo.mjs --check
 
-      - name: Compose file is valid
-        run: cp .env.example .env && docker compose config -q
+      - name: The compose stack actually runs
+        # Every other step in this file runs the API under Node directly, with no nginx in
+        # front. This is the only one that builds the two images a self-hoster builds and puts
+        # the real reverse proxy in front of them — which is the only place the X-Accel-Redirect
+        # media path, the workspace copies in both Dockerfiles and the location precedence in
+        # nginx.conf exist at all. All four of those were broken at once, and every test above
+        # this line passed the whole time.
+        run: |
+          cp .env.example .env
+          # Production refuses a blank one, and the image sets NODE_ENV=production.
+          echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env
+          docker compose config -q
+          # Short-circuit the 140 MB exercise-media clone: the media service skips the download
+          # when ./media/img is non-empty, and nothing below looks at the exercise library.
+          mkdir -p media/img media/gif && touch media/img/.ci-placeholder
+          docker compose up -d --build
+          npx wait-on -t 300000 http://127.0.0.1:8080/api/health
+          ./infra/scripts/smoke.sh http://127.0.0.1:8080
+
+      - name: Compose stack logs
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+      - name: Tear the stack down
+        if: always()
+        run: docker compose down -v --remove-orphans

@@ -37,3 +37,8 @@ apps/site/icon-512.png
 
 # Local scratch volume for uploaded media in development (see STORAGE_PATH in .env)
 .devmedia/
+
+# Backups. A dump holds every profile, every passkey credential and every set ever logged, and
+# the media archive beside it holds people's progress photos. There is no version of putting
+# either in a git repository that is not a data breach. `backup.sh` writes here by default.
+backups/

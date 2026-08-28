@@ -1,0 +1,42 @@
+# What never belongs in a build context.
+#
+# The Dockerfiles install dependencies from package-lock.json inside the image and then copy
+# source over the top. Without this file `COPY apps/client/ apps/client/` also carries the
+# host's `apps/client/node_modules` in — a Windows or macOS tree, complete with that platform's
+# native bindings, landing on top of the linux ones npm just installed and shadowing them.
+node_modules
+**/node_modules
+
+# Build output. 42 MB of Gradle intermediates and a compiled APK, none of which the image uses.
+dist
+**/dist
+apps/client/android/app/build
+apps/client/android/.gradle
+apps/client/ios/App/build
+*.apk
+
+# Secrets and data. `.env` is read by compose at run time, never baked into a layer, and a
+# keystore in an image is a keystore anyone who pulls it can sign with.
+.env
+.env.*
+!.env.example
+**/keystore.properties
+*.keystore
+*.jks
+data
+backups
+
+# The exercise library is fetched into ./media on first boot and mounted at run time — 140 MB
+# that would otherwise be sent to the daemon on every build.
+media
+.devmedia
+
+# Nothing here changes what gets built, and all of it invalidates layer caches.
+.git
+.github
+.claude
+docs
+logo
+assets
+**/*.md
+!apps/*/README.md
