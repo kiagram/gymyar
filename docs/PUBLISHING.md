@@ -13,14 +13,16 @@ re-upload is the one carrying [a leaked session secret](../NOTICE.md).
 ## Setting up your own
 
 **Done for this tree:** `origin` is <https://github.com/kiagram/gymyar>, public, with both
-`gymyar` and `main` pushed and `gymyar` as the default branch. What follows is what was
-run, and what a fork of this project would run in turn.
+`gymbuddy` and `main` pushed and `gymbuddy` as the default branch. The branch keeps the name
+the work was done under; the repository does not, because the repository name is the URL
+every source link in the app and on the site points at, and that one has to read as the
+product. What follows is what was run, and what a fork of this project would run in turn.
 
 Create an empty repository wherever you want this to live, then:
 
 ```bash
 git remote add origin <your-repo-url>
-git push -u origin gymyar
+git push -u origin gymbuddy
 ```
 
 The `main` branch in this tree is still the openGym import, untouched. Keeping it is useful — it
@@ -52,7 +54,7 @@ That can happen to you. Push to a second remote from the start:
 
 ```bash
 git remote add mirror <second-host-url>
-git push mirror gymyar
+git push mirror gymbuddy
 ```
 
 ## What must never be committed

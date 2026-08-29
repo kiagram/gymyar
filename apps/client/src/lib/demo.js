@@ -16,6 +16,7 @@ export const DEMO_SEEDED = 'gym_demo_seeded_v1'
  * courtesy — so it has to be our repository, not the one we forked. It pointed at openGym's
  * until now, which sent everyone who tapped "Self-host GymYar" to a different product.
  *
- * Empty until GymYar has a public repository (docs/PUBLISHING.md). Every link that uses it
- * is hidden while it is empty: no link is better than a link to somebody else's project. */
-export const REPO = ''
+ * The repo root, no trailing slash — the same shape apps/site/site.js wants, and the links
+ * that use it append nothing. Empty hides every one of them, which is what this was while
+ * there was no public repository (docs/PUBLISHING.md): no link beats a link to a 404. */
+export const REPO = 'https://github.com/kiagram/gymyar'
