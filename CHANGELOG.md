@@ -477,6 +477,19 @@ backup" and mean it — and a form check cannot be one. So there is a volume now
 
 ### Also
 
+- 🔗 **The "self-host GymYar" links point somewhere.** One constant gated all three — the line
+  on the demo's sign-in screen, and the Settings row in the demo and mobile builds, each written
+  as `{REPO && …}` so an unset value hides the link rather than shipping a dead one. That was
+  the right default while there was nothing to point at and it stopped being true the day the
+  repository went public; the constant had simply never been filled in.
+- 🌳 **Two documents were describing a branch that does not exist.** `CONTRIBUTING.md` asked for
+  pull requests against `gymyar` and `docs/PUBLISHING.md` said that was the default branch and
+  put it in two `git push` examples. The branch is `gymbuddy`. Anyone following the publishing
+  guide would have watched the push fail; anyone opening a pull request would have aimed it at
+  nothing. The repository takes the product's name and the branch keeps the fork's, which is
+  the split that matters — the repository name is what every source link in the app resolves
+  through, and the branch name is not in a single URL, because the site's links go through
+  `/blob/HEAD/`.
 - 🌐 **The four sharing descriptions are translated now.** Three of them never were: they reach
   `t()` as `t(SCOPE_INFO[key].detail)`, a dynamic argument `check-locales.mjs` cannot see, so
   every language read the English. They are the sentences somebody reads while deciding what to
@@ -817,11 +830,11 @@ found by running it.
   fetched from upstream on first run rather than redistributed here. Exercise rows carry
   `image_url` and `animation_url`, so replacing the source is an `UPDATE` — but until that
   happens or a licence is obtained, this cannot ship as a paid product.
-- 🔗 **The app's "self-host GymYar" links are still hidden** rather than pointed at the
-  repository. The repository itself now exists and is public — which is what the AGPL requires
-  before a hosted instance takes payment — so `SECURITY.md` names a private advisory channel
-  and `CONTRIBUTING.md` names an issue tracker. The in-app links are the one thing left
-  pointing nowhere.
+- 🔗 **The source links resolve only once the repository is renamed.** They point at
+  `github.com/kiagram/gymyar`, which the site, `SECURITY.md` and `CONTRIBUTING.md` have named
+  all along and which does not exist yet — the repository is still `gymbuddy`, the name the
+  fork was started under. Renaming it on GitHub is the whole of the fix, and GitHub redirects
+  the old name afterwards, so nothing already cloned breaks.
 
 ### Fixed, inherited from openGym
 
