@@ -18,9 +18,10 @@ import {
   fetchTemplates, fetchSchedule, setSchedule as setSchedule_, clearSchedule,
   clientCheckins, clientHabits
 } from '../lib/coaching.js'
-import { draftClientChange } from '../lib/ai.js'
+import { draftClientChange, aiCapabilities, describeFormCheck } from '../lib/ai.js'
 import { isPaymentRequired } from '../lib/billing.js'
 import Attachments from '../components/Attachments.jsx'
+import Signals from '../components/Signals.jsx'
 import {
   clientFormChecks, clientProgress, uploadToMessage, kindOf, tooBig, mediaLimits, fmtBytes
 } from '../lib/media.js'
@@ -44,6 +45,47 @@ function ExerciseList({ exercises }) {
         </li>
       ))}
     </ol>
+  )
+}
+
+/* What the review found and this change is not an answer to.
+ *
+ * Shown beside the draft rather than behind a link, because it is the thing most likely to stop
+ * a coach sending it: a stalled lift deloads on its own terms, and "the lifts stalled while body
+ * weight came off" says the deload treats the symptom. Three at most — the list arrives sorted by
+ * severity, and a coach who reads two sentences reads them where a coach given eight reads none.
+ */
+function ReviewContext({ findings, title = null }) {
+  if (!findings?.length) return null
+  return (
+    <div className="rvw">
+      <div className="ss dim">{title || t('What else the review found')}</div>
+      {findings.slice(0, 3).map((f, i) => (
+        <div key={i} className="rvw-f">
+          <strong>{say(f.title)}</strong>
+          <div className="dim">{say(f.detail)}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* The answer when the review has findings but no change to propose.
+ *
+ * A toast would have been the easy shape and the wrong one: "nothing to change" is a conclusion
+ * worth reading the reasons for, and some of those reasons — soreness that will not settle,
+ * weight coming off fast — are exactly what a coach should raise in a message instead.
+ */
+function ReviewOnlySheet({ headline, detail, findings, signals }) {
+  return (
+    <div className="sheet-body">
+      <h2>{say(headline)}</h2>
+      <p className="dim small">{say(detail)}</p>
+      <ReviewContext findings={findings} title={t('What the review did find')} />
+      {/* Only ever what this client shared: the server filtered `signals` by their granted
+          scopes before it left the review — see `sources` in routes/ai.js. */}
+      <Signals signals={signals} title={t('What they recorded')} />
+    </div>
   )
 }
 
@@ -94,6 +136,7 @@ function ProposeSheet({ clientId, routine, close, onDone, draft = null }) {
               <div key={i}>{c.name}: {c.field} {c.from ?? '—'} → {c.to}</div>
             ))}
           </div>
+          <ReviewContext findings={draft.context} />
           <div className="dim" style={{ marginTop: 6 }}>
             {draft.source === 'model'
               ? t('Drafted from their logged sets; wording from a language model. Edit anything before you send it.')
@@ -153,16 +196,23 @@ function ProposeSheet({ clientId, routine, close, onDone, draft = null }) {
  */
 function SessionVideos({ clientId, workoutId }) {
   const [files, setFiles] = useState(null)
+  const [canLook, setCanLook] = useState(false)
 
   useEffect(() => {
     clientFormChecks(clientId, workoutId).then(setFiles).catch(() => setFiles([]))
+    aiCapabilities().then(c => setCanLook(!!c.vision))
   }, [clientId, workoutId])
 
   if (!files?.length) return null
   return (
     <>
       <h4 className="sec">{t('Form checks')}</h4>
-      <Attachments subject="form_check" files={files} readOnly onChange={() => {}} />
+      {/* Read-only in every other respect, and this is not an exception to that: looking at a
+          photo changes nothing about the client's training, and the server allows it on exactly
+          the scope that let this list be fetched at all. */}
+      <Attachments
+        subject="form_check" files={files} readOnly onChange={() => {}}
+        look={canLook ? f => describeFormCheck(f.id) : null} />
     </>
   )
 }
@@ -518,12 +568,26 @@ export default function CoachClient() {
     setDrafting(true)
     try {
       const draft = await draftClientChange(id)
-      if (!draft.change) { toast(say(draft.detail) || t('Nothing to change')); return }
+      if (!draft.change) {
+        // Nothing to propose is still something to read, when the review found anything at all.
+        if (draft.context?.length) {
+          openSheet(() => (
+            <ReviewOnlySheet headline={draft.headline} detail={draft.detail}
+                             findings={draft.context} signals={draft.review?.signals} />
+          ))
+        } else {
+          toast(say(draft.detail) || t('Nothing to change'))
+        }
+        return
+      }
       const target = routines.find(r => r.id === draft.change.routineId) ||
                      { id: draft.change.routineId, name: draft.change.payload.name, exercises: [] }
       openSheet(close => (
         <ProposeSheet clientId={id} routine={target} close={close} onDone={load}
-                      draft={{ ...draft.change, note: draft.note, headline: draft.headline, source: draft.source }} />
+                      draft={{
+                        ...draft.change, note: draft.note, headline: draft.headline,
+                        source: draft.source, context: draft.context
+                      }} />
       ))
     } catch (e) { toast(e.message) }
     finally { setDrafting(false) }

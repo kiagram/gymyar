@@ -268,3 +268,48 @@ describe('explaining a change without a model', () => {
     expect((await explainChangeLocally({ headline: 'Fine', changes: [] })).note).toMatch(/Fine/)
   })
 })
+
+/* --------------------------------- what else the review found --------------------------- */
+
+/* The note is the one piece of model output a client reads verbatim, and until now it only knew
+ * about the change itself. A stall deloaded on its own terms reads very differently next to
+ * "your weight has been coming off", and the review already knew that. */
+
+describe('the context a note is allowed to draw on', () => {
+  const msgOf = fn => ({ msg: fn, args: [] })
+  const CONTEXT = [
+    { kind: 'stalled-in-deficit', severity: 'high', title: msgOf('The lifts stalled while body weight came off') },
+    { kind: 'sore', severity: 'medium', title: msgOf('Soreness has been 4.5 out of 5') },
+    { kind: 'sleep', severity: 'medium', title: msgOf('Sleep has been 1.7 out of 5') }
+  ]
+
+  it('reaches the model as sentences the domain already wrote', async () => {
+    const provider = fakeProvider({ note: 'Cutting the rep target while your weight comes off.' })
+    await createAI({ provider }).explainChange(CHANGE, { context: CONTEXT })
+
+    const sent = JSON.parse(provider.complete.mock.calls[0][0].input)
+    expect(sent.context).toContain('The lifts stalled while body weight came off')
+    // Rendered, not an unrendered { msg, args } that would tell a model nothing.
+    expect(sent.context.every(c => typeof c === 'string')).toBe(true)
+  })
+
+  it('hands over two at most, so the note stays a note', async () => {
+    const provider = fakeProvider({ note: 'A perfectly reasonable sentence about training.' })
+    await createAI({ provider }).explainChange(CHANGE, { context: CONTEXT })
+    expect(JSON.parse(provider.complete.mock.calls[0][0].input).context).toHaveLength(2)
+  })
+
+  it('is an empty list when there was nothing else, not a missing field', async () => {
+    const provider = fakeProvider({ note: 'A perfectly reasonable sentence about training.' })
+    await createAI({ provider }).explainChange(CHANGE)
+    expect(JSON.parse(provider.complete.mock.calls[0][0].input).context).toEqual([])
+  })
+
+  it('changes nothing about the template underneath', async () => {
+    // The fallback writes from the change alone, and passing context must not break that.
+    const { note, source } = await createAI({ provider: nullProvider })
+      .explainChange(CHANGE, { context: CONTEXT })
+    expect(source).toBe('local')
+    expect(note).toBeTruthy()
+  })
+})

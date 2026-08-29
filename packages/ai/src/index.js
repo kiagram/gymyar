@@ -9,15 +9,23 @@
  *   interpretBrief  free text  →  a structured brief the planner accepts
  *   explainChange   a diff     →  the sentence a coach would have written
  *   parseLog        free text  →  logged sets
+ *   describeForm    a photo    →  what is visible about the movement in it
  *
- * Every one of them has a deterministic implementation underneath. With no API key configured
+ * The first three have a deterministic implementation underneath. With no API key configured
  * the product still builds programmes, still reviews training and still parses "bench 5x5 at 80"
  * — it just phrases things from a template instead of writing prose. That is the difference
  * between a feature that degrades and a feature that goes down.
  *
+ * `describeForm` is the exception, and it is worth being blunt about why. There is no template
+ * that can look at a photograph, so this is the one thing here that does not degrade — with no
+ * vision model configured it is simply absent, and `/api/ai/status` says so, so a screen can
+ * hide the button rather than offer a feature that answers nothing.
+ *
  * Every model output is validated by the domain before it can affect anything:
  * `normaliseBrief` throws away invented goals and equipment, and `parseLog` is the only thing
  * allowed to name an exercise. A model that returns nonsense costs a fallback, not a bad plan.
+ * `describeForm` reaches nothing numeric at all: it returns sentences a person reads, next to a
+ * photograph they can check them against, and it cannot change a single set.
  */
 import { normaliseBrief, parseLog as parseLogLocal, say } from '@gymyar/domain'
 import { anthropicProvider } from './anthropic.js'
@@ -45,11 +53,12 @@ const OPENAI_DEEP_DEFAULT = 'gpt-5'
  * same from here. With nothing hosted configured it stops being a failover and becomes the model.
  */
 export function providersFromEnv(env = process.env) {
-  const ollama = model => model
-    ? ollamaProvider({ baseUrl: env.OLLAMA_BASE_URL || undefined, model })
+  const ollama = (model, opts = {}) => model
+    ? ollamaProvider({ baseUrl: env.OLLAMA_BASE_URL || undefined, model, ...opts })
     : null
   const localFast = ollama(env.OLLAMA_MODEL_FAST || env.OLLAMA_MODEL)
   const localDeep = ollama(env.OLLAMA_MODEL_DEEP || env.OLLAMA_MODEL_FAST || env.OLLAMA_MODEL)
+  const vision = visionFromEnv(env, ollama)
 
   /* OpenAI is checked first because it is the one this deployment runs on. A second hosted key
    * in the same environment is a deliberate act — an operator moving between vendors — and the
@@ -65,7 +74,8 @@ export function providersFromEnv(env = process.env) {
       // below: naming only one model here means naming the cheap one, and quietly sending the
       // note a client reads to a mini model is the one substitution this split exists to stop.
       deep: gpt(env.GYMYAR_MODEL_DEEP || OPENAI_DEEP_DEFAULT),
-      local: localFast
+      local: localFast,
+      vision
     }
   }
 
@@ -76,7 +86,8 @@ export function providersFromEnv(env = process.env) {
     return {
       fast: ds(env.GYMYAR_MODEL_FAST || DEEPSEEK_DEFAULT),
       deep: ds(env.GYMYAR_MODEL_DEEP || env.GYMYAR_MODEL_FAST || DEEPSEEK_DEFAULT),
-      local: localFast
+      local: localFast,
+      vision
     }
   }
 
@@ -90,12 +101,35 @@ export function providersFromEnv(env = process.env) {
     return {
       fast: claude(env.GYMYAR_MODEL_FAST || named),
       deep: claude(env.GYMYAR_MODEL_DEEP || named),
-      local: localFast
+      local: localFast,
+      vision
     }
   }
 
-  if (localFast) return { fast: localFast, deep: localDeep, local: null }
-  return { fast: nullProvider, deep: nullProvider, local: null }
+  if (localFast) return { fast: localFast, deep: localDeep, local: null, vision }
+  return { fast: nullProvider, deep: nullProvider, local: null, vision }
+}
+
+/**
+ * The model that may be shown a photograph — on this machine, or not at all.
+ *
+ * This is the one provider with no hosted branch, and that is a policy rather than an
+ * oversight. The pictures this reads are somebody's body in a gym, taken so their coach could
+ * look at a lift. Sending those to a vendor is a different act from sending them the sentence
+ * "bench press stalled", it is not covered by anything the person agreed to when they uploaded
+ * a form check, and an operator who set `OPENAI_API_KEY` for prose has not agreed to it either.
+ * So the image path stops at `OLLAMA_BASE_URL`: the bytes stay on the hardware the deployment
+ * already holds them on, and switching that off is deleting one variable.
+ *
+ * A shorter budget than the text tiers, because four short observations is the whole answer and
+ * a vision model left to run writes an essay about the wallpaper.
+ */
+export function visionFromEnv(env = process.env, make = null) {
+  const model = env.OLLAMA_MODEL_VISION
+  if (!model) return null
+  const build = make ||
+    ((m, opts) => ollamaProvider({ baseUrl: env.OLLAMA_BASE_URL || undefined, model: m, ...opts }))
+  return build(model, { maxTokens: 512 })
 }
 
 /** The primary model, for callers that only want to know whether there is one at all. */
@@ -124,7 +158,7 @@ const TIER = { brief: 'fast', 'parse-log': 'fast', explain: 'deep' }
  * single-model deployment want. `fast`/`deep` split it by task, and `local` is the failover.
  */
 export function createAI({
-  provider = null, fast = null, deep = null, local = null, timeoutMs = 20000
+  provider = null, fast = null, deep = null, local = null, vision = null, timeoutMs = 20000
 } = {}) {
   const env = provider || fast || deep || local ? null : providersFromEnv()
   const tiers = {
@@ -133,6 +167,13 @@ export function createAI({
   }
   const localProvider = local || env?.local || null
   const anyAvailable = !!(tiers.fast.available || tiers.deep.available || localProvider?.available)
+
+  /* Deliberately outside `tiers`, and deliberately not in the failover chain below. A text model
+   * handed a task it cannot see the image for does not fail — it writes plausible observations
+   * about a photograph it never received, which is the worst possible output of this feature.
+   * There is no second-best answer here: either something can look at the picture, or nobody
+   * can, and `describeForm` returns null. */
+  const eyes = vision || env?.vision || null
 
   /* Three levels, in order: the model you pay for, the one on your own hardware, the template.
    * A hosted model that is unreachable — an outage, a lapsed key, a route that stopped working —
@@ -158,11 +199,15 @@ export function createAI({
   return {
     provider: tiers.fast.name,
     available: anyAvailable,
+    /* Asked separately because it is a separate answer. Every other method works with no model
+     * at all; this one does not exist without one, so a screen has to be able to ask. */
+    vision: !!eyes?.available,
     // Named so an operator can see which model actually answers what, without reading the env.
     models: {
       fast: tiers.fast.available ? tiers.fast.model ?? tiers.fast.name : null,
       deep: tiers.deep.available ? tiers.deep.model ?? tiers.deep.name : null,
-      local: localProvider?.available ? localProvider.model ?? localProvider.name : null
+      local: localProvider?.available ? localProvider.model ?? localProvider.name : null,
+      vision: eyes?.available ? eyes.model ?? eyes.name : null
     },
 
     /** Free text about goals and circumstances → a brief the planner will accept. */
@@ -188,7 +233,7 @@ export function createAI({
     },
 
     /** A proposed change → the sentence explaining it. */
-    async explainChange(change, { clientName = null, tone = 'coach', lang = 'en' } = {}) {
+    async explainChange(change, { clientName = null, tone = 'coach', lang = 'en', context = [] } = {}) {
       const result = await ask({
         kind: 'explain',
         system: inLanguage(EXPLAIN_SYSTEM, lang),
@@ -201,6 +246,11 @@ export function createAI({
           changes: (change.changes || []).map(c => ({
             exercise: c.exerciseId, field: c.field, from: c.from, to: c.to, why: say(c.why)
           })),
+          /* The rest of what the review found, already worded by the domain. Sentences rather
+           * than numbers on purpose: the arithmetic was done, and a model handed `-1.07` would
+           * be deciding what that means about somebody's training. Here it is rewriting a
+           * conclusion, which is the same job it does for everything else in this input. */
+          context: (context || []).slice(0, 2).map(f => say(f.title)),
           clientName, tone
         }),
         schema: EXPLAIN_SCHEMA
@@ -251,6 +301,57 @@ export function createAI({
         unresolved: second.unresolved,
         unit,
         source: second.entries.length ? 'model' : 'local'
+      }
+    },
+
+    /**
+     * A photograph of somebody lifting → what is visible about the movement in it.
+     *
+     * `null` when nothing on this machine can see, which is not an error and is the answer a
+     * caller should expect: there is no template that looks at a picture, so this is the one
+     * method here with no deterministic floor under it. Check `vision` before offering it.
+     *
+     * `images` is `[{ mime, data }]`, base64, already read and already capped by whoever read
+     * them — this package does no I/O and holds no opinion about how big a photograph may be.
+     * `exercise` is a name out of the library, supplied by the caller, because a model naming
+     * the lift itself would be a model naming a lift that does not exist.
+     *
+     * What comes back is prose next to a picture the reader is looking at, and it changes
+     * nothing: there is no path from here to a set, a load or a programme.
+     */
+    async describeForm(images, { exercise = null, note = null, lang = 'en' } = {}) {
+      if (!eyes?.available || !images?.length) return null
+
+      let result
+      try {
+        result = await withTimeout(
+          eyes.complete({
+            kind: 'form',
+            system: inLanguage(FORM_SYSTEM, lang),
+            input: JSON.stringify({ exercise, asked: note }),
+            schema: FORM_SCHEMA,
+            images
+          }),
+          eyes.timeoutMs ?? timeoutMs
+        )
+      } catch (e) {
+        // Same shape as an answer, so a caller renders "it could not look" rather than crashing.
+        return { observations: [], unclear: true, source: 'model', modelError: e.message }
+      }
+
+      /* Four short sentences, and nothing longer than one. A vision model that starts narrating
+       * is a vision model that has stopped looking, and the cap is what keeps the answer beside
+       * the photograph rather than instead of it. */
+      const observations = (Array.isArray(result?.observations) ? result.observations : [])
+        .map(o => String(o ?? '').trim().slice(0, 240))
+        .filter(Boolean)
+        .slice(0, 4)
+
+      return {
+        observations,
+        // A model that saw nothing useful says so, and an empty answer means the same thing.
+        unclear: !observations.length || !!result?.unclear,
+        source: 'model'
       }
     }
   }
@@ -311,7 +412,32 @@ Say what is changing, and why in terms of what their own training showed. No gre
 no exclamation marks, no encouragement, no emoji. Do not invent numbers that are not in the input.
 
 Write like someone who trains people for a living and has said this a hundred times: direct,
-specific, and slightly bored by the drama of it.`
+specific, and slightly bored by the drama of it.
+
+You may also be given "context": other things the same review found, already decided and already
+worded. Mention at most one, and only where it explains the change — somebody reading why their
+rep target was cut is helped by "your weight has been coming off" and not by a list of everything
+noticed this month. Where none of it bears on the change, leave all of it out. Do not turn it into
+advice about eating, sleeping or anything outside the training in front of you.`
+
+const FORM_SYSTEM = `You are looking at a photograph of somebody performing a strength exercise,
+taken so that their coach can see the movement.
+
+Describe only what is visible about the movement: where the bar is, what the back is doing, where
+the knees, elbows, wrists and head are, whether anything is out of line for this point in the lift.
+
+Do not describe the person. Their build, their weight, how lean or heavy they look, their
+appearance and their clothing are not what this picture is for, and none of it belongs in the
+answer. You are looking at a lift, not at a body.
+
+Do not invent numbers. A photograph does not show you a weight, an angle in degrees, a rep count
+or a percentage, and a number that cannot be measured from the picture is worse than silence.
+
+One photograph is one instant of a lift. If it is blurred, badly framed, taken from an angle that
+hides the movement, or does not show somebody lifting at all, set unclear and leave the
+observations empty. Saying you cannot tell is a correct answer and a common one.
+
+At most four observations, one short sentence each, addressed to the person lifting.`
 
 const PARSE_SYSTEM = `You rewrite messy descriptions of completed sets into a strict shorthand.
 
@@ -353,6 +479,19 @@ const EXPLAIN_SCHEMA = {
     type: 'object',
     properties: { note: { type: 'string' } },
     required: ['note']
+  }
+}
+
+const FORM_SCHEMA = {
+  name: 'form_observations',
+  description: 'What is visible about the movement in a form-check photograph',
+  input_schema: {
+    type: 'object',
+    properties: {
+      observations: { type: 'array', items: { type: 'string' } },
+      unclear: { type: 'boolean' }
+    },
+    required: ['observations']
   }
 }
 

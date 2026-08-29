@@ -7,7 +7,7 @@
  * method that only means something to a filesystem, a return value that assumes local paths, a
  * signature scheme baked into the caller.
  *
- * So the four methods are here with their real signatures, and each one throws. Writing the
+ * So the five methods are here with their real signatures, and each one throws. Writing the
  * bodies is a dependency (`@aws-sdk/client-s3`) and an afternoon; the point is that nothing
  * above this file would have to change when somebody does.
  *
@@ -52,6 +52,8 @@ export function s3Storage({ bucket, region, endpoint = null, prefix = '' } = {})
     async put({ key, body, contentType }) { return notImplemented('put') },
     // eslint-disable-next-line no-unused-vars
     signedUrl(key, opts) { return notImplemented('signedUrl') },
+    // eslint-disable-next-line no-unused-vars
+    async get(key) { return notImplemented('get') },
     // eslint-disable-next-line no-unused-vars
     async stat(key) { return notImplemented('stat') },
     // eslint-disable-next-line no-unused-vars

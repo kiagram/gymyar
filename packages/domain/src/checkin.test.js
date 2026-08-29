@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   BUILT_IN_FIELDS, MAX_FIELDS, normaliseField, normaliseFields, fieldsOf,
-  normaliseAnswers, missingFrom, checkinDateFor, daysOverdue
+  normaliseAnswers, missingFrom, checkinDateFor, daysOverdue,
+  numericSeries, trendOf, SCALE_DIRECTION
 } from './checkin.js'
 
 const fields = [
@@ -124,5 +125,96 @@ describe('which day a check-in is filed under', () => {
     expect(daysOverdue(due, Date.parse('2026-08-22T09:00:00'))).toBeLessThan(0)
     expect(daysOverdue(due, Date.parse('2026-08-23T09:00:00'))).toBe(0)
     expect(daysOverdue(due, Date.parse('2026-09-05T09:00:00'))).toBe(13)
+  })
+})
+
+/* ------------------------------------------------- answers read as a series ---- */
+
+const answered = (d, a, at = `${d}T10:00:00Z`) => ({ d, tpl: 't1', a, at })
+
+describe('reading a run of check-ins as numbers', () => {
+  it('builds one series per numeric field, oldest first', () => {
+    const out = numericSeries([
+      answered('2026-08-15', { weight: 81, sleep: 3, notes: 'fine' }),
+      answered('2026-08-01', { weight: 83, sleep: 2 }),
+      answered('2026-08-08', { weight: 82, sleep: 2 })
+    ], fields)
+
+    expect(out.weight.points.map(p => p.v)).toEqual([83, 82, 81])
+    expect(out.sleep.points).toHaveLength(3)
+    // Text is not a number and never becomes one.
+    expect(out.notes).toBeUndefined()
+  })
+
+  it('leaves a draft out — a half-filled form is not an answer', () => {
+    const out = numericSeries([
+      answered('2026-08-01', { weight: 83 }),
+      { d: '2026-08-08', tpl: 't1', a: { weight: 60 }, at: null }
+    ], fields)
+    expect(out.weight.points).toHaveLength(1)
+  })
+
+  it('skips a key no field describes, rather than guessing what the number is', () => {
+    const out = numericSeries([answered('2026-08-01', { mystery: 44 })], fields)
+    expect(out.mystery).toBeUndefined()
+  })
+
+  it('still reads a built-in key a coach template stopped asking', () => {
+    // The template dropped `sleep`; the answers given under it are still answers.
+    const out = numericSeries([answered('2026-08-01', { sleep: 2 })], [
+      { key: 'weight', type: 'bodyweight', label: 'Weight' }
+    ])
+    expect(out.sleep.points).toHaveLength(1)
+  })
+
+  it('fixes a direction only for the scales whose meaning is known', () => {
+    expect(SCALE_DIRECTION.soreness).toBe('up-bad')
+    expect(SCALE_DIRECTION.sleep).toBe('up-good')
+    expect(SCALE_DIRECTION.stress).toBeUndefined()
+  })
+})
+
+describe('the line through a series', () => {
+  const weekly = vs => vs.map((v, i) => ({ d: new Date(Date.parse('2026-07-04T12:00:00Z') + i * 7 * 86400000).toISOString().slice(0, 10), v }))
+
+  it('reports a weekly rate in the field’s own units', () => {
+    const t = trendOf(weekly([84, 83, 82, 81]))
+    expect(t.perWeek).toBeCloseTo(-1, 5)
+    expect(t.n).toBe(4)
+    expect(t.days).toBe(21)
+  })
+
+  it('reports that rate as a share of the mean, so two people compare', () => {
+    const heavy = trendOf(weekly([124, 123, 122, 121]))
+    const light = trendOf(weekly([64, 63, 62, 61]))
+    expect(Math.abs(heavy.pctPerWeek)).toBeLessThan(Math.abs(light.pctPerWeek))
+  })
+
+  it('measures against the dates, not against the array', () => {
+    // Three weeks between the last two answers. Read as equal steps this is a much steeper line.
+    const t = trendOf([
+      { d: '2026-07-04', v: 84 }, { d: '2026-07-11', v: 83 }, { d: '2026-08-01', v: 82 }
+    ])
+    expect(t.perWeek).toBeGreaterThan(-1)
+    expect(t.days).toBe(28)
+  })
+
+  it('refuses a trend through two points, or through one week', () => {
+    expect(trendOf(weekly([84, 82])).perWeek).toBeNull()
+    expect(trendOf([
+      { d: '2026-07-04', v: 84 }, { d: '2026-07-05', v: 83 }, { d: '2026-07-06', v: 82 }
+    ]).perWeek).toBeNull()
+  })
+
+  it('still reports the mean and the ends of a series too short to have a slope', () => {
+    const t = trendOf(weekly([84, 82]))
+    expect(t.mean).toBe(83)
+    expect(t.first).toBe(84)
+    expect(t.last).toBe(82)
+  })
+
+  it('says nothing at all about nothing', () => {
+    expect(trendOf([]).n).toBe(0)
+    expect(trendOf([]).mean).toBeNull()
   })
 })

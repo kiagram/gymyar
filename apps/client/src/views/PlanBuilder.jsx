@@ -14,6 +14,7 @@ import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { Section, Row, Button, TextArea, Check, Segmented } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
+import Signals from '../components/Signals.jsx'
 import { glyphOf } from '../lib/glyphs.js'
 import { t, say } from '../lib/i18n.js'
 import { DAYN, uid } from '@gymyar/domain'
@@ -174,28 +175,34 @@ function Review() {
   if (err) return <p className="err small">{err}</p>
   if (!review) return <p className="dim small">{t('Reading your last month…')}</p>
 
-  if (!review.findings.length) {
-    return (
-      <Section title={t('Your last 4 weeks')}>
-        <Row icon="checkCircle" iconTint="var(--green)"
-             title={review.sessions ? t('{0} sessions, nothing to flag', review.sessions) : t('Nothing logged yet')}
-             subtitle={review.sessions
-               ? t('Everything is progressing or holding. Leaving a programme alone while it works is a decision too.')
-               : t('Log a few sessions and this will have something to say.')} />
-      </Section>
-    )
-  }
-
+  /* The numbers come second and come regardless. "Nothing to flag" is a conclusion about
+   * training, and somebody who has been weighing themselves all month is still owed the trend
+   * it was drawn from — a review that says nothing while sitting on four weigh-ins looks like a
+   * review that did not read them. */
   return (
-    <Section title={t('Your last 4 weeks')}
-             footer={t('All of this comes from sets you logged — not from how anything felt.')}>
-      {review.findings.map((f, i) => (
-        <Row key={`${f.kind}-${i}`}
-             icon={f.severity === 'high' ? 'flame' : f.severity === 'medium' ? 'info' : 'dot'}
-             iconTint={SEVERITY[f.severity]}
-             title={say(f.title)} subtitle={say(f.detail)} />
-      ))}
-    </Section>
+    <>
+      {!review.findings.length ? (
+        <Section title={t('Your last 4 weeks')}>
+          <Row icon="checkCircle" iconTint="var(--green)"
+               title={review.sessions ? t('{0} sessions, nothing to flag', review.sessions) : t('Nothing logged yet')}
+               subtitle={review.sessions
+                 ? t('Everything is progressing or holding. Leaving a programme alone while it works is a decision too.')
+                 : t('Log a few sessions and this will have something to say.')} />
+        </Section>
+      ) : (
+        <Section title={t('Your last 4 weeks')}
+                 footer={t('All of this comes from sets you logged and check-ins you sent — never from a guess.')}>
+          {review.findings.map((f, i) => (
+            <Row key={`${f.kind}-${i}`}
+                 icon={f.severity === 'high' ? 'flame' : f.severity === 'medium' ? 'info' : 'dot'}
+                 iconTint={SEVERITY[f.severity]}
+                 title={say(f.title)} subtitle={say(f.detail)} />
+          ))}
+        </Section>
+      )}
+
+      <Signals signals={review.signals} />
+    </>
   )
 }
 

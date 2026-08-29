@@ -10,6 +10,11 @@
  * `normaliseBrief` or the deterministic parser before it can affect anything, so a loose mode
  * costs a fallback rather than a bad plan.
  *
+ * Images ride the same shape. A task carrying `images` turns the user message from a string
+ * into OpenAI's content parts, which is what Ollama's `/v1` accepts for a vision model and what
+ * every hosted endpoint speaking this protocol accepts too. Whether one is *sent* anywhere is
+ * decided a long way above this file — see `visionFromEnv` in index.js.
+ *
  * No SDK. One fetch, in a package whose whole job is to be optional.
  */
 const RETRYABLE = new Set([408, 409, 429, 500, 502, 503, 504])
@@ -67,8 +72,21 @@ export function openAICompatProvider({
     model,
     ...(timeoutMs ? { timeoutMs } : {}),
 
-    async complete({ system, input, schema }) {
+    async complete({ system, input, schema, images = [] }) {
       const useTools = structured === 'tools'
+      /* A string when there is nothing to look at, so a text-only endpoint sees exactly the
+       * request it saw before this existed. Parts only when there is an image, because some
+       * endpoints that speak this protocol still reject the array form. */
+      const content = images.length
+        ? [
+            { type: 'text', text: input },
+            ...images.map(img => ({
+              type: 'image_url',
+              image_url: { url: `data:${img.mime};base64,${img.data}` }
+            }))
+          ]
+        : input
+
       const messages = [
         {
           role: 'system',
@@ -79,7 +97,7 @@ this schema:
 
 ${JSON.stringify(schema.input_schema, null, 2)}`
         },
-        { role: 'user', content: input }
+        { role: 'user', content }
       ]
 
       const body = {

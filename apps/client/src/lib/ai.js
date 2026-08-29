@@ -7,6 +7,21 @@ import { api } from './api.js'
 
 export const aiStatus = () => api('/api/ai/status')
 
+/* What this instance can do, asked once.
+ *
+ * A deployment does not grow a vision model while somebody is looking at a workout, so this is
+ * a property of the server rather than of a screen — and three screens each asking on mount is
+ * three requests for one unchanging answer. The rejection is swallowed into "nothing is
+ * configured", which is the same thing a screen does with it and the safe direction to be wrong
+ * in: a button that is missing costs a feature, a button that fails costs trust.
+ */
+let asked = null
+export const aiCapabilities = () =>
+  (asked ??= aiStatus().catch(() => ({ model: false, vision: false })))
+
+/** For the suite, and for a sign-out that should not carry an answer into the next session. */
+export const forgetAiCapabilities = () => { asked = null }
+
 export const draftProgramme = ({ text, brief }) =>
   api('/api/ai/programme', { method: 'POST', body: JSON.stringify({ text, brief }) })
 
@@ -17,6 +32,16 @@ export const draftClientChange = (clientId, days = 28) =>
 
 export const parseLogText = text =>
   api('/api/ai/parse-log', { method: 'POST', body: JSON.stringify({ text }) })
+
+/**
+ * What a model on the server can see in a form-check photo. Observations, never a change.
+ *
+ * Only offered when `aiStatus().vision` is true. Unlike everything else here, this one has no
+ * template underneath it — an instance with no vision model configured answers 501, and a
+ * screen should not have shown the button in the first place.
+ */
+export const describeFormCheck = (attachmentId, note = null) =>
+  api(`/api/ai/form-check/${attachmentId}`, { method: 'POST', body: JSON.stringify({ note }) })
 
 /* The questions the form asks, and the words on them. Kept here so the sheet stays about
  * layout and this stays about vocabulary. */

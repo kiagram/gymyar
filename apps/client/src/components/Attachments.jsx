@@ -51,8 +51,22 @@ const ACCEPT = {
 }
 
 /** One rendered file. Playback is the browser's job; this decides which element it gets. */
-function Attachment({ file, onDelete, canDelete }) {
+function Attachment({ file, onDelete, canDelete, look }) {
   const [broken, setBroken] = useState(false)
+  const [seen, setSeen] = useState(null)
+  const [looking, setLooking] = useState(false)
+
+  /* Offered for a photograph and never for a video: reading a clip means pulling frames out of
+   * it, which the server refuses rather than pretends to do. `look` being absent is the usual
+   * case — most instances have no model that can see, and then there is no button at all. */
+  const canLook = !!look && file.kind === 'photo'
+
+  const ask = async () => {
+    setLooking(true)
+    try { setSeen(await look(file)) }
+    catch (err) { setSeen({ observations: [], failed: err.message }) }
+    finally { setLooking(false) }
+  }
 
   if (broken) {
     return <div className="att att-gone">
@@ -75,10 +89,26 @@ function Attachment({ file, onDelete, canDelete }) {
 
     <figcaption className="row between">
       <span className="ss grow">{file.caption || fmtBytes(file.bytes)}</span>
+      {canLook && !seen &&
+        <Button variant="ghost" size="xs" icon="sparkles" disabled={looking} onClick={ask}>
+          {looking ? t('Looking…') : t('Look at this photo')}
+        </Button>}
       {canDelete && <button className="iconbtn" aria-label={t('Delete')} onClick={onDelete}>
         <Icon name="trash" />
       </button>}
     </figcaption>
+
+    {seen && <div className="att-seen">
+      {seen.observations?.length
+        ? <ul className="ss">{seen.observations.map((o, i) => <li key={i}>{o}</li>)}</ul>
+        : <div className="ss dim">
+          {seen.failed ? t('Could not look at it just now.') : t('Could not tell from this photo.')}
+        </div>}
+      {/* Said every time rather than once in a settings screen. This is the only thing in the
+          app whose output nothing checked, and the reader has the photograph in front of them —
+          which is exactly what makes disagreeing with it possible. */}
+      <p className="ss dim">{t('Read by a model on this server, from this one photo. It can be wrong — you are looking at the same picture it is.')}</p>
+    </div>}
   </figure>
 }
 
@@ -90,9 +120,13 @@ function Attachment({ file, onDelete, canDelete }) {
  * @param readOnly  a coach looking at somebody else's; no picker, no delete
  * @param addLabel  what the button says — "add a video" and "add a photo" are not the same
  * @param empty     what to say when there is nothing, in the words of the screen it is on
+ * @param look      (file) => Promise<{ observations, unclear }>, or null for no such button.
+ *                  Passed by the screen rather than decided here, for the same reason `send` is:
+ *                  which endpoint a subject talks to is the screen's business, and a progress
+ *                  photo has no endpoint to talk to on purpose.
  */
 export default function Attachments({
-  subject, files, onChange, send, readOnly = false, addLabel, empty = null
+  subject, files, onChange, send, readOnly = false, addLabel, empty = null, look = null
 }) {
   const [progress, setProgress] = useState(null)    // 0…1 while a file is going up
   const [error, setError] = useState(null)
@@ -141,7 +175,7 @@ export default function Attachments({
 
   return <div className="atts">
     {files.map(f => (
-      <Attachment key={f.id} file={f} canDelete={!readOnly} onDelete={() => remove(f)} />
+      <Attachment key={f.id} file={f} canDelete={!readOnly} onDelete={() => remove(f)} look={look} />
     ))}
 
     {!files.length && (empty || readOnly) &&

@@ -43,6 +43,11 @@ export const BUCKETS = {
   'model.draft': { max: 12, window: 10 * MINUTE },
   // Reading a typed log. Called mid-workout and more often, still model-backed.
   'model.parse': { max: 40, window: 10 * MINUTE },
+  /* Looking at a form check. Tighter than either, because this one costs seconds of a GPU on
+   * the deployment's own hardware rather than a few hundred tokens at somebody else's — a
+   * handful of photographs is a person going through a session, and a hundred is a queue that
+   * makes every other model call on the box slow. */
+  'model.vision': { max: 8, window: 10 * MINUTE },
   // Signing in. Tight, and keyed by the identifier being tried rather than the address.
   'auth': { max: 10, window: 15 * MINUTE },
   /* Asking for a reset link. Tighter than signing in and keyed the same way — by the address

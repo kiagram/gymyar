@@ -40,7 +40,17 @@ export const config = {
     /* Everything one account may hold at once. Zero is unlimited, which is the right answer
      * for a household instance and the wrong one for anything with a signup form: an upload
      * endpoint with no ceiling is a bill somebody else writes. */
-    quotaBytes: Math.max(0, +(process.env.MAX_MEDIA_BYTES_PER_USER ?? 2 * 1024 * 1024 * 1024) || 0)
+    quotaBytes: Math.max(0, +(process.env.MAX_MEDIA_BYTES_PER_USER ?? 2 * 1024 * 1024 * 1024) || 0),
+    /* The largest photograph that will be handed to a vision model, in bytes.
+     *
+     * Lower than the upload limit, and separate from it, because it is a different question.
+     * `MAX_PHOTO_BYTES` is what a person may store; this is what fits comfortably in a request
+     * to a model on the same machine — the object has to be read whole into this process and
+     * base64 makes it a third larger again, so an eight-megabyte photograph is eleven megabytes
+     * of JSON before Ollama has looked at anything. Ollama resizes the image to whatever the
+     * model actually takes, so a bigger file buys no more detail; it only costs the copy.
+     */
+    visionBytes: Math.max(0, +(process.env.MAX_VISION_BYTES || 4 * 1024 * 1024) || 0)
   },
   /* Where a link in an email points.
    *

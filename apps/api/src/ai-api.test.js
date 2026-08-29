@@ -25,6 +25,27 @@ const signUp = async (name, email, extra = {}) => {
   return { c, user: r.body.user }
 }
 
+/* Four sessions falling short of the rep target, which is what a stall looks like to the
+ * review. Shared by both of the describes that draft a change from one. */
+const stalledHistory = async c => {
+  const day = n => new Date(Date.now() - n * 86400000).toISOString()
+  const session = (id, n, reps) => ({
+    id, started_at: day(n), finished_at: day(n), routine_id: 'r1', routine_name: 'Push', prs: [],
+    sets: Array.from({ length: 3 }, (_, i) => ({
+      id: `${id}:${i}`, workout_id: id, exercise_id: '0025', position: i,
+      weight_kg: 100, reps, seconds: null, distance_m: null, per_side: false,
+      effort_value: null, effort_scale: null, is_warmup: false, done: true, done_at: day(n)
+    }))
+  })
+  await c.post('/api/sync', {
+    changes: {
+      routines: [{ id: 'r1', name: 'Push', policy: 'linear', exercises: [{ id: '0025', sets: 3, reps: 5 }] }],
+      weekPlan: [{ weekday: 1, routine_id: 'r1' }, { weekday: 3, routine_id: 'r1' }],
+      workouts: [session('w1', 20, 5), session('w2', 15, 4), session('w3', 10, 4), session('w4', 3, 3)]
+    }
+  })
+}
+
 describe('what the model layer says about itself', () => {
   it('admits when there is no model', async () => {
     const { c } = await signUp('Ada', 'ada@x.test')
@@ -120,25 +141,6 @@ describe('drafting a change for a client', () => {
     const inv = await coach.c.post('/api/coach/invites', { scopes })
     await client_.c.post(`/api/invites/${inv.body.invite.code}/accept`)
     return { coach, client_ }
-  }
-
-  const stalledHistory = async c => {
-    const day = n => new Date(Date.now() - n * 86400000).toISOString()
-    const session = (id, n, reps) => ({
-      id, started_at: day(n), finished_at: day(n), routine_id: 'r1', routine_name: 'Push', prs: [],
-      sets: Array.from({ length: 3 }, (_, i) => ({
-        id: `${id}:${i}`, workout_id: id, exercise_id: '0025', position: i,
-        weight_kg: 100, reps, seconds: null, distance_m: null, per_side: false,
-        effort_value: null, effort_scale: null, is_warmup: false, done: true, done_at: day(n)
-      }))
-    })
-    await c.post('/api/sync', {
-      changes: {
-        routines: [{ id: 'r1', name: 'Push', policy: 'linear', exercises: [{ id: '0025', sets: 3, reps: 5 }] }],
-        weekPlan: [{ weekday: 1, routine_id: 'r1' }, { weekday: 3, routine_id: 'r1' }],
-        workouts: [session('w1', 20, 5), session('w2', 15, 4), session('w3', 10, 4), session('w4', 3, 3)]
-      }
-    })
   }
 
   it('drafts a change without sending it', async () => {
@@ -240,5 +242,140 @@ describe('logging by typing', () => {
     const { c } = await signUp('Ada', 'ada@x.test')
     expect((await c.post('/api/ai/parse-log', { text: '   ' })).status).toBe(400)
     expect((await c.post('/api/ai/parse-log', { text: 'x'.repeat(3000) })).status).toBe(400)
+  })
+})
+
+describe('a review reads only what the client shared', () => {
+  /* The scope invariant, on the one route where it is easiest to lose. `stateForUser` loads a
+   * whole account — every weigh-in and every check-in — and the scope that opens this endpoint
+   * is `workouts`. Nothing but the `sources` list stops the answer being about somebody's
+   * weight, so it is asserted here as well as in the domain. */
+
+  const linkedWith = async scopes => {
+    const coach = await signUp('Coach Kim', 'kim@x.test', { asCoach: true })
+    const client_ = await signUp('Sam', 'sam@x.test')
+    const inv = await coach.c.post('/api/coach/invites', { scopes })
+    await client_.c.post(`/api/invites/${inv.body.invite.code}/accept`)
+    return { coach, client_ }
+  }
+
+  const day = n => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
+
+  /** A month of weigh-ins coming down fast, and four sore weeks. */
+  const bodyHistory = c => c.post('/api/sync', {
+    changes: {
+      bodyweight: [24, 17, 10, 3].map((n, i) => ({ on_date: day(n), weight_kg: 84 - i })),
+      checkins: [24, 17, 10, 3].map(n => ({
+        on_date: day(n), template_id: null,
+        answers: { soreness: 5 }, submitted_at: new Date(Date.now() - n * 86400000).toISOString()
+      }))
+    }
+  })
+
+  it('reads both when the client shared both', async () => {
+    const { coach, client_ } = await linkedWith(['workouts', 'bodyweight', 'checkins'])
+    await bodyHistory(client_.c)
+
+    const r = await coach.c.post(`/api/coach/clients/${client_.user.id}/ai-review`, {})
+    expect(r.status).toBe(200)
+    expect(r.body.review.signals.weight.n).toBe(4)
+    expect(r.body.review.findings.some(f => f.kind === 'sore')).toBe(true)
+  })
+
+  it('says nothing about a weight that was never shared', async () => {
+    const { coach, client_ } = await linkedWith(['workouts', 'checkins'])
+    await bodyHistory(client_.c)
+
+    const r = await coach.c.post(`/api/coach/clients/${client_.user.id}/ai-review`, {})
+    expect(r.body.review.signals.weight).toBeNull()
+    expect(r.body.review.findings.every(f => !f.kind.startsWith('weight'))).toBe(true)
+    // What they did share is still read.
+    expect(r.body.review.findings.some(f => f.kind === 'sore')).toBe(true)
+  })
+
+  it('says nothing about a week that was never shared', async () => {
+    const { coach, client_ } = await linkedWith(['workouts', 'bodyweight'])
+    await bodyHistory(client_.c)
+
+    const r = await coach.c.post(`/api/coach/clients/${client_.user.id}/ai-review`, {})
+    expect(r.body.review.signals.scales).toEqual({})
+    expect(r.body.review.findings.some(f => f.kind === 'sore')).toBe(false)
+    expect(r.body.review.signals.weight.n).toBe(4)
+  })
+
+  it('reads a person their own body without asking anybody', async () => {
+    const { c } = await signUp('Ada', 'ada@x.test')
+    await bodyHistory(c)
+
+    const r = await c.get('/api/ai/review')
+    expect(r.body.signals.weight.n).toBe(4)
+    expect(r.body.findings.some(f => f.kind === 'sore')).toBe(true)
+  })
+})
+
+describe('what the coach is shown beside the draft', () => {
+  /* The review usually finds more than one thing and a proposal answers exactly one of them.
+   * The rest is the context a coach reads before sending — and the case this exists for is a
+   * stall that would deload on its own terms when the cause is somewhere else entirely. */
+
+  const linkedFully = async () => {
+    const coach = await signUp('Coach Kim', 'kim@x.test', { asCoach: true })
+    const client_ = await signUp('Sam', 'sam@x.test')
+    const inv = await coach.c.post('/api/coach/invites', {
+      scopes: ['programmes', 'workouts', 'bodyweight', 'checkins']
+    })
+    await client_.c.post(`/api/invites/${inv.body.invite.code}/accept`, {
+      scopes: ['programmes', 'workouts', 'bodyweight', 'checkins']
+    })
+    return { coach, client_ }
+  }
+
+  const day = n => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
+
+  /** A month of weight coming off, beside whatever the training did. */
+  const losingWeight = c => c.post('/api/sync', {
+    changes: { bodyweight: [24, 17, 10, 3].map((n, i) => ({ on_date: day(n), weight_kg: 84 - i })) }
+  })
+
+  it('sends the findings the change is not an answer to', async () => {
+    const { coach, client_ } = await linkedFully()
+    await stalledHistory(client_.c)
+    await losingWeight(client_.c)
+
+    const r = await coach.c.post(`/api/coach/clients/${client_.user.id}/ai-review`, {})
+    expect(r.status).toBe(200)
+    expect(r.body.change).toBeTruthy()
+
+    const kinds = r.body.context.map(f => f.kind)
+    // The deload answers the stall; the reason the stall happened is what the coach needs.
+    expect(kinds).toContain('stalled-in-deficit')
+    // And the finding it did answer is not repeated underneath its own headline.
+    expect(kinds).not.toContain('stalled')
+  })
+
+  it('says what it found even when it has nothing to propose', async () => {
+    // No programme, so no change is possible — and the weight is still worth a sentence.
+    const { coach, client_ } = await linkedFully()
+    await losingWeight(client_.c)
+
+    const r = await coach.c.post(`/api/coach/clients/${client_.user.id}/ai-review`, {})
+    expect(r.body.change).toBeNull()
+    expect(r.body.context.map(f => f.kind)).toContain('weight-falling')
+    // Unrendered on the wire, like every other sentence the review produces.
+    expect(say(r.body.context[0].title)).toBeTruthy()
+  })
+
+  it('carries nothing about a body the client did not share', async () => {
+    const coach = await signUp('Coach Kim', 'kim@x.test', { asCoach: true })
+    const client_ = await signUp('Sam', 'sam@x.test')
+    const inv = await coach.c.post('/api/coach/invites', { scopes: ['programmes', 'workouts'] })
+    await client_.c.post(`/api/invites/${inv.body.invite.code}/accept`, { scopes: ['programmes', 'workouts'] })
+
+    await stalledHistory(client_.c)
+    await losingWeight(client_.c)
+
+    const r = await coach.c.post(`/api/coach/clients/${client_.user.id}/ai-review`, {})
+    expect(r.body.context.every(f => !f.kind.startsWith('weight'))).toBe(true)
+    expect(r.body.context.map(f => f.kind)).not.toContain('stalled-in-deficit')
   })
 })

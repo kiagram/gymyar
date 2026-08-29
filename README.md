@@ -70,6 +70,18 @@ computed by `packages/domain/src/planner.js` against the real library and the sa
 rules the app already runs on. A model is asked to do two things: turn free text into a structured
 brief, and write the note explaining a change. Both have deterministic implementations underneath.
 
+The review those notes explain reads training *and* what a person typed about their week —
+weigh-ins, and the sleep, energy and soreness on their check-ins. That is arithmetic, not a
+model: a least-squares line through the weigh-ins, a mean of four ratings. It is also gated,
+because a coach shown somebody's workouts has not thereby been shown their weight — the review
+is told which scopes the client granted and reads only those.
+
+There is a third thing a model can do, and it is optional twice over: look at a form-check
+photo and say what is visible about the movement. It runs only on a model you host yourself, it
+is the one feature here with no template underneath it — with nothing configured it is absent
+rather than degraded — and it will not touch a progress photo. A machine's opinion of how
+somebody looks is not something this builds.
+
 Which model does that is configuration. DeepSeek, Anthropic and anything else speaking the
 OpenAI shape are one adapter; a model on your own hardware via Ollama is the failover underneath
 them, which is what an outage, a lapsed key and a blocked route all look like from here. Two
@@ -170,11 +182,14 @@ the App Store and Google Play are not available on this path at all, and which c
 - [x] **Phase 5** — Persian and RTL, locale-aware weeks, rate limits, provider choice
 - [x] **Phase 6** — subscriptions end to end; release engineering and store metadata
 - [x] **Phase 7** — the visual identity, every icon cut from one vector and checked in CI
-- [ ] **Launch** — exercise media licence, legal review, a public repository
+- [x] **Phase 8** — check-ins and reminders, the rename to GymYar, self-hosting with backup
+  and restore, the source published
+- [ ] **Launch** — exercise media licence, legal review
 
 See [CHANGELOG.md](CHANGELOG.md) for what all of that actually amounts to, and for the
-known gaps — the exercise media is not licensed for a paid deployment, and there is no
-public repository yet.
+known gaps — the exercise media is still not licensed for a paid deployment. The source is
+public at <https://github.com/kiagram/gymyar>; [docs/PUBLISHING.md](docs/PUBLISHING.md) says
+why the AGPL requires that before anyone takes payment for a hosted instance.
 
 ## Before launch
 
