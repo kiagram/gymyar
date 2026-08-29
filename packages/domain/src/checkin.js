@@ -200,3 +200,109 @@ export function daysOverdue(dueDate, now = Date.now()) {
   d.setHours(23, 59, 59, 999)
   return Math.floor((now - d.getTime()) / 86400000)
 }
+
+/* ------------------------------------------------------------- reading ---- */
+
+/* A week of answers is a data point; a run of them is a signal. What follows turns the second
+ * into numbers the review can act on, and it is deliberately smaller than it could be.
+ *
+ * ## Why an arbitrary scale is not readable
+ *
+ * A `scale` field says a person answered 1–5. It does not say which end is the good one, and
+ * nothing in a template can: soreness at 5 is a problem, energy at 5 is not, and a coach who
+ * asks about stress means the first while one who asks about motivation means the second. The
+ * type is the same in all four cases.
+ *
+ * So direction is not inferred — it is known, for the three keys the built-in check-in defines
+ * and that a coach's template overwhelmingly copies, and unknown for everything else. An
+ * unknown scale still produces a series a screen can chart; what it does not produce is a
+ * finding claiming somebody is run down. Guessing that from the field type is how you tell a
+ * person their stress is dangerously low.
+ *
+ * The same reasoning stops `measure` short of a judgement. A waist coming down and an arm
+ * coming down are the same number and opposite news, and the field carries no way to tell them
+ * apart, so a measurement's trend is reported and never rated.
+ */
+
+/** Which way is up, for the scales whose meaning the built-in check-in fixes. */
+export const SCALE_DIRECTION = { sleep: 'up-good', energy: 'up-good', soreness: 'up-bad' }
+
+/** Types that hold a number worth putting on a line. `bool` and `text` are not one. */
+const NUMERIC = new Set(['bodyweight', 'measure', 'scale'])
+
+/**
+ * Submitted check-ins, read as one series per numeric field.
+ *
+ * `fields` is what the answers were *asked* by — a coach's template, or the built-in set. A key
+ * nothing describes is skipped rather than guessed at: an answer is a number under a name, and
+ * without the field it could be kilograms, centimetres or a rating out of five.
+ *
+ * Drafts are excluded. A half-filled form is not an answer, and a weight typed into one before
+ * somebody stood on the scale would move a trend that nobody meant to report.
+ *
+ * Returns `{ [key]: { field, points: [{ d, v }] } }`, points ascending by date.
+ */
+export function numericSeries(checkins, fields = BUILT_IN_FIELDS) {
+  /* Built-ins underneath rather than instead: a coach's template that drops `sleep` has stopped
+   * asking about it, which does not unname the answers already given under that key. */
+  const asked = new Map(BUILT_IN_FIELDS.map(f => [f.key, f]))
+  for (const f of normaliseFields(fields)) asked.set(f.key, f)
+
+  const out = {}
+  for (const c of [...(checkins || [])].sort((a, b) => (a.d < b.d ? -1 : 1))) {
+    if (!c?.at) continue
+    for (const [key, value] of Object.entries(c.a || {})) {
+      const field = asked.get(key)
+      if (!field || !NUMERIC.has(field.type)) continue
+      const v = num(value)
+      if (v == null) continue
+      ;(out[key] ??= { field, points: [] }).points.push({ d: c.d, v })
+    }
+  }
+  return out
+}
+
+/**
+ * The line through a series, and what it is worth.
+ *
+ * Least squares against the *dates*, not against the positions in the array. A person who
+ * answered three weeks running and then again after a month apart has a gap in the series, and
+ * treating those four answers as four equal steps would report a month of drift as a week of it.
+ *
+ * `perWeek` is the slope in the field's own units; `pctPerWeek` is that as a share of the mean,
+ * which is the only form in which two people's weight change can be compared. Both are null
+ * below three points or inside a week — a trend drawn through two answers is a line drawn
+ * through two answers.
+ */
+export function trendOf(points = []) {
+  const pts = points.filter(p => Number.isFinite(p?.v))
+  const n = pts.length
+  if (!n) return { n: 0, mean: null, first: null, last: null, perWeek: null, pctPerWeek: null, days: 0 }
+
+  const at = p => new Date(String(p.d).slice(0, 10) + 'T12:00:00').getTime() / 86400000
+  const mean = pts.reduce((a, p) => a + p.v, 0) / n
+  const first = pts[0].v
+  const last = pts[n - 1].v
+  const days = Math.round(at(pts[n - 1]) - at(pts[0]))
+
+  if (n < 3 || days < 7 || mean === 0) {
+    return { n, mean, first, last, perWeek: null, pctPerWeek: null, days }
+  }
+
+  const t0 = at(pts[0])
+  const xs = pts.map(p => at(p) - t0)
+  const xbar = xs.reduce((a, b) => a + b, 0) / n
+  let sxy = 0; let sxx = 0
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i] - xbar) * (pts[i].v - mean)
+    sxx += (xs[i] - xbar) ** 2
+  }
+  if (!sxx) return { n, mean, first, last, perWeek: null, pctPerWeek: null, days }
+
+  const perDay = sxy / sxx
+  return {
+    n, mean, first, last, days,
+    perWeek: perDay * 7,
+    pctPerWeek: (perDay * 7 * 100) / Math.abs(mean)
+  }
+}

@@ -767,10 +767,24 @@ function FormChecks({ w }) {
   const user = useStore(s => s.user)
   const [files, setFiles] = useState(null)
   const [failed, setFailed] = useState(false)
+  /* The function that asks a model to look at one photo, or null on the overwhelming majority
+   * of instances, which run no such model. Held rather than derived so that `lib/ai.js` stays
+   * dynamically imported here — it carries the plan-builder's vocabulary tables, and a static
+   * import would pull all of that into the chunk this sheet lives in. Same reason as the
+   * `import()` in TextLogSheet below. */
+  const [look, setLook] = useState(null)
 
   useEffect(() => {
     if (!user || MOBILE) return
     formChecksFor(w.id).then(setFiles).catch(() => setFailed(true))
+
+    let live = true
+    import('./lib/ai.js').then(async ai => {
+      const caps = await ai.aiCapabilities()
+      // The updater form: React would otherwise call the function rather than store it.
+      if (live && caps.vision) setLook(() => f => ai.describeFormCheck(f.id))
+    }).catch(() => {})
+    return () => { live = false }
   }, [w.id, user])
 
   // Guest, native build or demo: there is no server, so there is nowhere for a clip to live.
@@ -793,6 +807,7 @@ function FormChecks({ w }) {
           onChange={next => setFiles([...files.filter(f => f.exercise_id !== e.id), ...next])}
           send={(file, onProgress) =>
             uploadFormCheck({ workoutId: w.id, exerciseId: e.id, file, onProgress })}
+          look={look}
           addLabel={t('Add a video')}
         />
       </div>

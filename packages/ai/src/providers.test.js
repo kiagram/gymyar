@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import {
-  createAI, providersFromEnv, deepseekProvider, ollamaProvider, openaiProvider
+  createAI, providersFromEnv, visionFromEnv, deepseekProvider, ollamaProvider, openaiProvider
 } from './index.js'
 
 const CHANGE = {
@@ -152,7 +152,8 @@ describe('routing a task to the model that should answer it', () => {
 
   it('reports which model answers what', () => {
     const ai = createAI({ fast: named('flash'), deep: named('pro'), local: named('qwen') })
-    expect(ai.models).toEqual({ fast: 'flash', deep: 'pro', local: 'qwen' })
+    // vision is named beside them and is null unless a model on this machine can see.
+    expect(ai.models).toEqual({ fast: 'flash', deep: 'pro', local: 'qwen', vision: null })
   })
 
   it('still treats one provider as the answer to everything', async () => {
@@ -257,5 +258,112 @@ describe('what the environment configures', () => {
     const p = providersFromEnv({})
     expect(p.fast.available).toBe(false)
     expect(p.local).toBeNull()
+  })
+})
+
+/* ------------------------------------------------------------------ vision ---- */
+
+const PHOTO = [{ mime: 'image/jpeg', data: 'aGVsbG8=' }]
+const seen = obs => textReply(JSON.stringify({ observations: obs }))
+
+describe('showing a model a photograph', () => {
+  it('sends it as content parts, beside the text', async () => {
+    const fetchImpl = okFetch(seen(['The bar is drifting forward of the mid-foot.']))
+    const ai = createAI({ vision: ollamaProvider({ model: 'qwen2.5-vl', fetchImpl }) })
+    await ai.describeForm(PHOTO, { exercise: 'Barbell Squat' })
+
+    const sent = JSON.parse(fetchImpl.mock.calls[0][1].body)
+    const content = sent.messages[1].content
+    expect(Array.isArray(content)).toBe(true)
+    expect(content[0].type).toBe('text')
+    expect(content[1].image_url.url).toBe('data:image/jpeg;base64,aGVsbG8=')
+    // The lift is named by the caller, out of the library, never by the model.
+    expect(content[0].text).toContain('Barbell Squat')
+  })
+
+  it('leaves a text-only request exactly as it was', async () => {
+    // The shape every other task sends. An array here would break endpoints that reject one.
+    const fetchImpl = okFetch(toolReply({ goal: 'strength' }))
+    await deepseekProvider({ apiKey: 'k', model: 'm', fetchImpl }).complete(TASK)
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).messages[1].content).toBe('some input')
+  })
+
+  it('answers nothing at all when nothing can see', async () => {
+    // No template can look at a photograph, so this is the one method with no floor under it.
+    const ai = createAI({ fast: ollamaProvider({ model: 'text-only', fetchImpl: okFetch(seen([])) }) })
+    expect(ai.vision).toBe(false)
+    expect(await ai.describeForm(PHOTO, {})).toBeNull()
+  })
+
+  it('never asks a text model to describe a picture it was not sent', async () => {
+    const fast = { name: 'fast', available: true, complete: vi.fn(async () => ({ observations: ['nice depth'] })) }
+    const ai = createAI({ fast })
+    expect(await ai.describeForm(PHOTO, {})).toBeNull()
+    expect(fast.complete).not.toHaveBeenCalled()
+  })
+
+  it('caps what comes back at four short sentences', async () => {
+    const fetchImpl = okFetch(seen(['a'.repeat(400), 'two', 'three', 'four', 'five']))
+    const ai = createAI({ vision: ollamaProvider({ model: 'qwen2.5-vl', fetchImpl }) })
+    const r = await ai.describeForm(PHOTO, {})
+    expect(r.observations).toHaveLength(4)
+    expect(r.observations[0].length).toBe(240)
+  })
+
+  it('treats an empty answer as not being able to tell', async () => {
+    const fetchImpl = okFetch(seen([]))
+    const ai = createAI({ vision: ollamaProvider({ model: 'qwen2.5-vl', fetchImpl }) })
+    expect((await ai.describeForm(PHOTO, {})).unclear).toBe(true)
+  })
+
+  it('says it could not look rather than throwing', async () => {
+    const fetchImpl = vi.fn(async () => { throw new Error('connection refused') })
+    const ai = createAI({ vision: ollamaProvider({ model: 'qwen2.5-vl', fetchImpl }) })
+    const r = await ai.describeForm(PHOTO, {})
+    expect(r.observations).toEqual([])
+    expect(r.unclear).toBe(true)
+    expect(r.modelError).toMatch(/connection refused/)
+  })
+
+  it('does not call out at all with no photograph', async () => {
+    const fetchImpl = okFetch(seen(['x']))
+    const ai = createAI({ vision: ollamaProvider({ model: 'qwen2.5-vl', fetchImpl }) })
+    expect(await ai.describeForm([], {})).toBeNull()
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
+
+describe('which model is allowed to see', () => {
+  it('is the one on this machine, and only that one', () => {
+    const v = visionFromEnv({ OLLAMA_MODEL_VISION: 'qwen2.5-vl:7b' })
+    expect(v.name).toBe('ollama')
+    expect(v.model).toBe('qwen2.5-vl:7b')
+  })
+
+  it('stays absent when a hosted key is the only thing configured', () => {
+    // A key set for prose is not consent to send somebody's photograph to a vendor.
+    const env = { OPENAI_API_KEY: 'k', ANTHROPIC_API_KEY: 'k2', DEEPSEEK_API_KEY: 'k3' }
+    expect(providersFromEnv(env).vision).toBeNull()
+    expect(createAI(providersFromEnv(env)).vision).toBe(false)
+  })
+
+  it('is offered beside a hosted text model, not instead of one', () => {
+    const p = providersFromEnv({ OPENAI_API_KEY: 'k', OLLAMA_MODEL_VISION: 'qwen2.5-vl:7b' })
+    expect(p.fast.name).toBe('openai')
+    expect(p.vision.name).toBe('ollama')
+  })
+
+  it('is not the text model, even when both are ollama', () => {
+    // Separate variables on purpose: a vision model is a worse writer, and the note a client
+    // reads must not quietly start coming from it.
+    const p = providersFromEnv({ OLLAMA_MODEL_FAST: 'qwen3:8b', OLLAMA_MODEL_VISION: 'qwen2.5-vl:7b' })
+    expect(p.fast.model).toBe('qwen3:8b')
+    expect(p.vision.model).toBe('qwen2.5-vl:7b')
+  })
+
+  it('names the model that can see, so an operator can ask', () => {
+    const ai = createAI(providersFromEnv({ OLLAMA_MODEL_VISION: 'qwen2.5-vl:7b' }))
+    expect(ai.vision).toBe(true)
+    expect(ai.models.vision).toBe('qwen2.5-vl:7b')
   })
 })

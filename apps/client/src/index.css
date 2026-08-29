@@ -987,6 +987,12 @@ h4.sec{
 .err{color:var(--red)}
 
 /* ------------------------------------------------------- attachments --- */
+/* What a review found beside the change it proposed. Inside the draft card, indented from it,
+   so it reads as the reasoning around the proposal rather than as part of the proposal. */
+.rvw{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.rvw-f{padding-inline-start:10px;border-inline-start:2px solid var(--surface-3);line-height:1.45}
+.rvw-f strong{display:block}
+
 /* Form-check clips, progress photos and voice notes. Written in logical properties like
    everything above, so the whole block mirrors under [dir="rtl"] with no rules of its own. */
 .atts{display:flex;flex-direction:column;gap:12px;margin-top:10px}
@@ -1006,6 +1012,17 @@ h4.sec{
 /* A row whose bytes are gone — a restore out of step with its media archive. It says so and
    leaves the screen around it intact, rather than rendering a broken-image glyph. */
 .att-gone{display:flex;align-items:center;gap:8px;padding:14px;color:var(--label-2)}
+
+/* What a model saw in a form-check photo. Inside the figure, under the caption, so it reads as
+   a note on this picture rather than as a finding about the session — and indented from the
+   image by a rule on the inline start, which mirrors under [dir="rtl"] on its own. */
+.att-seen{
+  padding:2px 12px 12px;display:flex;flex-direction:column;gap:8px;
+  border-inline-start:2px solid var(--acc-soft);margin-inline-start:12px;
+}
+.att-seen ul{margin:0;padding-inline-start:18px;display:flex;flex-direction:column;gap:5px}
+.att-seen li{color:var(--label);line-height:1.45}
+.att-seen p{margin:0}
 
 /* Upload progress. A determinate bar because the length is known and a spinner during a
    sixty-megabyte upload on mobile data is indistinguishable from a stall. */

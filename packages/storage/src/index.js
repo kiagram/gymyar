@@ -6,9 +6,10 @@
  * photos cannot be that, so this package is the seam where they stop being the database's
  * problem and start being a volume's.
  *
- * ## The interface, and why it is four methods
+ * ## The interface, and why it is five methods
  *
  *   put({ key, body, contentType })  →  { key, bytes }
+ *   get(key)                         →  Buffer | null
  *   signedUrl(key, { ttlSeconds })   →  a URL that stops working shortly
  *   stat(key)                        →  { key, bytes, modifiedAt } | null
  *   delete(key)                      →  true if it was there
@@ -21,6 +22,13 @@
  *
  * `stat` earns its place by being the reconciler's only question: the database says this object
  * exists, does it? Nothing else can answer that.
+ *
+ * `get` earns its place late, and only once: until a model on this machine was asked to look at
+ * a photo, nothing in the product ever needed an object *inside* the process. Uploads stream in
+ * and `/media/*` streams out, usually without Node touching a byte. A model is the one reader
+ * that cannot be handed a URL and a signature, so it gets the bytes — and this is the method
+ * that is easiest to misuse, because it turns a 60 MB video into 60 MB of heap. Callers cap
+ * what they ask for; the driver does not guess a cap for them.
  *
  * ## Keys are built here, never received
  *

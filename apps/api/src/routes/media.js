@@ -69,8 +69,12 @@ const asDate = v => {
  * rather than inventing a second copy of it. A 403 rather than a 404 for somebody else's
  * attachment is deliberate: ids are uuids, so there is nothing to enumerate, and telling a
  * coach "not shared with you" is the true answer where "no such file" is not.
+ *
+ * Exported for `routes/ai.js`, which shows a form check to a model on this machine and has to
+ * ask the same question first. Whoever may look at the picture is who may be told what is in
+ * it — a second copy of this function is how those two answers start to differ.
  */
-async function mayRead(reader, row) {
+export async function mayRead(reader, row) {
   if (!row) throw bad('no such attachment', 404)
   if (row.owner_id === reader.id) return row
 

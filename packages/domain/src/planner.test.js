@@ -3,6 +3,7 @@ import {
   normaliseBrief, resolvePattern, buildProgramme, scheduleFor,
   reviewTraining, proposeAdaptation, GOALS, EQUIPMENT
 } from './planner.js'
+import { BUILT_IN_FIELDS } from './checkin.js'
 import { EXIDX } from './exercises.js'
 import { say } from './messages.js'
 
@@ -438,5 +439,225 @@ describe('variety across the week', () => {
   it('still says what it could not cover, even after topping up', () => {
     const p = buildProgramme({ daysPerWeek: 6, equipment: [] })
     expect(p.notes.join(' ')).toMatch(/nothing in the library covers it/i)
+  })
+})
+
+/* ------------------------------------------------------ what the person said ---- */
+
+/* The half of a review that does not come from the barbell. Every number below was typed by
+ * somebody into a weigh-in or a check-in; nothing here is inferred from how a session felt. */
+
+const iso = n => new Date(daysAgo(n)).toISOString().slice(0, 10)
+
+/** Answers a week apart, oldest first, ending three days ago. */
+const weekly = (key, values, { at = true } = {}) =>
+  values.map((v, i) => ({
+    d: iso(3 + (values.length - 1 - i) * 7),
+    tpl: 't1',
+    a: { [key]: v },
+    at: at ? `${iso(3 + (values.length - 1 - i) * 7)}T09:00:00Z` : null
+  })).sort((a, b) => (a.d < b.d ? -1 : 1))
+
+const weighins = values =>
+  values.map((w, i) => ({ d: iso(3 + (values.length - 1 - i) * 7), w }))
+    .sort((a, b) => (a.d < b.d ? -1 : 1))
+
+/** Enough sessions that turning up is not itself a finding. */
+const kept = () => Array.from({ length: 12 }, (_, i) => session(`w${i}`, '0025', 24 - i * 2))
+
+/** Four sessions short of target, which is what a stall looks like. */
+const stalled = () => [
+  session('w1', '0025', 20, { reps: 5 }),
+  session('w2', '0025', 15, { reps: 4 }),
+  session('w3', '0025', 10, { reps: 4 }),
+  session('w4', '0025', 5, { reps: 3 })
+]
+
+const review = (extra, opts = {}) =>
+  reviewTraining(stateWith(kept(), extra), { today: NOW, ...opts })
+
+const kinds = r => r.findings.map(f => f.kind)
+
+describe('reading a body alongside the training', () => {
+  it('says nothing about a body it was told nothing about', () => {
+    const r = review({})
+    expect(r.signals.weight).toBeNull()
+    expect(r.signals.scales).toEqual({})
+    expect(kinds(r)).not.toContain('weight-falling')
+  })
+
+  it('notices weight coming off faster than training survives', () => {
+    const r = review({ bodyweight: weighins([84, 83, 82, 81]) })
+    const f = r.findings.find(x => x.kind === 'weight-falling')
+    expect(f.severity).toBe('high')
+    // A number, not a preformatted string — that is what lets a Persian reader see ۱ and not 1.
+    expect(say(f.title)).toMatch(/\b1 kg\b/)
+    expect(f.title.args[0]).toBe(1)
+    expect(r.signals.weight.pctPerWeek).toBeLessThan(-1)
+  })
+
+  it('leaves a normal rate alone, having no goal to call it wrong against', () => {
+    // Half a kilogram a week is somebody cutting, or somebody drifting. The data cannot say.
+    const r = review({ bodyweight: weighins([84, 83.5, 83, 82.5]) })
+    expect(kinds(r)).not.toContain('weight-falling')
+    expect(r.signals.weight.perWeek).toBeCloseTo(-0.5, 1)
+  })
+
+  it('reads a stall next to a falling weight as one thing, not two', () => {
+    const S = stateWith(stalled(), { bodyweight: weighins([84, 83, 82, 81]) })
+    const r = reviewTraining(S, { today: NOW })
+    expect(kinds(r)).toContain('stalled-in-deficit')
+    // The rate finding is not repeated underneath it — the combination is the whole point.
+    expect(kinds(r)).not.toContain('weight-falling')
+    expect(r.findings[0].severity).toBe('high')
+  })
+
+  it('mentions fast gain without calling it a problem', () => {
+    const r = review({ bodyweight: weighins([80, 81, 82, 83]) })
+    const f = r.findings.find(x => x.kind === 'weight-rising')
+    expect(f.severity).toBe('low')
+    expect(f.suggest).toBeNull()
+  })
+
+  it('takes soreness that never settles as a volume problem', () => {
+    const r = review({ checkins: weekly('soreness', [4, 5, 4, 5]) })
+    const f = r.findings.find(x => x.kind === 'sore')
+    expect(f.suggest).toBe('reduce-volume')
+    expect(say(f.title)).toMatch(/4\.5 out of 5/)
+  })
+
+  it('does not treat low sleep as something to fix in the programme', () => {
+    const r = review({ checkins: weekly('sleep', [2, 1, 2, 2]) })
+    const f = r.findings.find(x => x.kind === 'sleep')
+    expect(f.suggest).toBeNull()
+  })
+
+  it('waits for three answers before calling two a pattern', () => {
+    const r = review({ checkins: weekly('soreness', [5, 5]) })
+    expect(kinds(r)).not.toContain('sore')
+  })
+
+  it('refuses to read a scale whose direction nobody stated', () => {
+    // Stress at the top of the scale is bad and motivation at the top is good, and the field
+    // says only that both are 1–5.
+    const fields = [{ key: 'stress', type: 'scale', label: 'Stress' }]
+    const r = review({ checkins: weekly('stress', [5, 5, 5, 5]) }, { fields })
+    expect(r.findings.filter(f => ['sore', 'sleep', 'energy'].includes(f.kind))).toHaveLength(0)
+    // Still charted, still never judged.
+    expect(r.signals.scales.stress.mean).toBe(5)
+    expect(r.signals.scales.stress.direction).toBeNull()
+  })
+
+  it('reports a measurement and never rates one', () => {
+    const fields = [{ key: 'waist', type: 'measure', label: 'Waist', unit: 'cm' }]
+    const r = review({ checkins: weekly('waist', [92, 91, 90, 89]) }, { fields })
+    expect(r.signals.measures.waist.perWeek).toBeCloseTo(-1, 1)
+    expect(r.signals.measures.waist.unit).toBe('cm')
+    expect(r.findings.some(f => f.kind?.startsWith('measure'))).toBe(false)
+  })
+
+  it('reads a weight typed into a check-in when there are no weigh-ins', () => {
+    const r = review({ checkins: weekly('weight', [84, 83, 82, 81]) })
+    expect(r.signals.weight.n).toBe(4)
+    expect(kinds(r)).toContain('weight-falling')
+  })
+
+  it('lets the weigh-in win where both name the same morning', () => {
+    const r = review({
+      checkins: weekly('weight', [84, 83, 82, 60]),
+      bodyweight: weighins([84, 83, 82, 81])
+    })
+    expect(r.signals.weight.last).toBe(81)
+    expect(r.signals.weight.n).toBe(4)
+  })
+
+  it('ignores a draft nobody sent', () => {
+    const r = review({ checkins: weekly('soreness', [5, 5, 5, 5], { at: false }) })
+    expect(kinds(r)).not.toContain('sore')
+  })
+
+  it('leaves out what happened before the window', () => {
+    const S = stateWith(kept(), { bodyweight: [{ d: iso(200), w: 120 }, ...weighins([84, 83, 82, 81])] })
+    expect(reviewTraining(S, { today: NOW }).signals.weight.n).toBe(4)
+  })
+})
+
+describe('a review only reads what was shared with it', () => {
+  const shared = { checkins: weekly('soreness', [5, 5, 5, 5]), bodyweight: weighins([84, 83, 82, 81]) }
+
+  it('reads everything when nobody said otherwise', () => {
+    const r = review(shared)
+    expect(kinds(r)).toContain('sore')
+    expect(r.signals.weight).toBeTruthy()
+  })
+
+  it('says nothing about a body when neither was shared', () => {
+    // A coach shown workouts and nothing else. The state still holds all of it.
+    const r = review(shared, { sources: [] })
+    expect(kinds(r)).not.toContain('sore')
+    expect(r.signals.weight).toBeNull()
+    expect(r.signals.scales).toEqual({})
+  })
+
+  it('separates the weigh-ins from the answers, because the client did', () => {
+    const weightOnly = review(shared, { sources: ['bodyweight'] })
+    expect(weightOnly.signals.weight.n).toBe(4)
+    expect(weightOnly.signals.scales).toEqual({})
+
+    const answersOnly = review(shared, { sources: ['checkins'] })
+    expect(answersOnly.signals.weight).toBeNull()
+    expect(kinds(answersOnly)).toContain('sore')
+  })
+})
+
+describe('adapting to what the person said', () => {
+  it('takes a set off the biggest lift when soreness will not settle', () => {
+    const S = stateWith(kept(), {
+      routines: [{
+        id: 'r1', name: 'Full Body', policy: 'linear',
+        ex: [{ id: '0025', sets: 3, reps: 5 }, { id: '0043', sets: 5, reps: 5 }]
+      }],
+      checkins: weekly('soreness', [4, 5, 4, 5])
+    })
+    const change = proposeAdaptation(S, reviewTraining(S, { today: NOW }), { unit: 'kg' })
+    expect(change.changes).toHaveLength(1)
+    expect(change.changes[0].exerciseId).toBe('0043')
+    expect(change.changes[0].from).toBe(5)
+    expect(change.changes[0].to).toBe(4)
+  })
+
+  it('will not cut a lift below two sets to chase a feeling', () => {
+    const S = stateWith(kept(), {
+      routines: [{ id: 'r1', name: 'Full Body', policy: 'linear', ex: [{ id: '0025', sets: 2, reps: 5 }] }],
+      checkins: weekly('soreness', [5, 5, 5, 5])
+    })
+    expect(proposeAdaptation(S, reviewTraining(S, { today: NOW }), { unit: 'kg' })).toBeNull()
+  })
+
+  it('still lets a stalled lift outrank a sore week', () => {
+    const S = stateWith(stalled(), { checkins: weekly('soreness', [5, 5, 5, 5]) })
+    const change = proposeAdaptation(S, reviewTraining(S, { today: NOW }), { unit: 'kg' })
+    expect(change.changes[0].field).toBe('reps')
+  })
+
+  it('names the finding it answered, so the rest can be told apart from it', () => {
+    const S = stateWith(stalled(), { checkins: weekly('soreness', [5, 5, 5, 5]) })
+    const review = reviewTraining(S, { today: NOW })
+    const change = proposeAdaptation(S, review, { unit: 'kg' })
+
+    expect(change.from.kind).toBe('stalled')
+    // By reference, so a second stalled lift is not lost to the first one's name.
+    expect(review.findings).toContain(change.from)
+    const rest = review.findings.filter(f => f !== change.from)
+    expect(rest.map(f => f.kind)).toContain('sore')
+    expect(rest).not.toContain(change.from)
+  })
+
+  it('names it on the path that changes no exercises at all', () => {
+    // `reduce-days` returns early with an untouched routine; it still answered a finding.
+    const S = stateWith([session('w1', '0025', 3)])
+    const change = proposeAdaptation(S, reviewTraining(S, { today: NOW }), { unit: 'kg' })
+    expect(change.changes).toHaveLength(0)
+    expect(change.from.kind).toBe('attendance')
   })
 })

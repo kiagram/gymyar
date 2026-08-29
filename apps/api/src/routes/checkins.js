@@ -15,10 +15,10 @@
  */
 import {
   saveTemplate, templatesOf, archiveTemplate,
-  scheduleCheckin, unscheduleCheckin, scheduleFor, clientCheckins
+  scheduleCheckin, unscheduleCheckin, scheduleFor, clientCheckins, formsFor
 } from '@gymyar/db/checkins.js'
 import { clientHabits } from '@gymyar/db/habits.js'
-import { coachesOf, activeLink, linkById } from '@gymyar/db/coaching.js'
+import { activeLink, linkById } from '@gymyar/db/coaching.js'
 import { fieldsOf, BUILT_IN_FIELDS } from '@gymyar/domain'
 import { requireUser } from '../session.js'
 import { requireCoach } from '../entitlement.js'
@@ -109,27 +109,11 @@ export default async function checkinRoutes(app) {
    */
   app.get('/api/checkin', async req => {
     const user = await requireUser(req)
-    const links = await coachesOf(user.id, user.email)
-    const active = links.filter(l => l.status === 'active' && l.scopes?.includes('checkins'))
-
-    const scheduled = []
-    for (const link of active) {
-      const sc = await scheduleFor(link.id)
-      // An archived template stops being asked. The answers already given to it keep pointing
-      // at it, which is the whole reason it was archived rather than deleted.
-      if (!sc || sc.archived_at) continue
-      scheduled.push({
-        linkId: link.id,
-        coachName: link.coach_name,
-        templateId: sc.template_id,
-        title: sc.title,
-        weekday: sc.weekday,
-        fields: fieldsOf(sc)
-      })
-    }
 
     return {
-      scheduled,
+      // Built in `@gymyar/db/checkins.js`, because the review reads a person's answers against
+      // the same fields this form asked them with.
+      scheduled: await formsFor(user.id, user.email),
       // No title: a coach's is their own words and travels as written, but this one is a label
       // the app names in the reader's language. The server has no locale packs to name it with.
       builtIn: { templateId: null, title: null, fields: BUILT_IN_FIELDS }

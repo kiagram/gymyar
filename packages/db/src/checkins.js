@@ -9,9 +9,9 @@
  * is exactly one writer per row. A coach who could write an answer could answer for somebody,
  * and "my coach filled in my check-in" is not a sentence this product should be able to produce.
  */
-import { normaliseFields } from '@gymyar/domain'
+import { normaliseFields, fieldsOf } from '@gymyar/domain'
 import { db } from './index.js'
-import { requireScope } from './coaching.js'
+import { requireScope, coachesOf } from './coaching.js'
 
 /* ----------------------------------------------------------- templates ---- */
 
@@ -108,6 +108,37 @@ export const scheduleFor = (linkId, s = db()) => s`
   select sc.*, t.title, t.fields, t.archived_at
   from checkin_schedules sc join checkin_templates t on t.id = sc.template_id
   where sc.link_id = ${linkId}`.then(r => r[0] ?? null)
+
+/**
+ * Which questions this person is being asked, and by whom.
+ *
+ * One per active coach who has scheduled something, newest link first, empty for everybody
+ * else — and everybody else is most people, who answer the built-in set that is not a row
+ * anywhere. An archived template is not returned: it has stopped being asked, while the answers
+ * already given to it keep pointing at it, which is why it was archived rather than deleted.
+ *
+ * This is shared rather than inlined into the form route because the review reads answers
+ * against the fields they were given to, and a second copy of "which template is this" is a
+ * second thing to keep in step with archiving, scoping and scheduling.
+ */
+export async function formsFor(clientId, email, s = db()) {
+  const links = await coachesOf(clientId, email, s)
+  const out = []
+  for (const link of links) {
+    if (link.status !== 'active' || !link.scopes?.includes('checkins')) continue
+    const sc = await scheduleFor(link.id, s)
+    if (!sc || sc.archived_at) continue
+    out.push({
+      linkId: link.id,
+      coachName: link.coach_name,
+      templateId: sc.template_id,
+      title: sc.title,
+      weekday: sc.weekday,
+      fields: fieldsOf(sc)
+    })
+  }
+  return out
+}
 
 /* ------------------------------------------------------------- reading ---- */
 

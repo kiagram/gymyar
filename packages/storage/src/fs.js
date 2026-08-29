@@ -75,6 +75,23 @@ export function filesystemStorage({ root, secret }) {
       return signedPath(key, { secret, ttlSeconds, now })
     },
 
+    /**
+     * The bytes themselves, or null if there are none.
+     *
+     * Buffered, unlike every other read path in this product — `/media/*` streams, and nginx
+     * usually serves the object without Node seeing it. This is for the one caller that has to
+     * hold a whole object in memory to do its job: handing a photo to a model. The size cap
+     * belongs to that caller, not here, because it is a property of what the bytes are for.
+     */
+    async get(key) {
+      try {
+        return await fs.readFile(resolveKey(root, key))
+      } catch (err) {
+        if (err.code === 'ENOENT') return null
+        throw err
+      }
+    },
+
     /** Null for an object that is not there. Absence is an answer, not an exception. */
     async stat(key) {
       try {

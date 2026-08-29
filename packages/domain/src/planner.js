@@ -24,6 +24,7 @@ import { modeOf, effortOf } from './history.js'
 import { sessionsFor, stallCount, DELOAD_AFTER, policyFor } from './progression.js'
 import { loadOfWorkouts, MUSCLE_NAME } from './muscles.js'
 import { msg, exArg, muscleList } from './messages.js'
+import { BUILT_IN_FIELDS, SCALE_DIRECTION, numericSeries, trendOf } from './checkin.js'
 
 /* ------------------------------------------------------------------ brief ---- */
 
@@ -361,12 +362,21 @@ const GOAL_NOTE = {
 
 /* What a coach — or a client without one — would notice reading a month of training.
  *
- * Every finding is derived from logged sets, never from self-report. "Feels hard" is not
- * evidence; four sessions in a row missing the rep target is. */
+ * Two kinds of evidence, kept apart on purpose. What a lift is doing is read from logged sets
+ * and nothing else: "feels hard" is not evidence that a weight is too heavy, and four sessions
+ * in a row short of the rep target is. What a person's week is doing is read from what they
+ * typed into a weigh-in or a check-in, because there is no other source for it and inferring it
+ * from tonnage would be a guess wearing a number's clothes.
+ *
+ * So self-report never moves a load. It explains one — see the signals section below, where a
+ * stall next to a falling body weight stops being a programming problem. */
 
 const DAY = 86400000
 
-export function reviewTraining(S = {}, { days = 28, today = null } = {}) {
+export function reviewTraining(
+  S = {},
+  { days = 28, today = null, fields = BUILT_IN_FIELDS, sources = CHECKIN_SOURCES } = {}
+) {
   const now = today ? new Date(today).getTime() : Date.now()
   const since = now - days * DAY
   const workouts = (S.workouts || []).filter(w => (w.start || Date.parse(w.d)) >= since)
@@ -459,7 +469,7 @@ export function reviewTraining(S = {}, { days = 28, today = null } = {}) {
           kind: 'easy', severity: 'low',
           exerciseId: exId,
           title: msg('{0} is going up too slowly', exArg(exId)),
-          detail: msg('Even the hardest set is averaging {0} reps in reserve across {1} sessions. The load is climbing slower than the person is.', avg.toFixed(1), values.length),
+          detail: msg('Even the hardest set is averaging {0} reps in reserve across {1} sessions. The load is climbing slower than the person is.', oneDp(avg), values.length),
           suggest: 'bigger-jumps'
         })
       }
@@ -497,9 +507,188 @@ export function reviewTraining(S = {}, { days = 28, today = null } = {}) {
     }
   }
 
+  /* --- what the person said about themselves --- */
+  const signals = readSignals(S, { since, fields, sources })
+  findings.push(...signalFindings(signals, { findings, unit: S.unit || 'kg' }))
+
   const order = { high: 0, medium: 1, low: 2 }
   findings.sort((a, b) => order[a.severity] - order[b.severity])
-  return { days, sessions: done, expected, findings }
+  return { days, sessions: done, expected, findings, signals }
+}
+
+/* ------------------------------------------------------------- signals ---- */
+
+/* What a person says about themselves, read alongside what they lifted.
+ *
+ * ## Why this is arithmetic and not a model
+ *
+ * "Recommendations from your data" is the sentence that usually means a language model reading
+ * a spreadsheet and guessing. Everything below is arithmetic on numbers somebody typed: a
+ * least-squares slope through their weigh-ins, a mean of four ratings out of five. It is
+ * testable, it gives the same answer twice, and it is the half of the feature that can safely
+ * decide something. Writing the sentence at the end is still the model's job.
+ *
+ * ## What it refuses to conclude
+ *
+ * There is no goal in the state, so nothing here can call a weight *wrong* — only fast. A
+ * kilogram a week off somebody who is cutting is the plan working; the same number is worth
+ * saying out loud either way, and which of the two it is belongs to the person reading it.
+ * Findings are therefore about rates and combinations, never about a target nobody stated.
+ *
+ * And nothing here reads a scale whose direction is not known, or rates a measurement at all.
+ * `SCALE_DIRECTION` in checkin.js is where that line is drawn, and why.
+ *
+ * ## Scopes
+ *
+ * `sources` is what this review may read, and a coach's route passes their client's granted
+ * scopes into it verbatim. `stateForUser` loads a whole account, so without this a review would
+ * quietly derive findings from data the client shared with nobody — the scope check on the
+ * endpoint would still pass, and the answer would still be about their weight.
+ */
+
+/** Everything, which is what somebody reviewing their own training may read. */
+export const CHECKIN_SOURCES = ['checkins', 'bodyweight']
+
+/* Rates, as a share of body weight per week. A percentage rather than kilograms, because the
+ * same absolute loss is a different event at 55 kg and at 130 kg. */
+const FAST_LOSS_PCT_WEEK = 1
+const FAST_GAIN_PCT_WEEK = 0.75
+/* Enough of a deficit to explain a stall, which is a far lower bar than enough to be worth
+ * saying on its own — this one only ever fires beside a lift that has already stopped moving. */
+const DEFICIT_PCT_WEEK = 0.5
+
+/* One decimal, kept as a *number*.
+ *
+ * `toFixed` returns a string, and a string is the one thing a renderer will not localise — see
+ * `localiseArg` in the client's i18n.js, which formats numbers and passes text straight through
+ * on the reasonable assumption that text has already been formatted. The symptom is a Persian
+ * sentence reading "4.5 از ۵": Latin digits for the value this file computed, Persian digits for
+ * the one written into the template. So the rounding happens here and the digits happen there.
+ */
+const oneDp = n => Math.round(n * 10) / 10
+
+/* Three answers, because two is a pair of moods and this has to survive one bad week. */
+const MIN_RATINGS = 3
+const SORE_MEAN = 4
+const LOW_MEAN = 2
+
+/**
+ * The numbers behind the findings, whether or not any of them fired.
+ *
+ * Returned on every review so a screen can chart the trend it was just told about, and so that
+ * "on what" has an answer which is not the sentence itself.
+ */
+function readSignals(S = {}, { since, fields, sources = CHECKIN_SOURCES }) {
+  const from = new Date(since).toISOString().slice(0, 10)
+  const inWindow = p => p.d >= from
+  const may = what => sources.includes(what)
+
+  const series = may('checkins') ? numericSeries(S.checkins, fields) : {}
+
+  /* One line, two sources. A weigh-in and a check-in that both name a day are the same morning,
+   * and the weigh-in wins: it is the log kept for exactly this, while the check-in field is a
+   * number remembered on a Saturday. */
+  const byDate = new Map()
+  for (const s of Object.values(series)) {
+    if (s.field.type !== 'bodyweight') continue
+    for (const p of s.points) byDate.set(p.d, p.v)
+  }
+  if (may('bodyweight')) {
+    for (const b of S.bodyweight || []) {
+      if (Number.isFinite(Number(b?.w))) byDate.set(b.d, Number(b.w))
+    }
+  }
+  const weightPoints = [...byDate.entries()]
+    .map(([d, v]) => ({ d, v }))
+    .filter(inWindow)
+    .sort((a, b) => (a.d < b.d ? -1 : 1))
+
+  const scales = {}
+  const measures = {}
+  for (const [key, s] of Object.entries(series)) {
+    const points = s.points.filter(inWindow)
+    if (!points.length) continue
+    if (s.field.type === 'scale') {
+      scales[key] = { label: s.field.label, direction: SCALE_DIRECTION[key] || null, ...trendOf(points) }
+    } else if (s.field.type === 'measure') {
+      measures[key] = { label: s.field.label, unit: s.field.unit ?? null, ...trendOf(points) }
+    }
+  }
+
+  return {
+    weight: weightPoints.length ? { unit: S.unit || 'kg', ...trendOf(weightPoints) } : null,
+    scales,
+    measures
+  }
+}
+
+/** The findings those numbers argue for, and only the ones they argue for on their own. */
+function signalFindings(signals, { findings, unit }) {
+  const out = []
+  const rate = signals.weight?.pctPerWeek ?? null
+  const perWeek = signals.weight?.perWeek ?? null
+  const stalling = findings.some(f => f.kind === 'stalled' || f.kind === 'stalling')
+
+  /* The combination first, because it is the one that explains the other two. A lift that has
+   * stopped moving while weight comes off is not a programming problem, and the deload that the
+   * stall on its own would have proposed treats the symptom. */
+  if (stalling && rate != null && rate <= -DEFICIT_PCT_WEEK) {
+    out.push({
+      kind: 'stalled-in-deficit', severity: 'high',
+      title: msg('The lifts stalled while body weight came off'),
+      detail: msg('Down about {0} {1} a week over the same period. Strength is slow to add while weight is coming off, so this is worth reading as the cause before the programme is changed.', oneDp(Math.abs(perWeek)), unit),
+      suggest: null
+    })
+  } else if (rate != null && rate <= -FAST_LOSS_PCT_WEEK) {
+    out.push({
+      kind: 'weight-falling', severity: 'high',
+      title: msg('Body weight is down {0} {1} a week', oneDp(Math.abs(perWeek)), unit),
+      detail: msg('Faster than about one per cent of body weight a week, which is roughly where training starts to suffer whether or not the loss was the point.'),
+      suggest: null
+    })
+  }
+
+  if (rate != null && rate >= FAST_GAIN_PCT_WEEK) {
+    out.push({
+      kind: 'weight-rising', severity: 'low',
+      title: msg('Body weight is up {0} {1} a week', oneDp(perWeek), unit),
+      detail: msg('Faster than muscle is usually added. Worth knowing rather than worth fixing — nothing in the training data says whether it was the intention.'),
+      suggest: null
+    })
+  }
+
+  for (const [key, s] of Object.entries(signals.scales)) {
+    if (s.n < MIN_RATINGS || s.mean == null) continue
+    const mean = oneDp(s.mean)
+
+    if (s.direction === 'up-bad' && s.mean >= SORE_MEAN) {
+      out.push({
+        kind: 'sore', severity: 'medium',
+        title: msg('Soreness has been {0} out of 5', mean),
+        detail: msg('Across {0} check-ins. Soreness that does not settle between sessions is usually more work than is being recovered from, and one set less is the cheapest thing to try before anything gets redesigned.', s.n),
+        suggest: 'reduce-volume'
+      })
+    } else if (s.direction === 'up-good' && s.mean <= LOW_MEAN) {
+      /* Named one at a time rather than through a substituted field label. The label is English
+       * in the built-in set and a coach's own words in a template, and neither survives being
+       * dropped into a sentence somebody reads in Persian. */
+      out.push(key === 'sleep'
+        ? {
+          kind: 'sleep', severity: 'medium',
+          title: msg('Sleep has been {0} out of 5', mean),
+          detail: msg('Across {0} check-ins. Nothing in a programme fixes this, and changing one while it holds mostly moves the problem — it is worth a conversation before it is worth a deload.', s.n),
+          suggest: null
+        }
+        : {
+          kind: 'energy', severity: 'medium',
+          title: msg('Energy has been {0} out of 5', mean),
+          detail: msg('Across {0} check-ins. Low long enough to be a pattern rather than a week. Read it next to sleep and soreness before reading it as the training.', s.n),
+          suggest: null
+        })
+    }
+  }
+
+  return out
 }
 
 /* ------------------------------------------------------------ adaptation ---- */
@@ -507,8 +696,12 @@ export function reviewTraining(S = {}, { days = 28, today = null } = {}) {
 /**
  * Turn the highest-priority finding into an actual change to a routine.
  *
- * Returns `{ routineId, before, after, changes, headline }` or null when nothing needs doing —
- * "your programme is fine" being a legitimate and under-used answer.
+ * Returns `{ routineId, before, after, changes, headline, from }` or null when nothing needs
+ * doing — "your programme is fine" being a legitimate and under-used answer.
+ *
+ * `from` is the finding it acted on. A review usually finds more than one thing and this
+ * answers exactly one of them; what is left over is context a coach should read before
+ * sending, and without this there is no way to tell the two apart.
  *
  * The output is a routine in the app's own shape, so it drops straight into a coach's proposal
  * without any further interpretation.
@@ -518,9 +711,17 @@ export function proposeAdaptation(S = {}, review = null, { unit = 'kg' } = {}) {
   const routines = S.routines || []
   if (!routines.length) return null
 
-  const actionable = r.findings.find(f => f.suggest && f.routineId) ||
-                     r.findings.find(f => f.suggest && f.exerciseId) ||
-                     r.findings.find(f => f.suggest)
+  /* Soreness that is not settling is a ceiling on how much work can be recovered from, and
+   * `add-accessory` is the one suggestion that adds work. Left in, the review's answer to "I am
+   * sore every week" is a fourth exercise — the muscle gap is real, but this is the wrong week
+   * to close it, and it will still be there when the person is recovering again. */
+  const usable = r.findings.some(f => f.kind === 'sore')
+    ? r.findings.filter(f => f.suggest !== 'add-accessory')
+    : r.findings
+
+  const actionable = usable.find(f => f.suggest && f.routineId) ||
+                     usable.find(f => f.suggest && f.exerciseId) ||
+                     usable.find(f => f.suggest)
   if (!actionable) return null
 
   const routine = routines.find(x => x.id === actionable.routineId) ||
@@ -558,9 +759,28 @@ export function proposeAdaptation(S = {}, review = null, { unit = 'kg' } = {}) {
     // Nothing about the routine changes — the plan has too many days in it. Say so rather than
     // silently editing exercises nobody is getting to.
     return {
-      routineId: routine.id, before, after: before, changes: [],
+      routineId: routine.id, before, after: before, changes: [], from: actionable,
       headline: msg('Fewer days, not different exercises'),
       note: msg('Only {0} of {1} planned sessions happened. Cutting the week down to what actually gets run beats redesigning sessions nobody reaches.', r.sessions, r.expected)
+    }
+  } else if (actionable.suggest === 'reduce-volume') {
+    /* One set off the exercise carrying the most of them, rather than a set off everything.
+     * Somebody who is sore every week is recovering from too much work, and the biggest single
+     * block of it is both the likeliest cause and the smallest change that tests the theory —
+     * a routine-wide cut removes the evidence along with the soreness.
+     *
+     * Ties go to the first, which is position in the routine, so the same week's data proposes
+     * the same set twice. */
+    const cfg = after.ex.reduce(
+      (worst, e) => ((e.sets || 0) > (worst?.sets || 0) ? e : worst), null
+    )
+    if (cfg && cfg.sets > 2) {
+      const from = cfg.sets
+      cfg.sets = from - 1
+      changes.push({
+        exerciseId: cfg.id, field: 'sets', from, to: cfg.sets,
+        why: msg('The most work in the session, and the first place to look when soreness is not settling between them.')
+      })
     }
   } else if (actionable.suggest === 'restart-light') {
     for (const cfg of after.ex) {
@@ -587,6 +807,12 @@ export function proposeAdaptation(S = {}, review = null, { unit = 'kg' } = {}) {
   return {
     routineId: routine.id, before, after, changes,
     headline: actionable.title,
-    note: actionable.detail
+    note: actionable.detail,
+    /* The finding this answers, by reference rather than by kind — two lifts can stall in one
+     * month, and a caller separating "what this change is for" from "what else the review
+     * found" must not lose the second one to the first one's name. Callers that passed the
+     * review in can filter it out of `findings` with `!==`; one that did not gets a finding
+     * from a review it never saw, which is why identity is the only honest key here. */
+    from: actionable
   }
 }

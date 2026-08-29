@@ -14,6 +14,7 @@ import { client } from './test-client.js'
 import { resetStorage } from './media.js'
 import { sweepOnce } from './sweeper.js'
 import { db, close } from '@gymyar/db'
+import { createAI, nullProvider } from '@gymyar/ai'
 
 let app, root
 const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
@@ -496,5 +497,147 @@ describe('captions', () => {
     expect((await b.c.patch(`/api/attachments/${id}`, { caption: 'mine now' })).status).toBe(404)
     expect((await a.c.patch(`/api/attachments/${id}`, { caption: null })).body.attachment.caption)
       .toBeUndefined()
+  })
+})
+
+/* ------------------------------------------------- showing one to a model ---- */
+
+/* The vision path, end to end over the real volume: a photograph is uploaded, read back out of
+ * storage, and handed to something that can see. The model is faked — what is being tested is
+ * everything around it, which is the part that decides whose picture gets sent anywhere. */
+
+describe('looking at a form check', () => {
+  let eyesApp, asked
+
+  /** Stands in for a vision model on this machine, and records what it was shown. */
+  const eyes = {
+    name: 'fake-eyes', available: true, model: 'fake-vl',
+    async complete(task) {
+      asked = task
+      return { observations: ['The bar is drifting forward of the mid-foot.', 'Knees are tracking.'] }
+    }
+  }
+
+  beforeAll(async () => {
+    eyesApp = await build({
+      databaseUrl: URL,
+      ai: createAI({ provider: nullProvider, vision: eyes }),
+      rateLimit: false
+    })
+  })
+  afterAll(async () => { await eyesApp.close() })
+  beforeEach(() => { asked = null })
+
+  /** The same account, seen through the instance that has a vision model. */
+  const seeing = async (name, email, extra = {}) => {
+    const c = client(eyesApp)
+    const r = await c.post('/api/register/password', { name, email, password: 'correct-horse-battery', ...extra })
+    expect(r.status).toBe(200)
+    return { c, user: r.body.user }
+  }
+
+  const aFormCheck = async c => {
+    await workout(c)
+    const r = await c.upload('/api/attachments?subject=form_check&workout=w1&exercise=0025', JPEG(1024))
+    expect(r.status).toBe(201)
+    return r.body.attachment
+  }
+
+  it('reads the bytes back and says what it saw', async () => {
+    const { c } = await seeing('Sam', 'sam@x.test')
+    const a = await aFormCheck(c)
+
+    const r = await c.post(`/api/ai/form-check/${a.id}`, {})
+    expect(r.status).toBe(200)
+    expect(r.body.observations).toHaveLength(2)
+    expect(r.body.unclear).toBe(false)
+
+    // The photograph actually reached the model, as bytes rather than as a URL.
+    expect(asked.images).toHaveLength(1)
+    expect(asked.images[0].mime).toBe('image/jpeg')
+    expect(Buffer.from(asked.images[0].data, 'base64').length).toBe(1024)
+    // And the lift was named by the server, out of the library.
+    expect(r.body.exercise).toMatch(/bench press/i)
+  })
+
+  it('will not look at a progress photo', async () => {
+    // Not a plumbing limit. A machine's opinion of how somebody looks is not a thing this makes.
+    const { c } = await seeing('Sam', 'sam@x.test')
+    const up = await c.upload('/api/attachments?subject=progress&date=2026-08-20', JPEG(1024))
+    expect(up.status).toBe(201)
+
+    const r = await c.post(`/api/ai/form-check/${up.body.attachment.id}`, {})
+    expect(r.status).toBe(400)
+    expect(asked).toBeNull()
+  })
+
+  it('will not try to read a video', async () => {
+    const { c } = await seeing('Sam', 'sam@x.test')
+    await workout(c)
+    const up = await c.upload('/api/attachments?subject=form_check&workout=w1&exercise=0025', MP4(2048))
+    const r = await c.post(`/api/ai/form-check/${up.body.attachment.id}`, {})
+    expect(r.status).toBe(415)
+    expect(asked).toBeNull()
+  })
+
+  it('shows a coach the picture they were already allowed to see', async () => {
+    const coach = await seeing('Coach', 'coach@x.test', { asCoach: true })
+    const ava = await seeing('Ava', 'ava@x.test')
+    const inv = await coach.c.post('/api/coach/invites', { email: 'ava@x.test', scopes: ['workouts'] })
+    await ava.c.post(`/api/invites/${inv.body.invite.code}/accept`, { scopes: ['workouts'] })
+
+    const a = await aFormCheck(ava.c)
+    const r = await coach.c.post(`/api/ai/form-check/${a.id}`, {})
+    expect(r.status).toBe(200)
+    expect(r.body.observations).toHaveLength(2)
+  })
+
+  it('refuses a coach the client never shared their workouts with', async () => {
+    const coach = await seeing('Coach', 'coach@x.test', { asCoach: true })
+    const ava = await seeing('Ava', 'ava@x.test')
+    const inv = await coach.c.post('/api/coach/invites', { email: 'ava@x.test', scopes: ['programmes'] })
+    await ava.c.post(`/api/invites/${inv.body.invite.code}/accept`, { scopes: ['programmes'] })
+
+    const a = await aFormCheck(ava.c)
+    const r = await coach.c.post(`/api/ai/form-check/${a.id}`, {})
+    expect(r.status).toBe(403)
+    expect(asked).toBeNull()
+  })
+
+  it('refuses a stranger', async () => {
+    const { c } = await seeing('Sam', 'sam@x.test')
+    const a = await aFormCheck(c)
+    const nosy = await seeing('Nosy', 'nosy@x.test')
+    expect((await nosy.c.post(`/api/ai/form-check/${a.id}`, {})).status).toBe(403)
+    expect(asked).toBeNull()
+  })
+
+  it('refuses a photograph too large to hand to a model', async () => {
+    const { c } = await seeing('Sam', 'sam@x.test')
+    await workout(c)
+    const big = await c.upload(
+      '/api/attachments?subject=form_check&workout=w1&exercise=0025', JPEG(5 * 1024 * 1024))
+    expect(big.status).toBe(201)
+
+    const r = await c.post(`/api/ai/form-check/${big.body.attachment.id}`, {})
+    expect(r.status).toBe(413)
+    expect(asked).toBeNull()
+  })
+
+  it('says an instance with no vision model has none', async () => {
+    // `app` is the ordinary instance: text only, which is every deployment that has not asked
+    // for this. The feature is absent rather than degraded, and it says so twice.
+    const { c } = await signUp('Sam', 'sam@x.test')
+    const a = await aFormCheck(c)
+
+    expect((await c.get('/api/ai/status')).body.vision).toBe(false)
+    expect((await c.post(`/api/ai/form-check/${a.id}`, {})).status).toBe(501)
+  })
+
+  it('says an instance that can see, can see', async () => {
+    const { c } = await seeing('Sam', 'sam@x.test')
+    const status = await c.get('/api/ai/status')
+    expect(status.body.vision).toBe(true)
+    expect(status.body.models.vision).toBe('fake-vl')
   })
 })
