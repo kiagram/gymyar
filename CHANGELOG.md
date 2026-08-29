@@ -481,7 +481,11 @@ backup" and mean it — and a form check cannot be one. So there is a volume now
   on the demo's sign-in screen, and the Settings row in the demo and mobile builds, each written
   as `{REPO && …}` so an unset value hides the link rather than shipping a dead one. That was
   the right default while there was nothing to point at and it stopped being true the day the
-  repository went public; the constant had simply never been filled in.
+  repository went public; the constant had simply never been filled in. They point at
+  <https://github.com/kiagram/gymyar>, which is the repository renamed to the product — it was
+  `gymbuddy`, the name the fork was started under, and the site, `SECURITY.md` and
+  `CONTRIBUTING.md` had all been written against the name it should have had. Verified live
+  rather than assumed: the root, `/issues` and both of the site's `/blob/HEAD/` links answer 200.
 - 🌳 **Two documents were describing a branch that does not exist.** `CONTRIBUTING.md` asked for
   pull requests against `gymyar` and `docs/PUBLISHING.md` said that was the default branch and
   put it in two `git push` examples. The branch is `gymbuddy`. Anyone following the publishing
@@ -830,12 +834,6 @@ found by running it.
   fetched from upstream on first run rather than redistributed here. Exercise rows carry
   `image_url` and `animation_url`, so replacing the source is an `UPDATE` — but until that
   happens or a licence is obtained, this cannot ship as a paid product.
-- 🔗 **The source links resolve only once the repository is renamed.** They point at
-  `github.com/kiagram/gymyar`, which the site, `SECURITY.md` and `CONTRIBUTING.md` have named
-  all along and which does not exist yet — the repository is still `gymbuddy`, the name the
-  fork was started under. Renaming it on GitHub is the whole of the fix, and GitHub redirects
-  the old name afterwards, so nothing already cloned breaks.
-
 ### Fixed, inherited from openGym
 
 - 🪟 **`npm run build:mobile` had never worked on Windows.** It used a `VAR=value cmd` prefix,

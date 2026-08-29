@@ -18,6 +18,19 @@ the work was done under; the repository does not, because the repository name is
 every source link in the app and on the site points at, and that one has to read as the
 product. What follows is what was run, and what a fork of this project would run in turn.
 
+It was `kiagram/gymbuddy` until the rename, which is the name the fork was started under and
+the last thing still carrying it. Renaming a repository does not break anything already
+pointed at the old name — GitHub redirects it, for the web and for `git` alike — so an existing
+clone keeps fetching and only wants `git remote set-url` for tidiness. This tree has had it:
+
+```bash
+git remote set-url origin https://github.com/kiagram/gymyar.git
+```
+
+The redirect is a courtesy and not an address. It lapses the moment anyone creates a new
+repository under the old name, which is a thing you can do to yourself by accident, so nothing
+written down should keep pointing there.
+
 Create an empty repository wherever you want this to live, then:
 
 ```bash
@@ -26,7 +39,7 @@ git push -u origin gymbuddy
 ```
 
 The `main` branch in this tree is still the openGym import, untouched. Keeping it is useful — it
-is what `git log gymyar ^main` diffs against, and it is the attribution trail. Push it too if
+is what `git log gymbuddy ^main` diffs against, and it is the attribution trail. Push it too if
 you want that history preserved:
 
 ```bash
