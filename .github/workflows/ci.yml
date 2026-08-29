@@ -59,12 +59,22 @@ jobs:
       - name: Web build
         run: npm run build -w @gymyar/client
       - name: End-to-end smoke test
+        # `STORAGE_PATH` because this step runs the API under Node rather than in its image,
+        # and the default is `/data/media` — a path the container owns and the runner cannot
+        # create. Without it the first form-check upload is a 500 from `mkdir /data`, which is
+        # what this step has actually been failing on rather than on anything it tests.
+        env:
+          STORAGE_PATH: ${{ runner.temp }}/media
         run: |
           node packages/db/src/cli.js reset
           npm start -w @gymyar/api &
           npx wait-on -t 30000 http://127.0.0.1:3000/api/health
           ./infra/scripts/smoke.sh http://127.0.0.1:3000
       - name: Browser end-to-end test
+        # Same reason, and a directory of its own so a failure here is not reading the last
+        # step's bytes.
+        env:
+          STORAGE_PATH: ${{ runner.temp }}/media-e2e
         run: |
           npx playwright install --with-deps chromium
           node packages/db/src/cli.js reset
@@ -99,10 +109,22 @@ jobs:
           npx wait-on -t 300000 http://127.0.0.1:8080/api/health
           ./infra/scripts/smoke.sh http://127.0.0.1:8080
 
+      # `.env` is written by the step above and is gitignored, so on any run that failed before
+      # that step it does not exist — and `docker compose` treats a missing env file as an error
+      # rather than as nothing to do. Both of these then fail on top of the real failure, and the
+      # run ends with three red steps of which only the first one happened. The guard is what
+      # keeps a diagnostic step from becoming a second diagnosis.
       - name: Compose stack logs
         if: failure()
-        run: docker compose logs --no-color --tail 200
+        run: |
+          if [ ! -f .env ]; then
+            echo "The compose stack was never built — this run failed before that step."
+            exit 0
+          fi
+          docker compose logs --no-color --tail 200
 
       - name: Tear the stack down
         if: always()
-        run: docker compose down -v --remove-orphans
+        run: |
+          if [ ! -f .env ]; then exit 0; fi
+          docker compose down -v --remove-orphans
