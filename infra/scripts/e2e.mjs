@@ -111,17 +111,32 @@ console.log('\nsam@gymyar.test')
   await page.goto(BASE + '/#/coaching', { waitUntil: 'networkidle' }); await page.waitForTimeout(1800)
   const coaching = await page.textContent('body')
   check(/Waiting for you/.test(coaching) && /Kim Alvarez/.test(coaching), 'proposal inbox shows the coach\'s proposal')
+  /* Two proposals are waiting on this client and they are of the two different kinds — the
+   * seed puts a routine change and a suggested habit here on purpose, so a screen that only
+   * knows about routines is visible rather than plausible. A habit reading its title out of
+   * `payload.name` renders as "Programme change", which is what this asserts is not there. */
+  check(/10 minutes of mobility/.test(coaching), 'the suggested habit is named rather than called a programme change')
   await page.screenshot({ path: `${SHOTS}/shot-client-coaching.png`, fullPage: true })
 
-  await page.locator('.lrow.tap').first().click(); await page.waitForTimeout(1200)
+  await page.getByText('10 minutes of mobility').first().click(); await page.waitForTimeout(1200)
   await page.screenshot({ path: `${SHOTS}/shot-client-proposal.png`, fullPage: true })
   const sheet = await page.textContent('body')
   check(/Accept/.test(sheet) && /Decline/.test(sheet), 'proposal sheet offers both answers')
+  check(/3 days a week/.test(sheet), 'the habit sheet says what it is asking for')
+  check(/adds this habit to your list/.test(sheet), 'and what accepting will do with it')
   check(!/Invalid Date/.test(sheet), 'proposal date renders')
 
+  /* Accepting one of two is not expected to empty the section — it is expected to take that
+   * one out of it and leave the other. The check this replaces asserted the whole inbox
+   * cleared, which one accept has never been able to do on this seed. */
   await page.getByRole('button', { name: /^Accept$/ }).click(); await page.waitForTimeout(3500)
   const after = await page.textContent('body')
-  check(!/Waiting for you/.test(after), 'inbox clears after accepting')
+  check(!/10 minutes of mobility/.test(after), 'the accepted proposal leaves the inbox')
+  check(/Waiting for you/.test(after), 'and the one that was not answered is still waiting')
+
+  // It is theirs now, which is the half of accepting that the inbox cannot show.
+  await page.goto(BASE + '/#/home', { waitUntil: 'networkidle' }); await page.waitForTimeout(1800)
+  check(/10 minutes of mobility/.test(await page.textContent('body')), 'the accepted habit is on the home screen')
 
   await page.goto(BASE + '/#/plan', { waitUntil: 'networkidle' }); await page.waitForTimeout(2000)
   await page.screenshot({ path: `${SHOTS}/shot-client-plan.png`, fullPage: true })
