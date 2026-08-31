@@ -170,7 +170,10 @@ describe('the coaching UI speaks the reader\'s language', () => {
   it('translates what a client sees, including the sentence that says what accepting does', async () => {
     await setLang('fa')
     expect(t('Coaching')).toBe('مربی‌گری')
-    expect(t('Your plan is unchanged until you accept.')).toBe('تا نپذیرید، برنامه‌تان دست‌نخورده می‌ماند.')
+    expect(t('Nothing changes until you accept.')).toBe('تا نپذیرید، چیزی عوض نمی‌شود.')
+    // A habit proposal is answered on the same screen and had none of these until now.
+    expect(t('Added to your habits')).toBe('به عادت‌هایتان اضافه شد')
+    expect(t('{0} days a week', 3)).toBe('۳ روز در هفته')
   })
 
   it('keeps the placeholder through the translation', async () => {
