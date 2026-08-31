@@ -102,7 +102,22 @@ console.log('\nsam@gymyar.test')
   const synced = local.workouts
   const flat = stats.replace(/\s+/g, '')
   check(flat.includes('Workouts' + synced), `stats counts the synced sessions (${synced})`)
-  check(!/No workouts in this period yet/.test(stats), 'muscle balance finds this week\'s training')
+  /* The same calendar, one card further down.
+   *
+   * The muscle map's default window is *this week* — `weekKey(w.d) === weekKey(todayISO())`,
+   * not the last seven days — and the demo trains Mon/Wed/Fri from today backwards. So on a
+   * Monday before that day's session the week genuinely holds nothing, the card is right to
+   * say so, and the check that read it as a failure was reading the day of the week. Thirty
+   * days always contains this profile's training, which is what the card is asked to find.
+   *
+   * The window is switched rather than the assertion softened: "no workouts" would also be
+   * the text if the map found nothing at all, and a check that passes on both cannot tell
+   * an empty window from a broken one. */
+  const balance = page.locator('.card').filter({ hasText: 'Muscle balance' })
+  await balance.getByRole('button', { name: '30d' }).click(); await page.waitForTimeout(600)
+  const map = await balance.textContent()
+  check(!/No workouts in this period yet/.test(map), 'muscle balance finds the last month of training')
+  check(/sets/.test(map), 'and says how many sets each muscle got')
   await page.screenshot({ path: `${SHOTS}/shot-client-stats.png`, fullPage: true })
 
   await page.goto(BASE + '/#/home', { waitUntil: 'networkidle' }); await page.waitForTimeout(1500)
