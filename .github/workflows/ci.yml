@@ -19,8 +19,12 @@ jobs:
       DATABASE_URL: postgres://gymyar:gymyar@localhost:5432/gymyar_test
       SESSION_SECRET: ci-secret-not-for-production
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # v5 is the first major of either that runs on node24. v4 was being force-run on it
+      # already, with a deprecation warning on every run — a warning today and a step that
+      # stops starting whenever the runners drop the shim. `node-version` below is the Node
+      # the project's own steps get and is unrelated to the runtime the action itself uses.
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - name: Versions agree
