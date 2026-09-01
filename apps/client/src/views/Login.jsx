@@ -4,10 +4,11 @@ import { webauthnOK, passkeyLogin, passkeyRegister, passwordLogin, passwordRegis
   requestPasswordReset, checkResetToken, resetPassword, phoneStart, phoneVerify } from '../lib/api.js'
 import { hasData } from '../store/useStore.js'
 import { t } from '../lib/i18n.js'
+import { isIranianMobile, maskPhone } from '@gymyar/domain'
 import { DEMO, REPO } from '../lib/demo.js'
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '../components/ui.jsx'
-import PhoneCode from '../components/PhoneCode.jsx'
+import CodeFlow, { ltrField } from '../components/CodeFlow.jsx'
 import mark from '../assets/mark.svg'
 import { useParams } from 'react-router-dom'
 import { nav } from '../lib/nav.js'
@@ -27,6 +28,27 @@ async function afterAuth(u, { created } = {}) {
       : created ? t('Welcome, {0}', u.name)
       : t('Welcome back, {0}', u.name))
 }
+
+/* The number step, shared by the sign-in sheet here and the one in Settings. */
+export function phoneFirst({ title, blurb, sendLabel }) {
+  return ({ value, setValue, send, busy, err }) => <>
+    <h3>{title}</h3>
+    {blurb && <div className="muted small" style={{ marginBottom: 14 }}>{blurb}</div>}
+    <input className="input" type="tel" autoComplete="tel" maxLength={20} {...ltrField}
+           placeholder="09123456789" value={value}
+           onChange={e => setValue(e.target.value)}
+           onKeyDown={e => e.key === 'Enter' && send()} />
+    {err && <p className="err small" style={{ textAlign: 'left' }}>{err}</p>}
+    <div style={{ height: 12 }} />
+    <Button variant="primary" disabled={busy} onClick={send}>
+      {busy ? t('Working…') : sendLabel}
+    </Button>
+  </>
+}
+
+/** What the number field will not accept, in the one sentence somebody can act on. */
+export const phoneComplaint = v =>
+  isIranianMobile(v) ? null : t('Enter an Iranian mobile number, like 09123456789')
 
 /**
  * Signing in with a phone number.
@@ -48,10 +70,14 @@ function PhoneSheet({ close }) {
   const [inviteOnly, setInviteOnly] = useState(false)
   useEffect(() => { api('/api/config').then(c => setInviteOnly(!!c.inviteOnly)).catch(() => {}) }, [])
 
-  return <PhoneCode
-    title={t('Continue with your phone')}
-    blurb={t('We text you a code. No password to remember.')}
-    sendLabel={t('Send me a code')}
+  return <CodeFlow
+    validate={phoneComplaint}
+    sentTo={maskPhone}
+    first={phoneFirst({
+      title: t('Continue with your phone'),
+      blurb: t('We text you a code. No password to remember.'),
+      sendLabel: t('Send me a code')
+    })}
     start={phone => phoneStart(phone)}
     verify={async (phone, code) => {
       const r = await phoneVerify({ phone, code, name: name.trim(), invite, asCoach })

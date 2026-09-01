@@ -44,7 +44,7 @@ apps/site         the project site, served at / with the app at /app/ (static, n
 packages/domain   runtime-agnostic training logic, shared by client and server
 packages/db       Postgres schema, migrations, sync engine, coaching rules
 packages/storage  uploaded bytes — the one thing that is not a row
-packages/mail     the one email this app sends, in English and Persian
+packages/mail     the two emails this app sends, in English and Persian
 packages/sms      the one text message it sends: a sign-in code, through an Iranian gateway
 packages/ai       the language layer, and the deterministic path underneath it
 infra             nginx, Docker builds, media fetch, smoke and browser tests

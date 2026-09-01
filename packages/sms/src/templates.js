@@ -29,7 +29,7 @@
  * number, minutes, and the one sentence that tells somebody who did not ask for it what to do.
  */
 
-/** How long a code lives, in minutes. Stated in the text — see the note in phone-codes.js. */
+/** How long a code lives, in minutes. Stated in the text — see the note in codes.js. */
 export const CODE_TTL_MINUTES = 5
 
 const faDigits = n => String(n).replace(/[0-9]/g, d => '۰۱۲۳۴۵۶۷۸۹'[+d])

@@ -10,14 +10,21 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { build } from './app.js'
 import { client } from './test-client.js'
 import { db, close } from '@gymyar/db'
-import { MAX_ATTEMPTS, DAILY_CAP } from '@gymyar/db/phone-codes.js'
+import { MAX_ATTEMPTS, DAILY_CAP } from '@gymyar/db/codes.js'
 import { config } from './config.js'
 
 let app
 const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
 
-/* Every code the instance "sent", in order. The log transport writes one line per message with
- * the code in it — see packages/sms/src/index.js — so this is the handset. */
+/* Every code the instance texted, in order. The log transport writes one line per message with
+ * the code in it — see packages/sms/src/index.js — so this is the handset.
+ *
+ * Filtered on the SMS line specifically, not on "any line with a code in it". Both channels log
+ * that shape now, and `process.env` is shared across test files (fileParallelism is off), so a
+ * suite that ran earlier and left `MAIL_TRANSPORT` set makes signup mail a confirmation code
+ * too — and the last code logged stops being the one this file is about. That failure depends
+ * on file order, which is the worst kind to debug.
+ */
 const sent = []
 /* A pino stream rather than a fake logger object: `build()` hands whatever it is given straight
  * to Fastify, and Fastify wants a configuration object. So this is the real logger writing real
@@ -28,7 +35,7 @@ const logger = {
     write(line) {
       let rec = null
       try { rec = JSON.parse(line) } catch { return }
-      if (rec?.code) sent.push(rec)
+      if (rec?.code && String(rec.msg || '').startsWith('sms')) sent.push(rec)
     }
   }
 }
@@ -42,7 +49,7 @@ beforeAll(async () => {
 })
 beforeEach(async () => {
   await db()`delete from users`
-  await db()`delete from phone_codes`
+  await db()`delete from verification_codes`
   await db()`delete from invites`
   sent.length = 0
   config.inviteOnly = false
@@ -76,7 +83,7 @@ describe('asking for a code', () => {
     await client(app).post('/api/phone/start', { phone: PHONE, locale: 'en' })
     expect(sent.at(-1).body).toMatch(/is your GymYar code/)
     // Persian when nobody says — the message is going to a +98 handset.
-    await db()`delete from phone_codes`
+    await db()`delete from verification_codes`
     await client(app).post('/api/phone/start', { phone: '09121112233' })
     expect(sent.at(-1).body).toMatch(/کد ورود/)
   })
@@ -93,7 +100,7 @@ describe('asking for a code', () => {
     // The property this endpoint exists to have: it is not a way to ask who trains here.
     const { c, code } = await codeFor()
     await c.post('/api/phone/verify', { phone: PHONE, code, name: 'Sam' })
-    await db()`delete from phone_codes`
+    await db()`delete from verification_codes`
 
     const known = await client(app).post('/api/phone/start', { phone: PHONE })
     const unknown = await client(app).post('/api/phone/start', { phone: '09129998877' })
@@ -143,7 +150,7 @@ describe('spending a code', () => {
     const first = await codeFor()
     const { user } = (await first.c.post('/api/phone/verify', { phone: PHONE, code: first.code, name: 'Sam' })).body
 
-    await db()`delete from phone_codes`
+    await db()`delete from verification_codes`
     const again = await codeFor(PHONE, client(app))
     const r = await again.c.post('/api/phone/verify', { phone: PHONE, code: again.code })
     expect(r.status).toBe(200)
@@ -155,7 +162,7 @@ describe('spending a code', () => {
     const a = await codeFor('۰۹۱۲۳۴۵۶۷۸۹')
     const { user } = (await a.c.post('/api/phone/verify', { phone: '۰۹۱۲۳۴۵۶۷۸۹', code: a.code, name: 'Sam' })).body
 
-    await db()`delete from phone_codes`
+    await db()`delete from verification_codes`
     const b = await codeFor('+98 912 345 6789')
     const r = await b.c.post('/api/phone/verify', { phone: '+98 912 345 6789', code: b.code })
     expect(r.body.user.id).toBe(user.id)
@@ -214,7 +221,7 @@ describe('spending a code', () => {
     const { user } = (await first.c.post('/api/phone/verify', { phone: PHONE, code: first.code, name: 'Sam' })).body
     await db()`update users set disabled_at = now() where id = ${user.id}`
 
-    await db()`delete from phone_codes`
+    await db()`delete from verification_codes`
     const again = await codeFor(PHONE, client(app))
     const r = await again.c.post('/api/phone/verify', { phone: PHONE, code: again.code })
     expect(r.status).toBe(403)
@@ -233,11 +240,11 @@ describe('the daily ceiling', () => {
   it('stops at it, and stops the messages with it', async () => {
     // Every one of these is a message the operator is billed for and a buzz on a handset.
     for (let i = 0; i < DAILY_CAP; i++) {
-      await db()`update phone_codes set created_at = created_at - interval '2 minutes' where phone = ${CANON}`
+      await db()`update verification_codes set created_at = created_at - interval '2 minutes' where address = ${CANON}`
       const r = await client(app).post('/api/phone/start', { phone: PHONE })
       expect(r.status, `message ${i + 1}`).toBe(200)
     }
-    await db()`update phone_codes set created_at = created_at - interval '2 minutes' where phone = ${CANON}`
+    await db()`update verification_codes set created_at = created_at - interval '2 minutes' where address = ${CANON}`
     const over = await client(app).post('/api/phone/start', { phone: PHONE })
     expect(over.status).toBe(429)
     expect(sent).toHaveLength(DAILY_CAP)
@@ -286,7 +293,7 @@ describe('a number on an account that already exists', () => {
     expect(r.body.user).toMatchObject({ id: user.id, phone: CANON, email: 'ada@x.test' })
 
     // The point of the whole exercise: a laptop account is now reachable from the phone.
-    await db()`delete from phone_codes`
+    await db()`delete from verification_codes`
     const onPhone = await codeFor(PHONE, client(app))
     const back = await onPhone.c.post('/api/phone/verify', { phone: PHONE, code: onPhone.code })
     expect(back.body).toMatchObject({ created: false })
@@ -308,7 +315,7 @@ describe('a number on an account that already exists', () => {
     // Sam signs up by phone; Ada then tries to claim the same number.
     const sam = await codeFor()
     await sam.c.post('/api/phone/verify', { phone: PHONE, code: sam.code, name: 'Sam' })
-    await db()`delete from phone_codes`
+    await db()`delete from verification_codes`
 
     const { c, user } = await withPassword()
     await c.post('/api/me/phone/start', { phone: PHONE })
@@ -323,7 +330,7 @@ describe('a number on an account that already exists', () => {
 
     /* And the code survived, so a person who mistyped one digit of somebody else's number can
      * try their own immediately rather than waiting out a cooldown. */
-    const [live] = await db()`select used_at from phone_codes where phone = ${CANON}`
+    const [live] = await db()`select used_at from verification_codes where address = ${CANON}`
     expect(live.used_at).toBe(null)
   })
 

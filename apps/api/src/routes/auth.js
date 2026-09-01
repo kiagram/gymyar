@@ -19,6 +19,7 @@ import { LIMITS, MAX_VIDEO_SECONDS } from '@gymyar/storage'
 import { isLocale } from '@gymyar/domain'
 import { mailerFor, mailEnabled, resetEmail } from '@gymyar/mail'
 import { smsEnabled } from '@gymyar/sms'
+import { sendCode } from './email.js'
 import { createReset, consume, isLive } from '@gymyar/db/passwords.js'
 import { issue, clear, requireUser, currentUser } from '../session.js'
 import { limit } from '../rate-limit.js'
@@ -64,6 +65,12 @@ export default async function authRoutes(app) {
      * and then says "code sent" to somebody who will never receive one is worse than no screen.
      * See packages/sms/src/index.js. */
     phoneAuth: smsEnabled(),
+    /* Whether an address can be confirmed on this instance — which is what Settings needs to
+     * know before offering to add one. The same switch as `passwordReset` below today, and a
+     * different question: one asks whether we can mail somebody a way back into an account,
+     * the other whether we can mail them a code. An instance could grow a reason to answer
+     * them differently; two names now costs nothing and keeps that possible. */
+    emailVerify: mailEnabled(),
     /* Whether "forgot password" is a thing on this instance.
      *
      * False when no mail transport is configured, and the client then does not offer the link
@@ -215,6 +222,21 @@ export default async function authRoutes(app) {
     const locale = isLocale(req.body?.locale) ? req.body.locale : 'en'
     const user = await createUser({ name, email, password, locale, isCoach: !!req.body?.asCoach })
     issue(reply, user)
+
+    /* A confirmation code, on the way out rather than in the way.
+     *
+     * Nothing waits on it and nothing is gated by it: the session is already issued above, and
+     * an account is no more dangerous unverified today than it was before this existed. A
+     * signup that dead-ends on somebody's mail queue is a lost user, which is a worse outcome
+     * than an unproven address — and Settings can resend.
+     *
+     * Swallowed rather than surfaced for the same reason. The person is signed in and looking
+     * at their home screen; a red banner about a relay they do not run is not something they
+     * can act on, and the operator gets the reason in the log, which is who can. */
+    if (mailEnabled()) {
+      sendCode({ user, email, log: req.log, ip: req.ip })
+        .catch(err => req.log.error({ err, userId: user.id }, 'could not send a confirmation code at signup'))
+    }
     return { user: publicUser(user) }
   })
 
@@ -254,9 +276,15 @@ export default async function authRoutes(app) {
     const email = String(req.body?.email || '').trim().toLowerCase()
 
     const user = await findUserByEmail(email)
-    // A passkey-only account has no password to reset, and a disabled one is not being let back
-    // in by email. Both fall through to the same answer as an address nobody has.
-    if (user?.password_hash && !user.disabled_at) {
+    /* A passkey-only account has no password to reset, and a disabled one is not being let back
+     * in by email. Both fall through to the same answer as an address nobody has.
+     *
+     * And now: an address nobody has proved they can read. This is the one place where an
+     * unverified address is actively harmful rather than merely unproven — it is the endpoint
+     * that mails a way into an account, and until 011 anybody could sign up with somebody
+     * else's address. Existing addresses were grandfathered in that migration, so this refuses
+     * nobody who could reset yesterday; it holds for every address added since. */
+    if (user?.password_hash && !user.disabled_at && user.email_verified_at) {
       const token = await createReset({ userId: user.id, ip: req.ip })
       const url = `${config.origin}/#/reset/${token}`
       // Their language, from their profile — see packages/mail/src/templates.js for why that

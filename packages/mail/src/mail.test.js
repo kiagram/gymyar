@@ -6,7 +6,7 @@
  * no locale check can see.
  */
 import { describe, it, expect, afterEach } from 'vitest'
-import { mailerFor, mailEnabled, resetEmail, MAIL_LOCALES } from './index.js'
+import { mailerFor, mailEnabled, resetEmail, codeEmail, MAIL_LOCALES } from './index.js'
 
 const env = (over = {}) => ({ MAIL_FROM: 'GymYar <no-reply@example.test>', ...over })
 
@@ -121,5 +121,33 @@ describe('the reset email', () => {
     // The text is not parameterised — see the header in templates.js. This is what keeps the
     // sentence and the expiry from drifting apart silently.
     expect(RESET_TTL_MINUTES * 60 * 1000).toBe(RESET_TTL_MS)
+  })
+})
+
+describe('the confirmation code email', () => {
+  it('carries the code, what it is for, and no link at all', () => {
+    const { subject, text } = codeEmail({ name: 'Ada', code: '123456' })
+    expect(subject).toMatch(/code/i)
+    expect(text).toContain('123456')
+    expect(text).toContain('5 minutes')
+    // A link in a verification mail is a habit worth not teaching.
+    expect(text).not.toMatch(/https?:\/\//)
+  })
+
+  it('tells somebody who did not ask that nothing has happened', () => {
+    // The address is not on the account until the code comes back, so this is true.
+    expect(codeEmail({ name: 'Ada', code: '1' }).text).toMatch(/not on any account/)
+  })
+
+  it('is written in the account’s language, with Persian digits for the minutes', () => {
+    const fa = codeEmail({ name: 'سام', code: '123456', locale: 'fa' })
+    expect(fa.subject).toMatch(/کد تأیید/)
+    expect(fa.text).toContain('۵ دقیقه')
+    expect(fa.text).toContain('123456')      // the code stays Latin — see the template
+  })
+
+  it('falls back to English rather than not sending', () => {
+    expect(codeEmail({ name: 'Ada', code: '1', locale: 'ru' }).subject)
+      .toBe(codeEmail({ name: 'Ada', code: '1', locale: 'en' }).subject)
   })
 })

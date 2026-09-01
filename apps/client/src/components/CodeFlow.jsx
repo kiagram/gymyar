@@ -1,43 +1,51 @@
-/* Type a number, get a code, type the code. Twice in this app, so once here.
+/* Type a destination, get a code, type the code. Three times in this app, so once here.
  *
- * The sign-in screen uses it to create or open an account; Settings uses it to attach a number
- * to an account somebody is already signed in to. What is shared is everything a person sees:
- * the two fields, the countdown on the resend button, the guesses-remaining line, and the rule
- * that both fields are Latin digits and left to right whatever the layout is doing.
+ * The sign-in screen uses it to open or create an account from a phone number; Settings uses it
+ * twice, to put a number or an address on an account somebody is already signed in to. What is
+ * shared is the second step and everything around it: the code field, the countdown on the
+ * resend button, the guesses-remaining line, and the rule that a code is Latin digits and reads
+ * left to right whatever the layout is doing.
  *
- * What is *not* shared is what the two calls mean, so both are props. This component knows how
- * to ask and how to wait; it does not know what a code buys.
+ * What is not shared is the first step, because a phone number is one field and an address is
+ * sometimes two — an account created by phone has no password, and an address without one
+ * cannot sign anybody in. So the first step is a render prop and the parent owns whatever it
+ * needs to collect. This component knows how to ask and how to wait; it does not know what a
+ * code buys.
  *
  * ## The third step
  *
- * Signup has one — a new number is asked for a name — and attaching a number does not. Rather
+ * Signup has one — a new number is asked for a name — and neither Settings flow does. Rather
  * than teach this component about names, `verify` may throw an error whose `code` matches
  * `moreOn`, and the parent then renders `more` in place of the code step and calls `submit`
- * again when its own field is filled. The code is still live at that point (the server rolls
- * the claim back), which is the whole reason that flow is worth having.
+ * again when its own field is filled. The code is still live at that point, because the server
+ * rolls the claim back when what it was for fails, which is the whole reason that step is
+ * cheap enough to be worth having.
  */
 import { useState, useRef, useEffect } from 'react'
-import { isIranianMobile, maskPhone, latinDigits } from '@gymyar/domain'
+import { latinDigits } from '@gymyar/domain'
 import { t } from '../lib/i18n.js'
 import { Button } from './ui.jsx'
 
-/* Both fields, always. The sheet mirrors under Persian and a phone number does not:
- * `09123456789` is read left to right in Tehran exactly as it is anywhere else, and a number
- * that reflows as you type it is a field people retype. */
-const digits = { dir: 'ltr', inputMode: 'numeric', style: { textAlign: 'center', letterSpacing: '.08em' } }
+/* Shared by every destination field a caller renders, and by the code field below. The sheet
+ * mirrors under Persian and neither of these does: `09123456789` is read left to right in
+ * Tehran exactly as it is anywhere else, an address is Latin by definition, and a field that
+ * reflows as you type into it is a field people retype. */
+export const ltrField = {
+  dir: 'ltr', inputMode: 'numeric', style: { textAlign: 'center', letterSpacing: '.08em' }
+}
 
-export default function PhoneCode({
-  title,                 // the heading on the first step
-  blurb,                 // one line under it
-  sendLabel,             // what the first button says
-  start,                 // async phone => { resendIn }
-  verify,                // async (phone, code) => void, or throws
+export default function CodeFlow({
+  sentTo,                // value => the string shown in "Sent to …"
+  validate = () => null, // value => an error message, or null
+  start,                 // async value => { resendIn }
+  verify,                // async (value, code) => void, or throws
+  first,                 // ({ value, setValue, send, busy, err }) => the whole first step
   moreOn = null,         // an error `code` that means "render `more` instead of failing"
   more = null            // ({ submit, busy, err }) => JSX
 }) {
-  const [phone, setPhone] = useState('')
+  const [value, setValue] = useState('')
   const [code, setCode] = useState('')
-  const [step, setStep] = useState('phone')
+  const [step, setStep] = useState('first')
   const [resendIn, setResendIn] = useState(0)
   const [left, setLeft] = useState(null)        // guesses remaining, once one has been used
   const [busy, setBusy] = useState(false)
@@ -53,10 +61,11 @@ export default function PhoneCode({
   }, [resendIn > 0])
 
   const send = async () => {
-    if (!isIranianMobile(phone)) { setErr(t('Enter an Iranian mobile number, like 09123456789')); return }
+    const complaint = validate(value)
+    if (complaint) { setErr(complaint); return }
     setBusy(true); setErr(null)
     try {
-      const r = await start(phone)
+      const r = await start(value)
       setResendIn(r?.resendIn || 60)
       setLeft(null); setCode('')
       setStep('code')
@@ -71,7 +80,7 @@ export default function PhoneCode({
 
   const submit = async () => {
     setBusy(true); setErr(null)
-    try { await verify(phone, code) }
+    try { await verify(value, code) }
     catch (e) {
       if (moreOn && e.code === moreOn) { setStep('more'); setErr(null) }
       else {
@@ -82,28 +91,15 @@ export default function PhoneCode({
   }
 
   if (step === 'more' && more) return more({ submit, busy, err })
-
-  if (step === 'phone') return <>
-    <h3>{title}</h3>
-    {blurb && <div className="muted small" style={{ marginBottom: 14 }}>{blurb}</div>}
-    <input className="input" type="tel" autoComplete="tel" maxLength={20} {...digits}
-           placeholder="09123456789" value={phone}
-           onChange={e => setPhone(e.target.value)}
-           onKeyDown={e => e.key === 'Enter' && send()} />
-    {err && <p className="err small" style={{ textAlign: 'left' }}>{err}</p>}
-    <div style={{ height: 12 }} />
-    <Button variant="primary" disabled={busy} onClick={send}>
-      {busy ? t('Working…') : sendLabel}
-    </Button>
-  </>
+  if (step === 'first') return first({ value, setValue, send, busy, err })
 
   return <>
     <h3>{t('Enter the code')}</h3>
     <div className="muted small" style={{ marginBottom: 14 }}>
-      {t('Sent to {0}. It expires in five minutes.', maskPhone(phone))}
+      {t('Sent to {0}. It expires in five minutes.', sentTo(value))}
     </div>
     <input ref={codeRef} className="input" type="text" autoComplete="one-time-code" maxLength={6}
-           {...digits} style={{ ...digits.style, fontSize: 24, fontWeight: 600, letterSpacing: '.3em' }}
+           {...ltrField} style={{ ...ltrField.style, fontSize: 24, fontWeight: 600, letterSpacing: '.3em' }}
            placeholder="······" value={code}
            /* Latin digits on the way in, so a code typed on a Persian keyboard fills the field
               rather than being silently rejected six characters later. */
@@ -121,8 +117,8 @@ export default function PhoneCode({
     <Button variant="ghost" className="dim" disabled={busy || resendIn > 0} onClick={send}>
       {resendIn > 0 ? t('Send a new code in {0}s', resendIn) : t('Send a new code')}
     </Button>
-    <Button variant="ghost" className="dim" onClick={() => { setStep('phone'); setErr(null) }}>
-      {t('Use a different number')}
+    <Button variant="ghost" className="dim" onClick={() => { setStep('first'); setErr(null) }}>
+      {t('Start over')}
     </Button>
   </>
 }
