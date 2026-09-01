@@ -35,5 +35,24 @@ RUN npm run build -w @gymyar/client
 
 FROM nginx:alpine
 COPY infra/web/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/apps/client/dist /usr/share/nginx/html
+
+# The front door: the project site, at `/`. Hand-written HTML with no build step, which is
+# why it is copied rather than built — see apps/site/README.md.
+COPY apps/site/ /usr/share/nginx/html/
+
+# The app itself, one level down at `/app/`. Built with `base: './'` and a HashRouter, so it
+# does not know it moved; see the /app/ block in nginx.conf.
+COPY --from=build /app/apps/client/dist /usr/share/nginx/html/app
+
+# The site's images are not in apps/site — they are the same files the store listings and the
+# README use, and a second copy in the tree is a second copy to forget to retake. `.gitignore`
+# keeps them out of apps/site and `.dockerignore` lets exactly these two paths through.
+#   assets/screenshots/{,fa/}*.png  →  /assets/*.png and /assets/fa/*.png
+COPY assets/screenshots/ /usr/share/nginx/html/assets/
+COPY assets/banner.png /usr/share/nginx/html/assets/banner.png
+
+# Icons come from the client, so the browser tab on the site, the home-screen icon and the
+# app's own icon are one file rather than three that drift.
+COPY apps/client/public/icon-180.png apps/client/public/icon-512.png /usr/share/nginx/html/
+
 # exercise media (img/gif) is mounted at runtime from the media volume

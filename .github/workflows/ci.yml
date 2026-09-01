@@ -114,8 +114,13 @@ jobs:
           echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env
           docker compose config -q
           # Short-circuit the 140 MB exercise-media clone: the media service skips the download
-          # when ./media/img is non-empty, and nothing below looks at the exercise library.
-          mkdir -p media/img media/gif && touch media/img/.ci-placeholder
+          # when ./media/img is non-empty. This used to touch a single `.ci-placeholder` there,
+          # because nothing below looked at the exercise library. `smoke.sh` does now — it takes
+          # an exercise from /api/exercises and follows both of its URLs, which is the check that
+          # was missing while 1,324 stored links 404'd on every hosted instance. A directory with
+          # one arbitrarily-named file in it fails that, so the placeholders carry the dataset's
+          # own filenames. See the script for what this proves and what it does not.
+          node infra/scripts/media-placeholders.mjs
           docker compose up -d --build
           npx wait-on -t 300000 http://127.0.0.1:8080/api/health
           ./infra/scripts/smoke.sh http://127.0.0.1:8080

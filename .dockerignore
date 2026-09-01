@@ -37,6 +37,17 @@ media
 .claude
 docs
 logo
+# `assets` here is the repository's own top-level folder, not `apps/site/assets` — a
+# .dockerignore pattern without a slash matches at the root only. The two paths below are the
+# exception: the web image copies the screenshots and the banner into the project site, so
+# they are the one part of this folder a build genuinely needs. Anything matching `**/assets`
+# added later would break that, silently, as a site with no pictures on it.
 assets
+!assets/screenshots
+!assets/banner.png
 **/*.md
 !apps/*/README.md
+# ...except this one, which would otherwise be copied into the document root by the web image
+# and served at /README.md. Last matching pattern wins, so this line has to come after the
+# negation above.
+apps/site/README.md

@@ -10,6 +10,8 @@ import { db, logChange } from './index.js'
 
 const IMG_BASE = process.env.EXERCISE_IMG_BASE || '/img/'
 const GIF_BASE = process.env.EXERCISE_GIF_BASE || '/gif/'
+/** Where the artwork is being served from, for whoever needs to assert about it. */
+export const MEDIA_BASES = { img: IMG_BASE, gif: GIF_BASE }
 const ATTRIBUTION = process.env.EXERCISE_ATTRIBUTION || '© Gym visual — https://gymvisual.com/'
 
 const BODYWEIGHT_EQUIP = new Set(['body weight', 'assisted'])
@@ -28,8 +30,14 @@ export function libraryRows() {
     is_cardio: CARDIO_PARTS.has(e.bp),
     is_bodyweight: BODYWEIGHT_EQUIP.has(e.eq),
     per_side: /each side|per side|single[- ]arm|single[- ]leg|one arm|one leg/i.test(e.n),
-    image_url: `${IMG_BASE}${e.id}.jpg`,
-    animation_url: `${GIF_BASE}${e.id}.gif`,
+    /* `e.img` and `e.gif`, not `${e.id}.jpg`. The dataset's files are named `<id>-<hash>.jpg`
+     * — `0001-2gPfomN.jpg` — and the id alone names nothing, on disk or on the CDN. Deriving
+     * the filename from the id put a URL in every one of these 1,324 rows that 404s, which
+     * nothing noticed because no test had ever followed one. The client was always right:
+     * `imgSrc` in packages/domain/src/exercises.js is `IMG_BASE + ex.img`, which is why the
+     * mobile build's artwork worked while every hosted instance showed broken images. */
+    image_url: `${IMG_BASE}${e.img}`,
+    animation_url: `${GIF_BASE}${e.gif}`,
     attribution: ATTRIBUTION
   }))
 }

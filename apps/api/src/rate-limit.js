@@ -106,8 +106,15 @@ export async function registerRateLimit(app, { enabled = config.rateLimit } = {}
       const uid = sessionUserId(req)
       return uid ? 'user:' + uid : 'ip:' + req.ip
     },
-    // Health checks are how a container decides whether to keep running. Never throttle them.
-    allowList: req => req.url === '/api/health',
+    /* Health checks are how a container decides whether to keep running. Never throttle them.
+     *
+     * The public counters join them, and for a reason this file has already argued: they are
+     * fetched by an anonymous visitor, so the only key available is the address — and a
+     * landing page shared around one Iranian carrier would spend a single bucket on behalf of
+     * a whole city. There is nothing to protect anyway. The response is six integers computed
+     * at most once every five minutes and served from memory in between, so the hundredth
+     * request in a second costs a property lookup, not a query. */
+    allowList: req => req.url === '/api/health' || req.url.startsWith('/api/public/'),
     // The route handlers throw `{ status }` and a shared error handler turns that into a body;
     // this keeps a 429 the same shape as every other error the client already knows how to read.
     // What this returns is thrown as the error, so it has to carry the status itself —

@@ -19,8 +19,10 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Open **http://localhost:8080**. With `SEED_DEMO=1` in `.env` (the default in the example) the
-first boot creates a coach and three clients with twelve weeks of training each:
+Open **http://localhost:8080** for the project site, and **http://localhost:8080/app/** for
+the app itself — one origin, which is what passkeys need. With `SEED_DEMO=1` in `.env` (the
+default in the example) the first boot creates a coach and three clients with twelve weeks of
+training each:
 
 | Account | Password | What it shows |
 |---|---|---|
@@ -38,7 +40,7 @@ HTTPS, passkeys on a domain you own, backups, invite-only signup — see
 ```
 apps/client       React 19 + Vite PWA, wrapped by Capacitor 7 for iOS and Android
 apps/api          Fastify — auth, delta sync, coaching
-apps/site         marketing site (static)
+apps/site         the project site, served at / with the app at /app/ (static, no build)
 packages/domain   runtime-agnostic training logic, shared by client and server
 packages/db       Postgres schema, migrations, sync engine, coaching rules
 packages/storage  uploaded bytes — the one thing that is not a row

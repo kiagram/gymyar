@@ -14,6 +14,11 @@ export const config = {
   // test suite drives hundreds of requests through one client — both want it off.
   rateLimit: !/^(0|false|no|off)$/i.test(process.env.RATE_LIMIT || 'on'),
   sessionDays: Math.max(1, +(process.env.SESSION_DAYS || 90) || 90),
+  /* The counters the project site at `/` reads — accounts, sessions, sets, tonnage. On by
+   * default because they are aggregates of the instance and nothing else, and switchable
+   * because a household instance may reasonably not want to publish how small it is. Off
+   * means the route is never registered, so it 404s rather than answering with zeroes. */
+  publicStats: !/^(0|false|no|off)$/i.test(process.env.PUBLIC_STATS || 'on'),
   // A generated secret means every restart signs out every user. Fine for a laptop, a data-loss
   // incident in production — so it is refused there rather than silently accepted.
   secret: process.env.SESSION_SECRET || (() => {

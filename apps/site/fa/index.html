@@ -9,7 +9,7 @@
 <meta property="og:title" content="جیم‌یار — قدرت در حرکت، همراه در رشد">
 <meta property="og:description" content="سکوی مربی‌گری متن‌باز. برنامه‌ریزی مربی و شاگرد، دفتر تمرین کامل، ۱۲ زبان. روی سرور خودتان، یا برنامه آفلاین اندروید.">
 <!-- پیش از انتشار، gymyar.example را با دامنه واقعی عوض کنید: Open Graph نشانی مطلق می‌خواهد. -->
-<meta property="og:image" content="https://gymyar.example/img/banner.png">
+<meta property="og:image" content="https://gymyar.example/assets/banner.png">
 <meta property="og:url" content="https://gymyar.example/fa/">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="fa_IR">
@@ -43,11 +43,13 @@
     <a href="#features" class="hide-s">امکانات</a>
     <a href="#screens" class="hide-s">تصاویر</a>
     <a href="#pricing" class="hide-s">هزینه</a>
+    <a href="/app/">برنامه</a>
     <a href="docs.html">راهنما</a>
     <a href="about.html" class="hide-s">درباره</a>
     <a href="#" data-repo="" hidden>کد منبع</a>
+    <a href="#download" class="hide-s">دریافت</a>
     <a class="lang" href="/" hreflang="en">English</a>
-    <a class="cta" href="#download">دریافت</a>
+    <a class="cta" href="/app/">ورود به برنامه</a>
   </div>
 </div></nav>
 
@@ -60,9 +62,9 @@
   <p class="sub">یک سکوی مربی‌گری متن‌باز. مربی برنامه می‌دهد، و دفتر تمرین شاگرد مال
      خودش می‌ماند. همه‌اش را می‌توانید روی سرور خودتان اجرا کنید.</p>
   <div class="hero-btns">
-    <a class="btn" href="#download">دریافت جیم‌یار</a>
+    <a class="btn" href="/app/">ورود به برنامه</a>
+    <a class="btn ghost" href="#download">دریافت جیم‌یار</a>
     <a class="btn ghost" href="#coaching">مربی‌گری چطور کار می‌کند</a>
-    <a class="btn ghost" href="docs.html#selfhost">راهنمای راه‌اندازی روی سرور</a>
   </div>
 </div></header>
 
@@ -120,11 +122,11 @@
   <p class="kicker">تصاویر</p>
   <h2>پنج صفحه، بدون شلوغی</h2>
   <div class="shots">
-    <figure><img src="/img/fa/home.png" alt="صفحه خانه جیم‌یار با نمای هفتگی و نمودار وزن بدن" loading="lazy" width="1170" height="2532"><figcaption>خانه</figcaption></figure>
-    <figure><img src="/img/fa/workout.png" alt="صفحه تمرین با ست‌ها، تایمر استراحت و وزنه‌های از پیش پرشده" loading="lazy" width="1170" height="2532"><figcaption>تمرین</figcaption></figure>
-    <figure><img src="/img/fa/stats.png" alt="صفحه آمار با نقشه فعالیت و نمودارها" loading="lazy" width="1170" height="2532"><figcaption>آمار</figcaption></figure>
-    <figure><img src="/img/fa/plan.png" alt="صفحه برنامه هفتگی با برنامه هر روز" loading="lazy" width="1170" height="2532"><figcaption>برنامه</figcaption></figure>
-    <figure><img src="/img/fa/library.png" alt="کتابخانه حرکت‌ها با جست‌وجو و فیلتر" loading="lazy" width="1170" height="2532"><figcaption>کتابخانه</figcaption></figure>
+    <figure><img src="/assets/fa/home.png" alt="صفحه خانه جیم‌یار با نمای هفتگی و نمودار وزن بدن" loading="lazy" width="1170" height="2532"><figcaption>خانه</figcaption></figure>
+    <figure><img src="/assets/fa/workout.png" alt="صفحه تمرین با ست‌ها، تایمر استراحت و وزنه‌های از پیش پرشده" loading="lazy" width="1170" height="2532"><figcaption>تمرین</figcaption></figure>
+    <figure><img src="/assets/fa/stats.png" alt="صفحه آمار با نقشه فعالیت و نمودارها" loading="lazy" width="1170" height="2532"><figcaption>آمار</figcaption></figure>
+    <figure><img src="/assets/fa/plan.png" alt="صفحه برنامه هفتگی با برنامه هر روز" loading="lazy" width="1170" height="2532"><figcaption>برنامه</figcaption></figure>
+    <figure><img src="/assets/fa/library.png" alt="کتابخانه حرکت‌ها با جست‌وجو و فیلتر" loading="lazy" width="1170" height="2532"><figcaption>کتابخانه</figcaption></figure>
   </div>
 </div></section>
 
@@ -197,7 +199,8 @@
         <li>روی سرور خودتان، زیر دامنه خودتان</li>
         <li>یک <code>docker compose up</code></li>
       </ul>
-      <a class="btn" href="docs.html#selfhost">راهنمای راه‌اندازی</a>
+      <a class="btn" href="/app/">باز کردن نسخه وب</a>
+      <a class="btn ghost" href="docs.html#selfhost" style="margin-top:10px">راهنمای راه‌اندازی</a>
       <p class="meta">AGPL-3.0 · nginx و Fastify و Postgres · amd64 و arm64</p>
     </div>
     <div class="card">
@@ -228,6 +231,26 @@
       می‌برد. جیم‌یار همان بازنویسی است.</blockquote>
     <p class="who"><a href="about.html">این انشعاب، و آنچه عوض شد ←</a></p>
   </div>
+</div></section>
+
+<section id="instance" hidden><div class="wrap">
+  <p class="kicker live">همین حالا، روی این نمونه</p>
+  <h2>شمرده‌شده از پایگاه داده، نه نوشته‌شده در متن</h2>
+  <p class="lead">هر عددی که پایین می‌بینید از همان پایگاه داده‌ای خوانده می‌شود که برنامه در آن
+     می‌نویسد، و چند بار در ساعت دوباره حساب می‌شود. این‌ها مربوط به همین نمونه‌ای است که
+     نگاهش می‌کنید — نه جمع کل پروژه، و نه رقمی که کسی در این صفحه تایپ کرده باشد.</p>
+  <div class="os">
+    <div class="stat"><b data-stat="athletes">—</b><span>نفر در حال تمرین</span></div>
+    <div class="stat"><b data-stat="workouts">—</b><span>جلسه ثبت‌شده</span></div>
+    <div class="stat"><b data-stat="sets">—</b><span>ست اصلی</span></div>
+    <div class="stat"><b data-stat="tonnes">—</b><span>تن جابه‌جاشده</span></div>
+    <div class="stat"><b data-stat="coaches">—</b><span>مربی</span></div>
+  </div>
+  <p class="meta">فقط شمارش و یک جمع، و هیچ چیز دیگر. جایی که این اعداد از آن می‌آید حساب
+     کاربری نمی‌خواهد، هیچ سطری از کسی نمی‌خواند و نمی‌شود درباره یک نفر از آن پرسید. ست‌های
+     گرم‌کردن و جلسه‌های ناتمام کنار گذاشته شده‌اند — آن‌ها سطرند، تمرین نیستند. هر نمونه
+     می‌تواند این را با <code>PUBLIC_STATS=off</code> کاملاً خاموش کند، و آن‌وقت این بخش اصلاً
+     نشان داده نمی‌شود.</p>
 </div></section>
 
 <section id="opensource"><div class="wrap">

@@ -12,6 +12,7 @@ import adminRoutes from './routes/admin.js'
 import aiRoutes from './routes/ai.js'
 import billingRoutes from './routes/billing.js'
 import mediaRoutes from './routes/media.js'
+import publicRoutes from './routes/public.js'
 import checkinRoutes from './routes/checkins.js'
 
 export async function build({
@@ -21,7 +22,10 @@ export async function build({
   gateway = null,
   // The API suite drives hundreds of requests through one client on one key, which is exactly
   // what the limiter exists to stop. Tests turn it off and test it directly instead.
-  rateLimit = config.rateLimit
+  rateLimit = config.rateLimit,
+  // The public counters the project site reads. Injectable for the same reason: the suite has
+  // to be able to build an instance with them off and see the route genuinely absent.
+  publicStats = config.publicStats
 } = {}) {
   connect(databaseUrl)
   if (runMigrations) await migrate()
@@ -60,6 +64,10 @@ export async function build({
    * back five seconds, so those responses set their own header and this one leaves them be. */
   app.addHook('onSend', async (req, reply) => {
     if (req.url.startsWith('/media/')) return
+    /* — and the public counters, which are the same six numbers for everybody, recomputed
+     * every five minutes. That is a response a shared cache is welcome to keep, and the
+     * route sets its own `max-age` to say for how long. */
+    if (req.url.startsWith('/api/public/')) return
     reply.header('Cache-Control', 'no-store')
   })
 
@@ -78,6 +86,7 @@ export async function build({
   await app.register(aiRoutes, { ai })
   await app.register(billingRoutes, { gateway })
   await app.register(mediaRoutes)
+  await app.register(publicRoutes, { enabled: publicStats })
 
   return app
 }

@@ -793,7 +793,7 @@ incidental.
 
 Every test in this project passed against Node running the code directly. `docker compose up -d
 --build` — the one command the README opens with, and the only way anybody but the maintainer
-will ever run this — did not work. Four separate faults, none of which a unit test can see,
+will ever run this — did not work. Five separate faults, none of which a unit test could see,
 found by running it.
 
 - 🖼️ **Every uploaded photo 404'd, and video did not.** A storage key ends in the extension its
@@ -818,10 +818,77 @@ found by running it.
   Two changes: every manifest is copied, and the fallback is gone. A lockfile that does not
   match its manifests is a bug to fix, not a condition to route around — routing around it is
   what turned a one-line omission into an error message about native modules.
+- 🖼️ **Every exercise image and animation 404'd — all 1,324 of them, on every hosted
+  instance.** The seeder built `image_url` as `/img/<id>.jpg` out of the exercise id, and the
+  dataset's files are named `<id>-<hash>.jpg` — `0001-2gPfomN.jpg`. The filename was never a
+  mystery: it is already on the record, as `e.img`, and `imgSrc` in the domain has always read
+  it. So the mobile build's artwork worked, off a CDN, while the web app's came from a column
+  nobody had ever followed. That is what made it survive: a URL is a string, every string
+  inserts, and the failure is a picture that is simply not there. The seeder reads `e.img` and
+  `e.gif` now; because it re-runs on every boot and upserts, an existing instance repairs
+  itself on the next `docker compose up`. Two checks were added rather than one — a unit test
+  in `packages/db` that the stored filename is the dataset's filename and not something
+  rebuilt out of a neighbouring column, and a step in `smoke.sh` that takes an exercise from
+  `/api/exercises` and follows both of its URLs, because the unit test would have been just as
+  happy with a name that is wrong in some other way.
 - 🚫 **A `.dockerignore`, which there had never been.** Without one, `COPY apps/client/` also
   carried the host's `apps/client/node_modules` into the image — a Windows tree, with that
   platform's native bindings, landing on top of the linux ones npm had just installed — along
   with 42 MB of Gradle intermediates, the built APK, and `.env`.
+
+### The front door, and the numbers on it
+
+`apps/site` had been written and was served nowhere. The compose stack put the application at
+`/`, so the first thing anybody saw at a GymYar address was a sign-in screen — and the site
+explaining what they were signing in to existed only as files in the repository.
+
+- 🚪 **One origin, three things on it.** nginx now serves the project site at `/`, the app at
+  `/app/` and the API at `/api/`. One origin because a passkey is bound to one, a session
+  cookie is scoped to one, and the app reaching `/api` with no CORS anywhere is a property of
+  `infra/web/nginx.conf` rather than of any code. "Open the app" is a link, not a second
+  deployment: somebody who signs in from the site is looking at the same database.
+- 🪜 **Moving the app was a line in that file.** The client is built with `base: './'` and
+  routes through a HashRouter, so every asset is relative and every route is after the `#`.
+  Nothing inside it knows or cares that it is one level down. The two things that did know
+  were the web manifest's `id`, which was the absolute `/`, and the service worker.
+- 🪦 **`/sw.js` is now a tombstone.** Every browser that opened an earlier build has a service
+  worker scoped to the whole origin, and while it lives it is the thing answering for `/` —
+  it would keep handing returning visitors a cached copy of the application where the site
+  now is. The file at that address deletes the origin's caches, unregisters itself and
+  reloads the page. Nothing registers it; only a browser that already has the old one ever
+  asks for it. Links from before the move are rescued in the other direction: `site.js`
+  forwards any `/#/route` to `/app/#/route`, which is the only layer that can, because a
+  fragment never reaches the server.
+- 📊 **The counters are read from the database.** `GET /api/public/stats` takes no account and
+  answers with counts and one sum — accounts, coaches, finished sessions, working sets,
+  tonnage, library size — recomputed at most once every five minutes and served from memory
+  in between. That is also why it is off the rate limiter's ledger: the cost of the ten
+  thousandth request in a minute is a property lookup, and keying an anonymous endpoint by
+  address is the carrier-NAT failure `rate-limit.js` exists to avoid. Warm-up sets and
+  unfinished sessions are excluded, because a landing page that counts them is flattering
+  itself. Aggregates only, and the route file is deliberately the one with no session check
+  in it so that anything added to it later has to be read as public. `PUBLIC_STATS=off` and
+  it stops existing.
+- 🙈 **The section hides itself.** It ships with the `hidden` attribute and appears only once
+  an instance has answered with at least one logged session — so the same files serve
+  correctly with no backend at all, on an instance that publishes nothing, and on a brand new
+  one where every honest number is zero. Persian digits on the Persian page, which is the
+  rule the rest of `/fa/` already followed.
+- 🖼️ **The screenshots moved to `/assets/`.** They had been at `/img/`, which is where the
+  exercise media volume is mounted — five screenshots at the document root would have
+  shadowed 1,324 exercise images, and nothing else in the project would have noticed.
+- ✅ **`smoke.sh` checks the web layer now**, when there is one: the site at `/`, the app at
+  `/app/`, `/app` redirecting, a wrong path being a 404 rather than the application, the
+  screenshots having shipped, and the counters answering without a cookie and naming nobody.
+  The API-only run of the same script skips the block rather than pretending to pass it.
+- 🧪 **CI had been standing in a directory of the wrong shape.** The compose job skips the
+  140 MB media clone by leaving one file called `.ci-placeholder` where the artwork goes —
+  which was harmless for exactly as long as nothing followed an exercise's URL. The check
+  above does, so every run would have failed on a picture that was never downloaded rather
+  than on anything about this code. `infra/scripts/media-placeholders.mjs` writes the empty
+  files under the dataset's own names instead. It still catches the bug it was written for —
+  a seeder that rebuilds `<id>.jpg` finds nothing at that name either — and it is honest
+  about the one thing it cannot show, which is that upstream still ships those bytes.
 
 ### Known limitations
 

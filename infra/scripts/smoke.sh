@@ -137,4 +137,71 @@ step "scope is honoured"
 BW=$(call "$COACH_JAR" GET "/api/coach/clients/$CLIENT_ID" | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log(d.bodyweight===undefined?'hidden':'LEAKED')")
 [ "$BW" = "hidden" ] || { echo "FAIL: body weight visible without the scope"; exit 1; }
 
+# ------------------------------------------------------- counters, and the web layer ----
+
+step "the instance counts itself, with nobody signed in"
+# No cookie jar on this one on purpose: the point of the endpoint is that it answers without
+# an account, and passing a jar would hide a `requireUser` accidentally added to it later.
+STATS=$(curl -sS "$BASE/api/public/stats")
+field "$STATS" "d.stats.athletes" >/dev/null
+field "$STATS" "d.stats.exercises" >/dev/null
+node -e 'const d=JSON.parse(process.argv[1]);if(JSON.stringify(d).match(/@|smoke-/))throw new Error("public stats named somebody");if(Object.values(d.stats).some(v=>typeof v!=="number"))throw new Error("public stats returned a non-number")' "$STATS"
+
+# The rest of this section only means anything behind nginx. CI runs this script twice — once
+# against `npm start`, which is the API on its own with no site to serve, and once against the
+# compose stack. Whether `/` answers at all is what tells the two apart.
+SITE=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/")
+if [ "$SITE" = "200" ]; then
+  step "the project site is the front door"
+  curl -sS "$BASE/" | grep -q 'id="instance"' \
+    || { echo "FAIL: / did not serve the project site"; exit 1; }
+
+  step "the app is one level down"
+  curl -sS "$BASE/app/" | grep -q '<div id="root">' \
+    || { echo "FAIL: /app/ did not serve the app shell"; exit 1; }
+
+  step "the address without the slash redirects to it"
+  RED=$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "$BASE/app")
+  [ "${RED#* }" = "$BASE/app/" ] || { echo "FAIL: /app went to '$RED', wanted a 301 to $BASE/app/"; exit 1; }
+
+  step "a deep link inside the app falls back to the app, not to the site"
+  # The client routes through a HashRouter, so this path is not one of its routes — but the
+  # fallback is what a reload of any future non-hash route depends on, and getting the site's
+  # HTML here instead would be silent.
+  curl -sS "$BASE/app/anything" | grep -q '<div id="root">' \
+    || { echo "FAIL: /app/anything did not fall back to the app shell"; exit 1; }
+
+  step "and a wrong path on the site is a 404, not the app"
+  MISS=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/no-such-page")
+  [ "$MISS" = "404" ] || { echo "FAIL: /no-such-page returned $MISS, wanted 404"; exit 1; }
+
+  step "an exercise's artwork is a link that resolves"
+  # The library stores `image_url` and `animation_url` rather than deriving them, so they are
+  # the one kind of value here that can be wrong without any query noticing: a URL is a string,
+  # every string inserts, and the picture is just missing. All 1,324 of them pointed at
+  # `/img/<id>.jpg` for a while, and the dataset's files are named `<id>-<hash>.jpg`. Nothing
+  # caught it because nothing had ever followed one. This does.
+  EX=$(call "$CLIENT_JAR" GET '/api/exercises?limit=1')
+  EX_IMG=$(field "$EX" "d.exercises[0].image_url")
+  EX_GIF=$(field "$EX" "d.exercises[0].animation_url")
+  for U in "$EX_IMG" "$EX_GIF"; do
+    # Only a path served by this origin is ours to check — a deployment pointed at a CDN is
+    # not something a smoke test of this instance should be reaching out to.
+    case "$U" in
+      /*) ART=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE$U")
+          [ "$ART" = "200" ] || { echo "FAIL: exercise media $U returned $ART"; exit 1; } ;;
+      *)  step "  $U is off-origin - not this instance's to serve" ;;
+    esac
+  done
+
+  step "the site's own pictures are under /assets/, out of the media volume's way"
+  # Not a cosmetic path. The exercise media volume is mounted at /img, so the site keeping a
+  # folder of that name at the document root would shadow 1,324 exercise images with five
+  # screenshots — which nothing else here would notice.
+  SHOT=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/assets/home.png")
+  [ "$SHOT" = "200" ] || { echo "FAIL: /assets/home.png returned $SHOT — screenshots did not ship"; exit 1; }
+else
+  step "nothing serving / (got $SITE) — API-only run, skipping the site checks"
+fi
+
 echo "smoke: all good"

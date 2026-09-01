@@ -9,7 +9,7 @@
 <meta property="og:title" content="GYMYAR — Strength in motion, together in growth">
 <meta property="og:description" content="Open-source coaching platform. Coach and client programming, a full training log, 12 languages. Self-hosted with Docker, or an offline Android app.">
 <!-- Replace gymyar.example with the real domain before deploying: Open Graph needs absolute URLs. -->
-<meta property="og:image" content="https://gymyar.example/img/banner.png">
+<meta property="og:image" content="https://gymyar.example/assets/banner.png">
 <meta property="og:url" content="https://gymyar.example/">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="en_US">
@@ -42,11 +42,13 @@
     <a href="#features" class="hide-s">Features</a>
     <a href="#screens" class="hide-s">Screenshots</a>
     <a href="#pricing" class="hide-s">Pricing</a>
+    <a href="/app/">Open the app</a>
     <a href="docs.html">Docs</a>
     <a href="about.html" class="hide-s">About</a>
     <a href="#" data-repo="" hidden>Source</a>
+    <a href="#download" class="hide-s">Get it</a>
     <a class="lang" href="/fa/" hreflang="fa">فارسی</a>
-    <a class="cta" href="#download">Get it</a>
+    <a class="cta" href="/app/">Open the app</a>
   </div>
 </div></nav>
 
@@ -59,9 +61,9 @@
   <p class="sub">An open-source coaching platform. Coaches program for their clients; clients
      keep a training log that stays theirs. Run the whole thing on your own server.</p>
   <div class="hero-btns">
-    <a class="btn" href="#download">Get GymYar</a>
+    <a class="btn" href="/app/">Open the app</a>
+    <a class="btn ghost" href="#download">Get GymYar</a>
     <a class="btn ghost" href="#coaching">How coaching works</a>
-    <a class="btn ghost" href="docs.html#selfhost">Self-hosting guide</a>
   </div>
 </div></header>
 
@@ -119,11 +121,11 @@
   <p class="kicker">Screenshots</p>
   <h2>Five screens, zero clutter</h2>
   <div class="shots">
-    <figure><img src="img/home.png" alt="GymYar home screen with weekly overview and body-weight chart" loading="lazy" width="1170" height="2532"><figcaption>Home</figcaption></figure>
-    <figure><img src="img/workout.png" alt="Guided workout screen with sets, rest timer and pre-filled weights" loading="lazy" width="1170" height="2532"><figcaption>Workout</figcaption></figure>
-    <figure><img src="img/stats.png" alt="Stats screen with activity heatmap and charts" loading="lazy" width="1170" height="2532"><figcaption>Stats</figcaption></figure>
-    <figure><img src="img/plan.png" alt="Weekly plan screen with routines per weekday" loading="lazy" width="1170" height="2532"><figcaption>Plan</figcaption></figure>
-    <figure><img src="img/library.png" alt="Exercise library with search and filters" loading="lazy" width="1170" height="2532"><figcaption>Library</figcaption></figure>
+    <figure><img src="assets/home.png" alt="GymYar home screen with weekly overview and body-weight chart" loading="lazy" width="1170" height="2532"><figcaption>Home</figcaption></figure>
+    <figure><img src="assets/workout.png" alt="Guided workout screen with sets, rest timer and pre-filled weights" loading="lazy" width="1170" height="2532"><figcaption>Workout</figcaption></figure>
+    <figure><img src="assets/stats.png" alt="Stats screen with activity heatmap and charts" loading="lazy" width="1170" height="2532"><figcaption>Stats</figcaption></figure>
+    <figure><img src="assets/plan.png" alt="Weekly plan screen with routines per weekday" loading="lazy" width="1170" height="2532"><figcaption>Plan</figcaption></figure>
+    <figure><img src="assets/library.png" alt="Exercise library with search and filters" loading="lazy" width="1170" height="2532"><figcaption>Library</figcaption></figure>
   </div>
 </div></section>
 
@@ -197,7 +199,8 @@
         <li>Runs on your server, under your domain</li>
         <li>One <code>docker compose up</code></li>
       </ul>
-      <a class="btn" href="docs.html#selfhost">Self-hosting guide</a>
+      <a class="btn" href="/app/">Open the web app</a>
+      <a class="btn ghost" href="docs.html#selfhost" style="margin-top:10px">Self-hosting guide</a>
       <p class="meta">AGPL-3.0 · nginx, Fastify and Postgres · amd64 and arm64</p>
     </div>
     <div class="card">
@@ -227,6 +230,26 @@
       simultaneous edits. That rewrite is GymYar.</blockquote>
     <p class="who"><a href="about.html">The fork, and what changed →</a></p>
   </div>
+</div></section>
+
+<section id="instance" hidden><div class="wrap">
+  <p class="kicker live">This instance, right now</p>
+  <h2>Counted in the database, not written into the copy</h2>
+  <p class="lead">Every number below is read from the same Postgres the app writes to, and
+     recomputed a few times an hour. It describes the instance you are looking at — not the
+     project's total, and not a figure anyone typed into this page.</p>
+  <div class="os">
+    <div class="stat"><b data-stat="athletes">—</b><span>people training</span></div>
+    <div class="stat"><b data-stat="workouts">—</b><span>sessions logged</span></div>
+    <div class="stat"><b data-stat="sets">—</b><span>working sets</span></div>
+    <div class="stat"><b data-stat="tonnes">—</b><span>tonnes lifted</span></div>
+    <div class="stat"><b data-stat="coaches">—</b><span>coaches</span></div>
+  </div>
+  <p class="meta">Counts and one sum, and nothing else. The endpoint behind them takes no
+     account, reads no row belonging to anybody, and cannot be asked about a person. Warm-up
+     sets and unfinished sessions are left out — they are rows, not training. An instance can
+     turn the whole thing off with <code>PUBLIC_STATS=off</code>, and this section then does
+     not appear at all.</p>
 </div></section>
 
 <section id="opensource"><div class="wrap">
