@@ -282,7 +282,7 @@ export default {
   "Passkeys use {0} — no passwords.": "پس‌کی‌ها از {0} استفاده می‌کنند — بدون رمز عبور.",
   "Each profile keeps its own plan, workouts & body weight.": "هر پروفایل برنامه، تمرین‌ها و وزن بدن خودش را نگه می‌دارد.",
   "Account": "حساب",
-  "Signed in with passkey — data syncs to this profile.": "با پس‌کی وارد شده‌ای — داده‌ها با این پروفایل همگام می‌شود.",
+  "Signed in — your training syncs to this profile.": "وارد شده‌اید — تمرین‌هایتان با این پروفایل همگام می‌شود.",
   "Sign out?": "خارج شوی؟",
   "Your data is synced to your profile first, then cleared from this device.": "داده‌هایت اول با پروفایلت همگام می‌شود، بعد از این دستگاه پاک می‌شود.",
   "Sign out": "خروج",
@@ -815,6 +815,23 @@ export default {
   "Phone number removed": "شمارهٔ موبایل حذف شد",
   "Remove your phone number?": "شمارهٔ موبایل حذف شود؟",
   "You will not be able to sign in with a code until you add it again.": "تا وقتی دوباره اضافه‌اش نکنید نمی‌توانید با کد وارد شوید.",
+
+  // --- confirming an email address ---
+  // "تأیید" for confirming the address, and the code is still "کد" — the same word the SMS
+  // flow uses, because to the person typing it, it is the same thing arriving another way.
+  "Add your email address": "افزودن نشانی ایمیل",
+  "A second way in, and how you reset a forgotten password.": "راه دوم ورود، و راه بازنشانی رمز فراموش‌شده.",
+  "We send a code to confirm you can read it.": "یک کد می‌فرستیم تا مطمئن شویم آن را می‌خوانید.",
+  "Enter a valid email address.": "یک نشانی ایمیل معتبر وارد کنید.",
+  "Confirmed — you can sign in and reset your password with it.": "تأیید شد — می‌توانید با آن وارد شوید و رمزتان را بازنشانی کنید.",
+  "Not confirmed yet. Tap to send a new code.": "هنوز تأیید نشده. برای فرستادن کد تازه بزنید.",
+  "Choose a password": "یک رمز عبور انتخاب کنید",
+  "Your address is confirmed. A password is what signs you in with it.": "نشانی‌تان تأیید شد. رمز عبور همان چیزی است که با آن وارد می‌شوید.",
+  "Email address added": "نشانی ایمیل افزوده شد",
+  "Email address removed": "نشانی ایمیل حذف شد",
+  "Remove your email address?": "نشانی ایمیل حذف شود؟",
+  "Your password goes with it — neither works without the other.": "رمز عبورتان هم با آن می‌رود — هیچ‌کدام بدون دیگری کار نمی‌کند.",
+  "Start over": "از اول",
   "This browser doesn't support passkeys, so email and password it is.": "این مرورگر از کلید عبور پشتیبانی نمی‌کند، پس ایمیل و رمز عبور.",
 
   // --- admin: this instance ---

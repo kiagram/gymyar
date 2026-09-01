@@ -46,7 +46,7 @@ import { db } from '@gymyar/db'
 import {
   createUser, findUserByPhone, setPhone, clearPhone, listCredentials, publicUser
 } from '@gymyar/db/users.js'
-import { requestCode, claimCode, CODE_TTL_MS, RESEND_COOLDOWN_MS } from '@gymyar/db/phone-codes.js'
+import { requestCode, claimCode, CODE_TTL_MS, RESEND_COOLDOWN_MS } from '@gymyar/db/codes.js'
 import { normalizePhone, latinDigits, isLocale } from '@gymyar/domain'
 import { smsFor, smsEnabled, smsBrand, codeMessage } from '@gymyar/sms'
 import { config } from '../config.js'
@@ -100,7 +100,7 @@ export default async function phoneRoutes(app) {
    * than about anybody's account, and a screen with a countdown on the resend button is the
    * difference between a person waiting and a person tapping.
    */
-  app.post('/api/phone/start', { config: limit('sms') }, async req => {
+  app.post('/api/phone/start', { config: limit('code') }, async req => {
     const gateway = smsFor({ env: process.env, log: req.log })
     if (!gateway) throw noGateway()
 
@@ -114,7 +114,7 @@ export default async function phoneRoutes(app) {
     // Recorded, not enforced — which of the two this turns out to be is decided when the code
     // is spent. A flood of one kind and a flood of the other are different problems.
     const purpose = await findUserByPhone(phone) ? 'signin' : 'signup'
-    const minted = await requestCode({ phone, purpose, ip: req.ip })
+    const minted = await requestCode({ channel: 'sms', address: phone, purpose, ip: req.ip })
     if (!minted.ok) throw throttled(minted)
 
     try {
@@ -170,7 +170,7 @@ export default async function phoneRoutes(app) {
      * name blank" cost a retype rather than another text message and another minute of waiting
      * — and it is what makes the account and the code being spent one atomic act rather than
      * two writes with a window between them. See `claimCode`. */
-    const claim = await claimCode({ phone, code, then: async tx => {
+    const claim = await claimCode({ channel: 'sms', address: phone, code, then: async tx => {
       const existing = await findUserByPhone(phone, tx)
       if (existing) {
         if (existing.disabled_at) throw bad('this account has been disabled', 403)
@@ -236,7 +236,7 @@ export default async function phoneRoutes(app) {
    * the question `/api/phone/start` is carefully built not to answer. So the collision is
    * reported at `verify`, to somebody who has by then proved they hold the SIM.
    */
-  app.post('/api/me/phone/start', { config: limit('sms') }, async req => {
+  app.post('/api/me/phone/start', { config: limit('code') }, async req => {
     const user = await requireUser(req)
     const gateway = smsFor({ env: process.env, log: req.log })
     if (!gateway) throw noGateway()
@@ -246,7 +246,7 @@ export default async function phoneRoutes(app) {
     // account here and what they set on it is a better answer than the browser that asked.
     const locale = isLocale(user.locale) ? user.locale : 'fa'
 
-    const minted = await requestCode({ phone, purpose: 'signin', ip: req.ip })
+    const minted = await requestCode({ channel: 'sms', address: phone, purpose: 'signin', ip: req.ip })
     if (!minted.ok) throw throttled(minted)
 
     try {
@@ -278,7 +278,7 @@ export default async function phoneRoutes(app) {
     const phone = readPhone(req.body?.phone)
     const code = latinDigits(req.body?.code).replace(/\D+/g, '')
 
-    const claim = await claimCode({ phone, code, then: async tx => {
+    const claim = await claimCode({ channel: 'sms', address: phone, code, then: async tx => {
       /* The unique index is the check. Postgres raises 23505 when the number is already on
        * another account, and catching the constraint rather than asking first is what makes
        * this correct under two people confirming the same number in the same second. */

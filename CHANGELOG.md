@@ -364,7 +364,8 @@ reset is a different dead end at the same door.
 
 - 📧 **One email, and there will not be a second.** A reset link, plain text, no HTML. Web Push
   already handles everything that needs to reach somebody, so there is no digest, no newsletter
-  and nothing planned. `packages/mail` is the whole surface.
+  and nothing planned. `packages/mail` is the whole surface. (There is a second now — a
+  confirmation code — and still no HTML and no third.)
 - 🌍 **In the reader's language, all thirteen of them.** Which is only possible because
   `users.locale` is real now — it shipped as a column nothing ever wrote, and this would have
   been English for everybody. A test asserts there is a template for every language the picker
@@ -468,6 +469,49 @@ coach and their clients all have is a mobile number.
   another text message and another minute of waiting for it, and a mistyped invite code costs
   the same. It also makes the account and the code one atomic act, so a double tap is one
   account rather than two on the same number.
+
+### The column that had never been written
+
+`users.email_verified_at` shipped in the first migration and nothing ever set it — the same
+latent state `users.locale` was in until two features turned out to need it. So every address
+in every GymYar database was unproven, and the signup form had always accepted anybody's: it
+checked that an address was well-formed and unclaimed, never that the person typing it could
+read it.
+
+- 📬 **A six-digit code, mailed.** The same code, ceilings and atomic claim the phone flow uses
+  — one implementation with a `channel` column rather than two that drift, because the
+  invariants here are the kind whose drift hands somebody an account. `phone_codes` became
+  `verification_codes` to say so.
+- 🚪 **Nothing waits on it.** Signing up by email works exactly as it did; the account is
+  created, the session issued, and the code goes out behind it. A signup that dead-ends on
+  somebody else's mail queue is a lost user, which is worse than an unproven address — and the
+  account is no more dangerous today than it was last week.
+- 🔒 **Except password reset**, which now needs a confirmed address. That is the one endpoint
+  that mails a way *into* an account, and the one place where unproven is actively harmful
+  rather than merely unproven.
+- 🕰️ **Existing addresses were grandfathered**, and that is a claim migration 011 cannot
+  actually support. Applying the rule retroactively would take the only way back in away from
+  everybody already using an instance, to defend against an exposure that has already happened
+  — whoever signed up with somebody else's address holds that account today, and refusing them
+  a reset does not take it back. The timestamp is `created_at` rather than `now()`, so the row
+  says when the address arrived instead of pretending somebody proved something during a
+  deploy.
+
+### Both ways in, from one screen
+
+- ✉️ **An address can be added to an account that already exists**, which is the half of the
+  phone work that was missing: somebody who signed up with a number had a single credential and
+  no way to add another. The row sits next to the phone one and behaves the same way.
+- 🔑 **And a password with it, always, when the account has none.** An address on its own signs
+  nobody in — the server refuses with `password_required` after a correct code, which is the
+  same trick the signup sheet uses to ask a new number for a name, and it costs nothing because
+  the claim rolls back and the code stays live.
+- ⛔ **Neither can be the last one removed.** Taking an address away takes its password with it,
+  since a `password_hash` with no `email` beside it is a credential nothing can present — which
+  is also what keeps the mirror-image guard on the phone row honest.
+- 🧩 **One component for all three flows.** The sign-in sheet, the phone row and the email row
+  differ in their first step and in nothing else, so the countdown, the guesses-remaining line
+  and the Latin-digit handling live in one place instead of three.
 
 ### Video of the lift, and the first bytes that are not a row
 

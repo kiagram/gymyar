@@ -267,6 +267,23 @@ Somebody will forget their password. Without a mail relay there is nothing GymYa
 that, so the feature is simply not offered: `passwordReset` is false, the app does not show the
 link, and the endpoint refuses. Passkeys are unaffected — their recovery is the platform's job.
 
+A relay also buys the other thing this section is about: **confirming that whoever typed an
+address can read it.** `email_verified_at` has been in the schema since the first migration and
+nothing ever wrote it, so on an instance older than this release every address is unproven —
+the signup form checked that an address was well-formed and unclaimed, never that it belonged to
+the person typing it.
+
+Signing up is unchanged: the account is created, the session is issued, and a six-digit code
+goes out behind it. Nothing waits on that code, because a signup that dead-ends on a mail queue
+is a lost user. What *does* require a confirmed address is **password reset** — the one endpoint
+that mails a way into an account, and the one place where an unproven address is actively
+harmful rather than merely unproven. Settings shows the state and resends.
+
+Addresses that existed before you upgraded were grandfathered by migration 011 and count as
+confirmed. That is a claim the database cannot really support, and it is deliberate: applying
+the rule retroactively would take the only way back in away from everybody already using your
+instance, to defend against an exposure that has already happened.
+
 To turn it on, point it at a relay:
 
 ```bash
@@ -373,6 +390,18 @@ because the number being texted belongs to a person who may not be the one askin
 Codes are stored as `HMAC(key, phone + code)` and never in the clear, with the key derived from
 `SESSION_SECRET`. Rotating that secret invalidates every outstanding code, which costs somebody
 one resend.
+
+### Two ways in, from one Settings screen
+
+Settings has a row for each. An account created by phone can add an address and a password; an
+account created with an address can add a number. Either is refused when it is the last way in —
+removing an address takes its password with it, since neither works without the other, and an
+account created by phone has no password at all, so taking its number away would be deleting the
+credential rather than unlinking a contact detail.
+
+Adding an address always asks for a password when the account does not already have one. An
+address on its own signs nobody in, so without that the row would be a contact detail rather
+than the second way in it is there to be.
 
 ### Adding a number to an account that already exists
 

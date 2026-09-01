@@ -259,3 +259,30 @@ export const mePhoneVerify = ({ phone, code }) =>
  */
 export const mePhoneRemove = () =>
   api('/api/me/phone', { method: 'DELETE' }).then(r => r.user)
+
+/* -------------------------------------------------- confirming an address ---- */
+
+/**
+ * Send a code to an address somebody wants on their account.
+ *
+ * The same two steps as the phone flow, and a different second one: `verify` may need a
+ * password. An account created by phone has none, and an address without one signs nobody in —
+ * so the server refuses with `password_required` and the sheet shows the field.
+ */
+export const meEmailStart = email =>
+  api('/api/me/email/start', { method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase() }) })
+
+export const meEmailVerify = ({ email, code, password }) =>
+  api('/api/me/email/verify', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim().toLowerCase(), code, ...(password ? { password } : {}) })
+  }).then(r => r.user)
+
+/**
+ * Take the address off this account, and the password with it.
+ *
+ * Refused with `last_credential` when it is the only way in — the mirror of the same guard on
+ * removing a phone number, and both have to exist.
+ */
+export const meEmailRemove = () =>
+  api('/api/me/email', { method: 'DELETE' }).then(r => r.user)
