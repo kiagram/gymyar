@@ -24,7 +24,9 @@ docker compose up -d --build
 - With `SEED_DEMO=1` — the default in `.env.example` — it also creates a demo coach and three
   clients with twelve weeks of training each. The accounts are listed in the
   [README](../README.md).
-- Open **http://localhost:8080** and create a profile.
+- Open **http://localhost:8080** for the project site, and
+  **http://localhost:8080/app/** to create a profile. Both are the same origin, which is what
+  passkeys require — see section 2.
 
 Check it's healthy:
 
@@ -40,7 +42,7 @@ Logs: `docker compose logs -f`. Stop: `docker compose down` — the database vol
 
 | Service | What it does | State |
 |---|---|---|
-| `web` | nginx: serves the built React app **and** proxies `/api` to the API, so everything is one origin — which WebAuthn requires. Also serves the exercise media. | none |
+| `web` | nginx: serves the project site at `/`, the built React app at `/app/` **and** proxies `/api` to the API, so everything is one origin — which WebAuthn requires. Also serves the exercise media. | none |
 | `api` | Fastify on :3000, internal only. Migrates and seeds on every boot; both are idempotent, so every boot after the first is a no-op. | none |
 | `db` | Postgres 16. **Every account and every set ever logged.** | `gymyar_db` volume |
 | `media` | One-shot: clones the exercise dataset into `./media`, then exits. Skipped if the files are already there. | `./media` |
@@ -48,6 +50,23 @@ Logs: `docker compose logs -f`. Stop: `docker compose down` — the database vol
 The exercise media is © [Gym visual](https://gymvisual.com/) and licensed separately from this
 code — see [NOTICE.md](../NOTICE.md). Fine for a personal instance; a commercial deployment needs
 its own licence or its own assets.
+
+**Three things on one origin.** `/` is the project site (`apps/site` — hand-written HTML, no
+build step), `/app/` is the application, `/api/` is the backend. Sharing an origin is not
+tidiness: a passkey is bound to one, a session cookie is scoped to one, and the app fetching
+`/api` with no CORS anywhere is a property of `infra/web/nginx.conf`. If you want the site and
+the app on separate hostnames you will need a second certificate, a second deployment, and a
+plan for the session that no longer crosses between them.
+
+The site's front page reads `/api/public/stats` and shows what this instance has actually
+done — accounts, sessions, sets, tonnage. Aggregates only, no account required, nothing that
+narrows to a person. Set `PUBLIC_STATS=off` in `.env` and the endpoint stops existing; the
+section then does not appear on the page at all.
+
+If you are upgrading an instance that ran an earlier build, the app moved: it used to be at
+`/`. Existing links keep working — `apps/site/site.js` forwards any `/#/route` to `/app/#/route`
+— and `/sw.js` is now a tombstone that uninstalls the service worker the old build registered
+at the root. Anyone who installed the PWA should reinstall it from `/app/`.
 
 ## 3. Sign-in, and why HTTPS matters
 

@@ -117,6 +117,22 @@ h2 { font-size: clamp(26px, 4.5vw, 34px); letter-spacing: -.02em; margin: 6px 0 
 .stat b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
 .stat span { color: var(--faint); font-size: 13px; }
 
+/* ---------- live instance counters ---------- */
+/* `#instance` is the one section on this site whose contents come from the database. It ships
+ * with the `hidden` attribute and site.js removes it once the API has answered — so a site
+ * served with no backend behind it, or one whose owner publishes nothing, simply does not have
+ * this section rather than having an empty one. */
+.kicker.live::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--acc); margin-inline-end: 8px; vertical-align: 1px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .kicker.live::before { animation: live-pulse 2.6s ease-in-out infinite; }
+}
+@keyframes live-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .3 } }
+/* The strip's own footnote sits under a left-aligned block, unlike `.meta` inside a card. */
+#instance .meta { text-align: start; margin-top: 18px; max-width: 680px; }
+
 /* ---------- docs / prose pages ---------- */
 .prose { max-width: 760px; padding: 46px 0 20px; }
 .prose h1 { font-size: clamp(30px, 5vw, 40px); letter-spacing: -.02em; margin-bottom: 8px; }
