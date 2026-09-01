@@ -70,9 +70,11 @@ at the root. Anyone who installed the PWA should reinstall it from `/app/`.
 
 ## 3. Sign-in, and why HTTPS matters
 
-GymYar signs you in two ways: **passkeys** (WebAuthn) and **email + password**. Passkeys are
-what the UI leads with; the password path exists because "sign up" cannot be a dead end on a
-device whose browser will not do passkeys.
+GymYar signs you in three ways: **passkeys** (WebAuthn), **email + password**, and a
+**phone number** with a code by SMS. Passkeys are what the UI leads with; the password path
+exists because "sign up" cannot be a dead end on a device whose browser will not do passkeys;
+the phone path is section 9, needs a gateway, and is the one most of this product's users will
+actually use.
 
 Browsers enforce two rules on passkeys:
 
@@ -297,7 +299,100 @@ The link is good for one hour and works once. Using it signs the account out on 
 device, which is the correct outcome when the reason for the reset is that somebody else had the
 old password.
 
-## 9. Notifications
+## 9. Signing in with a phone number
+
+The two doors above both assume something a lot of this product's users do not have. A passkey
+needs a device and a browser that will do WebAuthn. An email address in Iran is largely a thing
+you keep in order to sign up to foreign services — and the reset mail in section 8 has to cross
+a border to arrive, from a relay whose reputation is not yours, into filters that distrust the
+whole origin.
+
+What a coach and their clients all have is a mobile number. With an SMS gateway configured,
+GymYar adds a third door: type your number, get a six-digit code, type it back. No password, and
+the account is created on the spot if there was not one — the same screen either way, because
+holding the SIM is the whole credential in both cases.
+
+With no gateway configured it is not offered at all: `phoneAuth` is false, the app does not show
+the button, and the endpoints refuse with a 501. Same shape as password reset.
+
+### Getting a gateway
+
+Two are implemented, both domestic and both reachable from Iranian hosting:
+
+```bash
+SMS_TRANSPORT=kavenegar
+SMS_KAVENEGAR_KEY=...
+SMS_KAVENEGAR_TEMPLATE=gymyar-otp
+```
+
+```bash
+SMS_TRANSPORT=smsir
+SMS_SMSIR_KEY=...
+SMS_SMSIR_TEMPLATE_ID=100200
+SMS_SMSIR_PARAM=CODE
+```
+
+**Register the pattern.** Both providers deliver one-time codes through a message body you
+register with them and an operator approves — the template above. That is not a formality you
+can skip: an unregistered bulk message to an Iranian handset is filtered, deprioritised or
+dropped, and a code that arrives eleven minutes later is a signup that does not work. Approval
+takes days, so do it before you need it. Leave the template unset and the code goes out as a
+plain message instead, which is there so you can test the flow while you wait — not a
+configuration to run on.
+
+Write the pattern to say what `packages/sms/src/templates.js` says: the code, who it is from,
+and that it lasts five minutes. Set `SMS_BRAND` if the approved sender name is not `RP_NAME` —
+a message whose text names one thing and whose sender is another reads as a phishing attempt,
+which is exactly what a person should be suspicious of.
+
+For an instance that is only you, there is the same third option as email:
+
+```bash
+SMS_TRANSPORT=log
+```
+
+The code is written to the server log instead of being sent — `docker compose logs api` and it
+is there. Fine when you are the only account. Not fine on anything with a signup form: every
+sign-in code would pass through whatever ships those logs.
+
+### What is fixed, and why
+
+None of these are settings:
+
+| | |
+|---|---|
+| A code lasts **5 minutes** | the message says so, in both languages |
+| One number can be texted **once a minute** | and **5 times a day** |
+| One code survives **5 wrong guesses** | then it is dead, whatever the rate limiter allows |
+
+The last two are the ones standing between your SMS balance and anybody who notices the
+endpoint, and they are counted per *number* rather than per caller — which is what matters,
+because the number being texted belongs to a person who may not be the one asking. They live in
+`packages/db/src/phone-codes.js`.
+
+Codes are stored as `HMAC(key, phone + code)` and never in the clear, with the key derived from
+`SESSION_SECRET`. Rotating that secret invalidates every outstanding code, which costs somebody
+one resend.
+
+### Adding a number to an account that already exists
+
+Settings has a row for it. Somebody who joined with a passkey on a laptop, or with an email
+address, confirms a number the same way — a code, typed back — and can then open the app on
+their phone with neither. Removing it is refused when it is the *only* way in: an account
+created by phone has no password and no passkey, so taking its number away is not unlinking a
+contact detail, it is deleting the credential.
+
+A number belongs to one account. Confirming one that is already somebody else's fails with
+`phone_taken`, and that is said only after a correct code — before then, this endpoint will no
+more report who is registered than `/api/phone/start` will.
+
+One thing worth knowing before you open signup: **`/api/phone/start` answers identically for a
+number with an account and one without.** It will not tell a caller who trains here, which for a
+coaching instance is a roster. The cost is that a new number is asked for a name one step later
+than it otherwise would be — after a correct code, which is the first moment anyone is told the
+number is new.
+
+## 10. Notifications
 
 GymYar can push a rest-timer-over alert to your phone or desktop even when the app is not open.
 Turn it on per-profile in **Settings → Notifications** — it needs a signed-in profile and HTTPS,
@@ -325,7 +420,7 @@ Wake Lock API is only available over HTTPS or on `http://localhost`, so on a pla
 instance the switch shows as unsupported. Nothing to configure server-side either way, and iOS
 refuses the lock while the phone is in Low Power Mode.
 
-## 10. Updating
+## 11. Updating
 
 ```bash
 git pull
@@ -347,7 +442,7 @@ Take a backup before an upgrade that carries a migration (section 7). Migrations
 | The api container exits immediately | Read `docker compose logs api`. Most often `SESSION_SECRET must be set in production` (section 5). |
 | Media did not download | `docker compose logs media`. Re-run `docker compose up -d`, or run `./infra/scripts/fetch-media.sh` on the host. |
 | Port 8080 already in use | Set `WEB_PORT=9090` in `.env`, and update `ORIGIN` for local testing. |
-| No "Notifications" option in Settings | Needs a signed-in profile, HTTPS (or `localhost`), and VAPID keys on the server (section 8). Guest mode cannot subscribe. |
+| No "Notifications" option in Settings | Needs a signed-in profile, HTTPS (or `localhost`), and VAPID keys on the server (section 10). Guest mode cannot subscribe. |
 | Everyone signed out after a deploy | `SESSION_SECRET` was not set, so a new one was generated. Set it and it stops. |
 | A stuck login | Delete the cookie in your browser; sessions are just signed cookies. |
 | Demo accounts on a real instance | `SEED_DEMO` was set on first boot. Clear it *first*, restart, then delete the four accounts — the seed skips only while `coach@gymyar.test` exists, so deleting them with `SEED_DEMO` still set recreates them on the next boot. |

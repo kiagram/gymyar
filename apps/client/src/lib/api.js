@@ -1,6 +1,7 @@
 // Backend + WebAuthn helpers (ported from the vanilla app).
 import { MOBILE } from './mobile.js'
 import { getLang } from './i18n.js'
+import { normalizePhone } from '@gymyar/domain'
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
 export const IS_ANDROID = /Android/.test(navigator.userAgent)
 /* These are translation *keys*, not finished text, and callers must render them through `t()`.
@@ -29,7 +30,16 @@ export const webauthnOK = () => !!(window.PublicKeyCredential && navigator.crede
  */
 export async function api(path, opts) {
   if (MOBILE) throw new Error(`the native build has no backend (tried ${path})`)
-  const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
+  /* The content type goes on only when there is something to type.
+   *
+   * This used to be unconditional, which quietly broke every request with no body — Fastify
+   * refuses `Content-Type: application/json` with nothing after it (`FST_ERR_CTP_EMPTY_JSON_BODY`)
+   * and answers 400 before a route is ever reached. Every `DELETE` in this client is that
+   * shape: removing an attachment, an invite, a check-in schedule, a check-in template. The
+   * suite missed it because the test client sends no header when it sends no payload, which is
+   * exactly what this now does. */
+  const headers = opts?.body === undefined ? {} : { 'Content-Type': 'application/json' }
+  const r = await fetch(path, Object.assign({ headers }, opts))
   const data = await r.json().catch(() => ({}))
   if (!r.ok) {
     const e = new Error(data.error || ('HTTP ' + r.status))
@@ -182,3 +192,70 @@ export async function passwordLogin({ email, password }) {
   })
   return res.user
 }
+
+/* ---------------------------------------------------------- phone + SMS ---- */
+
+/**
+ * Ask for a code.
+ *
+ * The number goes up canonicalised — `normalizePhone` is the domain's, so this is the same
+ * function the server will run on whatever arrives, and sending its output rather than raw
+ * keystrokes means the rate limiter's per-number bucket and the account's unique index are
+ * both keyed on the string this screen already validated.
+ *
+ * The reply says how long the code lasts and when a resend is allowed, and deliberately does
+ * not say whether that number has an account — see apps/api/src/routes/phone.js. So this
+ * screen cannot know either, and does not try to guess.
+ */
+export const phoneStart = phone =>
+  api('/api/phone/start', {
+    method: 'POST',
+    // The language the code message is written in: the one this form is being read in.
+    body: JSON.stringify({ phone: normalizePhone(phone) || phone, locale: getLang() })
+  })
+
+/**
+ * Spend the code: sign in, or create the account.
+ *
+ * `name` is sent only once the server has asked for it. It asks by refusing with
+ * `code: 'name_required'`, which is the first and only moment anybody is told this number is
+ * new — and the code survives that refusal, so the second attempt costs nothing.
+ */
+export const phoneVerify = ({ phone, code, name, invite, asCoach }) =>
+  api('/api/phone/verify', {
+    method: 'POST',
+    body: JSON.stringify({
+      phone: normalizePhone(phone) || phone,
+      code,
+      ...(name ? { name, asCoach: !!asCoach, invite: invite || '', locale: getLang() } : {})
+    })
+  })
+
+/* ---- and the same two calls for an account that already exists ---- */
+
+/**
+ * Attach a number to the account this browser is signed in to, or move it to another one.
+ *
+ * The same two steps, and for the same reason — a number is only ever written after a code went
+ * to it and came back. What differs is which account it lands on: the one holding the cookie,
+ * rather than whichever one the number points at.
+ */
+export const mePhoneStart = phone =>
+  api('/api/me/phone/start', {
+    method: 'POST', body: JSON.stringify({ phone: normalizePhone(phone) || phone })
+  })
+
+export const mePhoneVerify = ({ phone, code }) =>
+  api('/api/me/phone/verify', {
+    method: 'POST', body: JSON.stringify({ phone: normalizePhone(phone) || phone, code })
+  }).then(r => r.user)
+
+/**
+ * Take the number off this account.
+ *
+ * Refused with `last_credential` when it is the only way in — an account created by phone has
+ * no password and no passkey, so removing its number would not be unlinking a contact detail,
+ * it would be deleting the credential and locking somebody out of their own training.
+ */
+export const mePhoneRemove = () =>
+  api('/api/me/phone', { method: 'DELETE' }).then(r => r.user)

@@ -11,12 +11,13 @@
     "packages/db",
     "packages/storage",
     "packages/mail",
+    "packages/sms",
     "packages/ai"
   ],
   "scripts": {
     "dev": "npm run dev -w @gymyar/client",
     "build": "npm run build -w @gymyar/client",
-    "test": "npm run test -w @gymyar/domain && npm run test -w @gymyar/ai && npm run test -w @gymyar/db && npm run test -w @gymyar/storage && npm run test -w @gymyar/mail && npm run test -w @gymyar/api && npm run test -w @gymyar/client && npm run test:release",
+    "test": "npm run test -w @gymyar/domain && npm run test -w @gymyar/ai && npm run test -w @gymyar/db && npm run test -w @gymyar/storage && npm run test -w @gymyar/mail && npm run test -w @gymyar/sms && npm run test -w @gymyar/api && npm run test -w @gymyar/client && npm run test:release",
     "sync:mobile": "npm run build:mobile -w @gymyar/client",
     "migrate": "npm run migrate -w @gymyar/db",
     "seed": "npm run seed -w @gymyar/db",

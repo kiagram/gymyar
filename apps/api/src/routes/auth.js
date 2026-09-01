@@ -18,6 +18,7 @@ import { config } from '../config.js'
 import { LIMITS, MAX_VIDEO_SECONDS } from '@gymyar/storage'
 import { isLocale } from '@gymyar/domain'
 import { mailerFor, mailEnabled, resetEmail } from '@gymyar/mail'
+import { smsEnabled } from '@gymyar/sms'
 import { createReset, consume, isLive } from '@gymyar/db/passwords.js'
 import { issue, clear, requireUser, currentUser } from '../session.js'
 import { limit } from '../rate-limit.js'
@@ -55,6 +56,14 @@ export default async function authRoutes(app) {
     rpName: config.rpName,
     passkeys: true,
     passwords: true,
+    /* Whether a phone number is a way in on this instance.
+     *
+     * False with no SMS gateway configured, and the client then does not offer the option at
+     * all — the same shape, and the same argument, as `passwordReset` below: an instance that
+     * cannot text anybody cannot sign anybody in by text, and a screen that asks for a number
+     * and then says "code sent" to somebody who will never receive one is worse than no screen.
+     * See packages/sms/src/index.js. */
+    phoneAuth: smsEnabled(),
     /* Whether "forgot password" is a thing on this instance.
      *
      * False when no mail transport is configured, and the client then does not offer the link
