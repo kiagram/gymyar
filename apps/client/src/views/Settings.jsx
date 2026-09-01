@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore, DEF, hasData } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
-import { ACCENTS, todayISO, localTZ } from '@gymyar/domain'
+import { ACCENTS, todayISO, localTZ, formatPhone } from '@gymyar/domain'
 import { effortOf } from '@gymyar/domain'
-import { api, webauthnOK, passkeyLogin, passkeyRegister, IS_ANDROID } from '../lib/api.js'
+import { api, webauthnOK, passkeyLogin, passkeyRegister, IS_ANDROID,
+  mePhoneStart, mePhoneVerify, mePhoneRemove } from '../lib/api.js'
 import { pushSupported, enablePush, disablePush, sendTestPush, wantsPush, withPush } from '../lib/push.js'
 import { wakeLockSupported } from '../lib/wakelock.js'
 import { t, LANGS } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, shareExport, syncReminder } from '../lib/mobile.js'
 import { loadStarterPlan, confirmSheet, importFromApp } from '../sheets.jsx'
+import PhoneCode from '../components/PhoneCode.jsx'
 import Icon from '../components/Icon.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField } from '../components/ui.jsx'
 
@@ -23,6 +25,29 @@ export default function Settings() {
   const fileRef = useRef(null)
   const importRef = useRef(null)
   const wakeOK = wakeLockSupported()
+  /* Whether this instance has an SMS gateway. Nothing is offered when it does not — the same
+   * rule the sign-in screen follows, for the same reason. */
+  const [phoneAuth, setPhoneAuth] = useState(false)
+  useEffect(() => {
+    if (MOBILE || DEMO || !user) return
+    api('/api/config').then(c => setPhoneAuth(!!c.phoneAuth)).catch(() => {})
+  }, [!!user])
+
+  const linkPhone = () => useUI.getState().openSheet(close =>
+    <PhoneLinkSheet close={close} setUser={setUser} toast={toast} />)
+
+  /* Removing it is a confirmation rather than a tap, because it is the removal of a way in
+   * rather than the edit of a contact detail — and the server refuses outright when it is the
+   * *only* way in, which is a sentence worth showing verbatim: it names the thing to do next. */
+  const unlinkPhone = () => confirmSheet({
+    title: t('Remove your phone number?'),
+    message: t('You will not be able to sign in with a code until you add it again.'),
+    confirmText: t('Remove'), danger: true,
+    onConfirm: async () => {
+      try { setUser(await mePhoneRemove()); toast(t('Phone number removed')) }
+      catch (e) { toast(e.message) }
+    }
+  })
 
   const doExport = async () => {
     const json = JSON.stringify(S, null, 2)
@@ -86,6 +111,13 @@ export default function Settings() {
           onClick={() => window.open(REPO, '_blank', 'noopener')} />}
       </> : user ? <>
         <Row icon="personCircle" iconTint="var(--grey)" title={user.name} subtitle={t('Signed in with passkey — data syncs to this profile.')} />
+        {phoneAuth && (user.phone
+          ? <Row icon="person" iconTint="var(--blue)" title={formatPhone(user.phone)}
+                 subtitle={t('You can sign in with a code sent to this number.')}
+                 accessory="chevron" onClick={unlinkPhone} />
+          : <Row icon="person" iconTint="var(--blue)" title={t('Add your phone number')}
+                 subtitle={t('Sign in with a code instead of a passkey or a password.')}
+                 accessory="chevron" onClick={linkPhone} />)}
         {user.isCoach && <Row icon="clipboard" iconTint="var(--accent)" title={t('Your clients')} subtitle={t('Rosters, adherence and programme proposals')} accessory="chevron" onClick={() => nav('/coach')} />}
         <Row icon="personCircle" iconTint="var(--indigo)" title={t('Coaching')} subtitle={t('Who can see your training')} accessory="chevron" onClick={() => nav('/coaching')} />
         {user.isAdmin && <Row icon="wrench" iconTint="var(--indigo)" title={t('Admin dashboard')} accessory="chevron" onClick={() => nav('/admin')} />}
@@ -349,6 +381,32 @@ function PushCard({ S, update, toast }) {
 // The same registration as the sign-in screen's, reached from Settings instead. It asks for
 // the invite code on the same terms: an invite-only instance rejects a registration without
 // one, so a form that cannot collect it is a form that cannot succeed.
+/**
+ * Attaching a phone number to an account that already exists.
+ *
+ * Somebody who joined with a passkey on a laptop, or with an email address, and now wants to
+ * open the app on their phone without carrying either. Same two steps as the sign-in sheet and
+ * the same component behind them — see components/PhoneCode.jsx.
+ *
+ * There is no third step: the account already has a name, and the only thing this can be told
+ * that it did not know is that the number belongs to somebody else. That arrives as a plain
+ * error, after a correct code, which is the only point at which the server is willing to say it.
+ */
+function PhoneLinkSheet({ close, setUser, toast }) {
+  return <PhoneCode
+    title={t('Add your phone number')}
+    blurb={t('Then you can sign in with a code instead of a passkey or a password.')}
+    sendLabel={t('Send me a code')}
+    start={phone => mePhoneStart(phone)}
+    verify={async (phone, code) => {
+      const u = await mePhoneVerify({ phone, code })
+      setUser(u)
+      close()
+      toast(t('Phone number added'))
+    }}
+  />
+}
+
 function RegisterInline({ close, setUser, syncNow, toast }) {
   const nameRef = useRef(null)
   const [code, setCode] = useState('')

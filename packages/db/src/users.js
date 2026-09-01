@@ -20,11 +20,19 @@ export async function verifyPassword(password, stored) {
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual)
 }
 
-export async function createUser({ name, email = null, password = null, isCoach = false, isAdmin = false, locale = 'en' }, s = db()) {
+/**
+ * `phone` is E.164 and already verified when it is present.
+ *
+ * There is no path that writes the column unverified: a number only reaches this function by
+ * way of a code that was texted to it and typed back (see phone-codes.js), so the timestamp is
+ * set in the same insert rather than left for a later step nobody would take. A column that can
+ * hold an unproven number is a column no other feature can trust.
+ */
+export async function createUser({ name, email = null, password = null, phone = null, isCoach = false, isAdmin = false, locale = 'en' }, s = db()) {
   const password_hash = password ? await hashPassword(password) : null
   const [user] = await s`
-    insert into users (name, email, password_hash, is_coach, is_admin, locale)
-    values (${name}, ${email}, ${password_hash}, ${isCoach}, ${isAdmin}, ${locale})
+    insert into users (name, email, password_hash, phone, phone_verified_at, is_coach, is_admin, locale)
+    values (${name}, ${email}, ${password_hash}, ${phone}, ${phone ? s`now()` : null}, ${isCoach}, ${isAdmin}, ${locale})
     returning *`
   await s`insert into sync_cursor (user_id, value) values (${user.id}, 0)
           on conflict (user_id) do nothing`
@@ -36,6 +44,33 @@ export const findUserById = (id, s = db()) =>
 
 export const findUserByEmail = (email, s = db()) =>
   s`select * from users where lower(email) = lower(${email})`.then(r => r[0] || null)
+
+/* Exact match, not `lower()` like the email lookup beside it. A phone number has one spelling
+ * by the time it gets here — `normalizePhone` in the domain produced it, on both sides of the
+ * wire — and a case-insensitive comparison on a string of digits would be a lookup that cannot
+ * use the unique index for no benefit at all. */
+export const findUserByPhone = (phone, s = db()) =>
+  s`select * from users where phone = ${phone}`.then(r => r[0] || null)
+
+/**
+ * Attach a verified number to an account that already exists, or take one away.
+ *
+ * `phone_verified_at` moves with the column for the same reason it is set in `createUser`:
+ * there is no path that writes an unproven number, so the timestamp is not a second step
+ * somebody could forget. Clearing sets it back to null rather than leaving a timestamp
+ * describing a number the row no longer has.
+ *
+ * The unique index does the work of refusing a number that is already somebody else's — a
+ * lookup before the write is a race, and this is the one write in the file where losing that
+ * race would move an identity from one account to another.
+ */
+export const setPhone = (userId, phone, s = db()) =>
+  s`update users set phone = ${phone}, phone_verified_at = now() where id = ${userId} returning *`
+    .then(r => r[0] || null)
+
+export const clearPhone = (userId, s = db()) =>
+  s`update users set phone = null, phone_verified_at = null where id = ${userId} returning *`
+    .then(r => r[0] || null)
 
 export const listCredentials = (userId, s = db()) =>
   s`select * from credentials where user_id = ${userId}`
@@ -76,6 +111,6 @@ export const setDisabled = (userId, disabled, s = db()) =>
   s`update users set disabled_at = ${disabled ? s`now()` : null} where id = ${userId}`
 
 export const publicUser = u => u && ({
-  id: u.id, name: u.name, email: u.email, units: u.units, locale: u.locale,
+  id: u.id, name: u.name, email: u.email, phone: u.phone, units: u.units, locale: u.locale,
   isCoach: u.is_coach, isAdmin: u.is_admin
 })

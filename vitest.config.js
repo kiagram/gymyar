@@ -36,6 +36,7 @@ export default {
       'packages/db',
       'packages/storage',
       'packages/mail',
+      'packages/sms',
       'apps/api',
       'apps/client'
     ]

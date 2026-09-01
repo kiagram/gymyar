@@ -789,6 +789,32 @@ export default {
   "This demo runs entirely in your browser on example data — nothing is sent anywhere. Passkey sign-in and sync across your devices come with the GymYar server, which you get by self-hosting it.": "این نسخهٔ نمایشی کاملاً در مرورگر شما و روی داده‌های نمونه اجرا می‌شود — هیچ‌چیز جایی فرستاده نمی‌شود. ورود با کلید عبور و همگام‌سازی میان دستگاه‌هایتان با سرور GymYar می‌آید؛ سروری که خودتان راه می‌اندازید.",
   "Self-host it in a minute →": "در یک دقیقه خودتان راهش بیندازید ←",
   "Use email and password": "استفاده از ایمیل و رمز عبور",
+
+  // --- signing in with a phone number ---
+  // The market's own identifier, so this wording matters more here than most. "کد" for the
+  // one-time code, which is what every Iranian app calls it; not "رمز", which means password
+  // and is the thing this flow exists not to have.
+  "Continue with your phone": "ورود با شمارهٔ موبایل",
+  "We text you a code. No password to remember.": "یک کد برایتان پیامک می‌کنیم. رمزی برای به‌خاطر سپردن نیست.",
+  "Send me a code": "کد را بفرست",
+  "Continue": "ادامه",
+  "Enter an Iranian mobile number, like 09123456789": "یک شمارهٔ موبایل ایران وارد کنید، مثل ۰۹۱۲۳۴۵۶۷۸۹",
+  "Enter the code": "کد را وارد کنید",
+  "Sent to {0}. It expires in five minutes.": "به {0} فرستاده شد. تا پنج دقیقه معتبر است.",
+  "{0} tries left before this code stops working.": "{0} بار دیگر می‌توانید امتحان کنید تا این کد از کار بیفتد.",
+  "Send a new code": "کد تازه بفرست",
+  "Send a new code in {0}s": "کد تازه تا {0} ثانیه دیگر",
+  "Use a different number": "شمارهٔ دیگری وارد می‌کنم",
+  "That number is new here. What should we call you?": "این شماره تازه است. شما را چه صدا کنیم؟",
+  // Attaching a number to an account that already has a passkey or a password.
+  "Add your phone number": "افزودن شمارهٔ موبایل",
+  "Sign in with a code instead of a passkey or a password.": "به‌جای کلید عبور یا رمز، با یک کد وارد شوید.",
+  "Then you can sign in with a code instead of a passkey or a password.": "بعد از آن می‌توانید به‌جای کلید عبور یا رمز، با یک کد وارد شوید.",
+  "You can sign in with a code sent to this number.": "می‌توانید با کدی که به این شماره فرستاده می‌شود وارد شوید.",
+  "Phone number added": "شمارهٔ موبایل افزوده شد",
+  "Phone number removed": "شمارهٔ موبایل حذف شد",
+  "Remove your phone number?": "شمارهٔ موبایل حذف شود؟",
+  "You will not be able to sign in with a code until you add it again.": "تا وقتی دوباره اضافه‌اش نکنید نمی‌توانید با کد وارد شوید.",
   "This browser doesn't support passkeys, so email and password it is.": "این مرورگر از کلید عبور پشتیبانی نمی‌کند، پس ایمیل و رمز عبور.",
 
   // --- admin: this instance ---

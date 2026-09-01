@@ -65,6 +65,12 @@ in a settings screen.
 - 🔑 **Email and password sign-in alongside passkeys.** Passkey-only is a dead end for a
   mainstream signup — "create an account" cannot fail on a device whose browser will not do
   WebAuthn.
+- 📱 **Signing up with an Iranian mobile number.** A code by SMS and no password, which is the
+  identifier this product's market actually uses — an email address there is largely a thing
+  you keep for signing up to foreign services, and a domestic gateway is the one delivery
+  channel that does not have to cross a border to arrive. One flow rather than two: the account
+  is created on the spot if the number is new, because holding the SIM is the whole credential
+  either way. Kavenegar and SMS.ir, off unless a gateway is configured.
 - 🐳 `docker compose up` really is the only command: the API container migrates and seeds on
   boot, and both are idempotent. `SEED_DEMO` creates a coach and three clients with twelve
   weeks of training each — including one who shares only programmes and one who stopped
@@ -72,6 +78,12 @@ in a settings screen.
 
 ### Two things that were quietly not true
 
+- 🗑️ **Every `DELETE` the client made answered 400.** `api()` set
+  `Content-Type: application/json` on every request including the ones with no body, and
+  Fastify refuses that pairing before a route is reached — `FST_ERR_CTP_EMPTY_JSON_BODY`. So
+  removing an attachment, an invite, a check-in schedule or a check-in template failed with a
+  message about content types. Nothing caught it because the test client sends no header when
+  it sends no payload, which is what the browser now does too.
 - 🪞 **`matchExercise` was `undefined` from the package root.** Two functions had the name —
   `import-csv.js`'s, which matches a name out of somebody else's export and refuses unless it is
   certain, and `parse-log.js`'s, which takes a phrase somebody just typed and picks the shortest
@@ -391,6 +403,71 @@ reset is a different dead end at the same door.
   one bug this had: `consume` returned the account row as it was read, one version behind the
   bump it had just made, so the cookie issued from it was dead on arrival. Caught by the test
   that signs in immediately afterwards.
+
+### A third door, and the one this market walks through
+
+The two ways in above both assume something a lot of the people this is built for do not have.
+A passkey needs a device and a browser that will do WebAuthn. An email address in Iran is
+largely a thing you keep in order to sign up to foreign services, most of which will not take
+an Iranian card or address anyway — and the reset email above has to cross a border to arrive,
+from a relay whose reputation is not ours, into filters that distrust the whole origin. What a
+coach and their clients all have is a mobile number.
+
+- 📱 **A number, a code, and no password.** `packages/sms` is the whole surface, deliberately
+  shaped as a sibling of `packages/mail` rather than a variation on it: Kavenegar or SMS.ir, or
+  `log` for the household instance, or nothing — in which case `phoneAuth: false`, no button on
+  the sign-in screen, and a 501 from the endpoints. An instance that cannot text anybody does
+  not offer to.
+- 🧩 **The pattern, not the prose.** Both gateways deliver one-time codes through a body
+  registered with them and approved by the operator, and that is not a formality: an
+  unregistered bulk message to an Iranian handset is filtered, deprioritised or dropped, and a
+  code that arrives eleven minutes later is a signup that does not work. So GymYar sends the
+  code and the pattern's name; the text it composes itself is for the log transport and for an
+  instance still waiting on approval.
+- 🔢 **`۰۹۱۲۳۴۵۶۷۸۹` is a phone number.** It is what an Iranian phone's own keyboard produces
+  with no effort from its owner, it is visually identical to the Latin form in most fonts, and
+  `parseInt` gives up on it silently. `normalizePhone` in the domain reads it, along with
+  Arabic-Indic digits, `+98`, `0098`, a bare `9…`, and the invisible marks a Persian keyboard
+  leaves between them — and the same function runs on the client and the server, because the
+  number stored and the number looked up drifting apart makes an account unreachable by the
+  phone that created it. Codes typed on that keyboard are read the same way.
+- 🚪 **One flow, not two.** There is no "sign up with a phone" separate from "sign in with a
+  phone": the account is created on the spot if the number is new, because holding the SIM is
+  the whole credential either way, and it is how every Iranian app already on these phones
+  behaves.
+
+- 🔗 **And a number can be added to an account that already exists.** A row in Settings, the
+  same two steps, and the same component behind them. Removing it is refused when it is the
+  only way in — an account created by phone has no password and no passkey, so that is not
+  unlinking a contact detail, it is deleting the credential. A number already on another
+  account is reported as such only after a correct code; the unique index is what refuses it,
+  because a lookup before the write is a race this is the wrong place to lose.
+
+### What the code flow does not tell you, and what it will not spend
+
+- 🕵️ **`/api/phone/start` answers a registered number exactly as it answers an unknown one.**
+  The convenient version reports `registered: true|false` so the next screen knows whether to
+  ask for a name; it is also a way to ask this instance which of a list of phone numbers train
+  here, which is the roster the reset endpoint already refuses to be for email. So the question
+  is deferred to `verify`, and answered only to somebody who has just proved they hold the SIM.
+- 🔐 **The code is stored as `HMAC(key, phone + code)`, never in the clear** — and the keyed
+  hash is the point of difference from the reset token next door. A reset token is 256 bits of
+  randomness, so a plain SHA-256 gives away nothing; six digits is a million-entry rainbow
+  table and a few seconds, with the phone number sitting in the same row as a useless salt.
+  What makes a stolen table worthless is a secret the table does not contain, derived here from
+  `SESSION_SECRET`.
+- 🎯 **Three ceilings, because they stop three different things.** Five wrong guesses kill a
+  code, so the number of tries it ever faces is a constant rather than whatever the limiter
+  lets through. One message a minute and five a day *per number* — not per caller, because the
+  handset being buzzed may belong to somebody who did not ask for any of this, and the bill is
+  the operator's either way. The rate limiter in front is a third thing, keyed on the
+  canonicalised number so that three spellings of it are one budget.
+- ↩️ **A code is spent only if what it was for worked.** The claim runs the whole signup inside
+  its own transaction — the name check, the invite code, the INSERT — and a throw from any of
+  them rolls back the spending too. Without that, leaving the name field blank costs a person
+  another text message and another minute of waiting for it, and a mistyped invite code costs
+  the same. It also makes the account and the code one atomic act, so a double tap is one
+  account rather than two on the same number.
 
 ### Video of the lift, and the first bytes that are not a row
 

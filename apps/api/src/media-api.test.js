@@ -424,7 +424,7 @@ describe('deleting, and the sweeper behind it', () => {
     const { c } = await signUp('Sam', 'sam@x.test')
     await workout(c)
     await c.upload('/api/attachments?subject=form_check&workout=w1&exercise=0025', MP4())
-    expect(await sweepOnce()).toEqual({ files: 0, purged: 0, resets: 0, failed: 0, considered: 0 })
+    expect(await sweepOnce()).toEqual({ files: 0, purged: 0, resets: 0, codes: 0, failed: 0, considered: 0 })
   })
 
   it('deletes the files of an account that was removed', async () => {

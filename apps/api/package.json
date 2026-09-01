@@ -17,6 +17,7 @@
     "@gymyar/db": "*",
     "@gymyar/domain": "*",
     "@gymyar/mail": "*",
+    "@gymyar/sms": "*",
     "@gymyar/storage": "*",
     "@simplewebauthn/server": "^13.1.1",
     "fastify": "^5.12.1",
