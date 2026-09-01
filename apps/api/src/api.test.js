@@ -17,6 +17,11 @@ beforeEach(async () => {
   // DELETE, not TRUNCATE CASCADE: the latter would take the shared exercise library with it,
   // since `exercises.owner_id` references users. Cascading deletes clear a user's own rows.
   await db()`delete from users`
+  /* And the codes, which nothing cascades away: a `verification_codes` row is about a
+   * destination rather than a user, so it survives the delete above and its resend cooldown
+   * lands on the next test that asks about the same address. That is a 60-second window in
+   * which the second test to register `sam@x.test` is silently sent no email at all. */
+  await db()`delete from verification_codes`
 })
 afterAll(async () => { await app.close(); await close() })
 
@@ -416,9 +421,12 @@ describe('password reset', () => {
   let sent = []
   let mailApp
 
-  /** The link out of the last email, which on this transport is a line in the log. */
+  /** The link out of the last email that has one, which on this transport is a line in the log.
+   *  "that has one" matters now: the confirmation code email carries no link, so the last
+   *  email and the last *reset* email are no longer always the same message. */
   const linkFrom = () => {
-    const url = sent.filter(l => l.body && l.subject).at(-1)?.body?.match(/https?:\S+/)?.[0]
+    const url = sent.filter(l => l.body && l.subject)
+      .map(l => l.body.match(/https?:\S+/)?.[0]).filter(Boolean).at(-1)
     return url ? url.split('/#/reset/')[1] : null
   }
 
@@ -447,11 +455,34 @@ describe('password reset', () => {
 
   const withMail = () => client(mailApp)
 
+  /* The confirmation code out of the last email that is one — no link, six digits. */
+  const codeFrom = () => sent.filter(l => l.body && l.subject && !/https?:/.test(l.body))
+    .at(-1)?.body?.match(/[0-9]{6}/)?.[0] ?? null
+
   const register = async (c, email, extra = {}) => {
     const r = await c.post('/api/register/password', {
       name: 'Sam', email, password: 'correct-horse-battery', ...extra
     })
     expect(r.status).toBe(200)
+
+    /* Signup mails a confirmation code, and reset now needs a verified address — so this
+     * helper confirms it, through the real endpoint and the real code rather than by writing
+     * `email_verified_at` directly. A test that reaches into the column keeps passing on the
+     * day that flow breaks, which is the day it matters.
+     *
+     * The send is deliberately not awaited by the signup route, so it is waited for here. */
+    let code = null
+    for (let i = 0; i < 50 && !code; i++) {
+      code = codeFrom()
+      if (!code) await new Promise(r => setTimeout(r, 10))
+    }
+    expect(code, 'no confirmation code was mailed at signup').toBeTruthy()
+    const v = await c.post('/api/me/email/verify', { email, code })
+    expect(v.status, JSON.stringify(v.body)).toBe(200)
+    expect(v.body.user.emailVerified).toBe(true)
+
+    // And forget both messages, so every assertion below sees only the email it is about.
+    sent.length = 0
     return r.body.user
   }
 

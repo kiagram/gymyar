@@ -40,6 +40,7 @@
  */
 import { deleted, abandoned, purge, orphaned, forget } from '@gymyar/db/attachments.js'
 import { purgeDeadResets } from '@gymyar/db/passwords.js'
+import { purgeDeadCodes } from '@gymyar/db/codes.js'
 import { storage } from './media.js'
 
 /** How often the timer fires. Long: the work is small and none of it is urgent to the minute. */
@@ -96,10 +97,17 @@ export async function sweepOnce({ log = null, limit = 200, abandonedAfterMinutes
   try { resets = await purgeDeadResets() }
   catch (err) { failed++; log?.warn?.({ err }, 'could not purge spent password resets') }
 
-  if (log && (files || purged || resets || failed)) {
-    log.info({ files, purged, resets, failed }, 'sweep')
+  /* And spent one-time codes, on the same day's delay and for one extra reason: the resend
+   * cooldown and the per-number daily ceiling are counted off these rows, so sweeping them
+   * eagerly would hand somebody a fresh allowance of text messages every fifteen minutes. */
+  let codes = 0
+  try { codes = await purgeDeadCodes() }
+  catch (err) { failed++; log?.warn?.({ err }, 'could not purge spent verification codes') }
+
+  if (log && (files || purged || resets || codes || failed)) {
+    log.info({ files, purged, resets, codes, failed }, 'sweep')
   }
-  return { files, purged, resets, failed, considered: rows.length + keys.length }
+  return { files, purged, resets, codes, failed, considered: rows.length + keys.length }
 }
 
 /**

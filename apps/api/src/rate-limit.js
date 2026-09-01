@@ -25,6 +25,7 @@
  * or a script would ever reach.
  */
 import rateLimit from '@fastify/rate-limit'
+import { normalizePhone } from '@gymyar/domain'
 import { config } from './config.js'
 import { sessionUserId } from './session.js'
 
@@ -50,6 +51,15 @@ export const BUCKETS = {
   'model.vision': { max: 8, window: 10 * MINUTE },
   // Signing in. Tight, and keyed by the identifier being tried rather than the address.
   'auth': { max: 10, window: 15 * MINUTE },
+  /* Asking for a one-time code, on either channel. The tightest bucket here, and the only one
+   * whose cost lands on somebody who did not make the request: every one of these is a message
+   * — billed to the operator if it is an SMS, and arriving on a handset or in an inbox that may
+   * not belong to whoever asked.
+   *
+   * Deliberately looser than the per-destination cooldown and daily cap in
+   * packages/db/src/codes.js, which are the real limits. This one exists to stop the requests
+   * before they reach a database transaction at all. */
+  'code': { max: 6, window: 15 * MINUTE },
   /* Asking for a reset link. Tighter than signing in and keyed the same way — by the address
    * being asked about — because the cost of this one is not a guess at a password, it is an
    * email somebody else receives. An unthrottled endpoint here is a way to use this instance to
@@ -74,7 +84,14 @@ export const limit = name => {
  * request does not name anybody — which is itself worth limiting. */
 const authSubject = req => {
   const email = req.body?.email
-  return email ? 'email:' + String(email).trim().toLowerCase() : 'ip:' + req.ip
+  if (email) return 'email:' + String(email).trim().toLowerCase()
+  /* A phone number, canonicalised before it becomes a key. `09123456789`, `+989123456789` and
+   * `۰۹۱۲۳۴۵۶۷۸۹` are one number and must be one bucket — keyed raw, the same number spelled
+   * three ways is three budgets, which is a limit that can be walked straight past by anybody
+   * who notices. */
+  const phone = req.body?.phone ? normalizePhone(req.body.phone) : null
+  if (phone) return 'phone:' + phone
+  return 'ip:' + req.ip
 }
 
 /* A reset that carries a token names no address, so there is nothing to key on but where it
@@ -100,6 +117,7 @@ export async function registerRateLimit(app, { enabled = config.rateLimit } = {}
     keyGenerator: req => {
       if (req.routeOptions?.url?.startsWith('/api/login') ||
           req.routeOptions?.url?.startsWith('/api/register') ||
+          req.routeOptions?.url?.startsWith('/api/phone') ||
           req.routeOptions?.url?.startsWith('/api/password')) {
         return authSubject(req)
       }

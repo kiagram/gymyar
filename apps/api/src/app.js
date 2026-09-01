@@ -4,6 +4,8 @@ import { connect, migrate, db } from '@gymyar/db'
 import { config } from './config.js'
 import { registerRateLimit } from './rate-limit.js'
 import authRoutes from './routes/auth.js'
+import phoneRoutes from './routes/phone.js'
+import emailRoutes from './routes/email.js'
 import syncRoutes from './routes/sync.js'
 import coachingRoutes from './routes/coaching.js'
 import exerciseRoutes from './routes/exercises.js'
@@ -77,6 +79,8 @@ export async function build({
   })
 
   await app.register(authRoutes)
+  await app.register(phoneRoutes)
+  await app.register(emailRoutes)
   await app.register(syncRoutes)
   await app.register(coachingRoutes)
   await app.register(checkinRoutes)

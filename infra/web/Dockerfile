@@ -23,6 +23,7 @@ COPY packages/domain/package.json packages/domain/
 COPY packages/db/package.json packages/db/
 COPY packages/storage/package.json packages/storage/
 COPY packages/mail/package.json packages/mail/
+COPY packages/sms/package.json packages/sms/
 COPY packages/ai/package.json packages/ai/
 # No `|| npm install` fallback. A lockfile that does not match the manifests is a bug to fix,
 # not a condition to route around — routing around it is what produced a broken image that
