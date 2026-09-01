@@ -1,0 +1,56 @@
+# What line endings a file is stored with, decided here rather than by whichever machine last
+# saved it.
+#
+# Four files in this repository were committed with CRLF for no reason anybody chose: two source
+# files, the environment example, and a Windows batch script that genuinely wants them. The
+# first three were invisible until somebody edited one — `core.autocrlf` is on for most people
+# working on Windows, so any tool that rewrites a file normalises it on the way past, git then
+# sees a different blob, and a fifteen-line change arrives as a four-hundred-line rewrite. That
+# happened twice in one afternoon and was corrected by hand both times.
+#
+# `core.autocrlf` cannot fix it, because it is a setting on each person's own machine and this
+# is a property of the repository. That is what this file is for: it applies to everybody who
+# clones, whatever their git is configured to do, and it decides only what is *stored*. Working
+# copies are unaffected — a Windows checkout still gets CRLF on disk if that is what the local
+# config asks for.
+
+# Everything git recognises as text is stored with LF. Binary content is detected and left
+# alone, and the exceptions below are the files where the ending is load-bearing.
+* text=auto
+
+# ── Read by a shell ─────────────────────────────────────────────────────────────
+#
+# A shell script with CRLF endings fails on its own shebang: the interpreter path picks up the
+# carriage return and the kernel reports "bad interpreter: /bin/sh^M", which is a confusing way
+# to discover a line-ending problem at three in the morning. `docker-entrypoint.sh` is the one
+# that would take a container down with it.
+*.sh text eol=lf
+apps/client/android/gradlew text eol=lf
+
+# ── Read by cmd.exe ─────────────────────────────────────────────────────────────
+#
+# The mirror image, and the reason this file cannot simply say "LF everywhere". A batch file
+# with LF endings parses unreliably on Windows — labels and `goto` in particular — so
+# `gradlew.bat` keeps its CRLF, which it has had since Gradle generated it.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# ── Not text at all ─────────────────────────────────────────────────────────────
+#
+# Detection by content would get these right anyway; naming them means a diff never tries to
+# render one and no future setting can decide to "normalise" a PNG.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.jar  binary
+*.apk  binary
+*.mp4  binary
+*.webm binary
+*.pdf  binary
+*.zip  binary

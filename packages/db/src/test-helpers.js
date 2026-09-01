@@ -30,6 +30,11 @@ export async function truncateUsers() {
    * does not clear it, and a test that sweeps would otherwise find every key every earlier test
    * left behind. */
   await db()`delete from orphaned_media`
+  /* Same shape of problem, same reason: a `verification_codes` row is about a *destination*,
+   * not a user — it is written before there is an account for it to reference — so nothing
+   * cascades it away, and a resend cooldown from one test would land on the next one asking
+   * about the same address. */
+  await db()`delete from verification_codes`
 }
 
 export async function teardownDb() { await close(); ready = false }

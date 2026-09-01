@@ -1,6 +1,7 @@
 /* Sending email, and the decision not to pretend we can.
  *
- * GymYar has never sent an email. That was fine while everything it did was between a person
+ * GymYar sends two: a password reset link, and a code confirming somebody can read the
+ * address they just typed. That was none at all while everything it did was between a person
  * and their own server — and it stopped being fine the moment accounts had passwords, because
  * a password you can forget and cannot reset is an account you lose. This package is the
  * smallest thing that fixes that.
@@ -30,7 +31,7 @@
  */
 import { smtpTransport } from './smtp.js'
 
-export { resetEmail, MAIL_LOCALES } from './templates.js'
+export { resetEmail, codeEmail, CODE_TTL_MINUTES, MAIL_LOCALES } from './templates.js'
 
 /**
  * The transport this deployment is configured for, or null.

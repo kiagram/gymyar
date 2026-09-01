@@ -2,15 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore, DEF, hasData } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
-import { ACCENTS, todayISO, localTZ } from '@gymyar/domain'
+import { ACCENTS, todayISO, localTZ, formatPhone, maskPhone } from '@gymyar/domain'
 import { effortOf } from '@gymyar/domain'
-import { api, webauthnOK, passkeyLogin, passkeyRegister, IS_ANDROID } from '../lib/api.js'
+import { api, webauthnOK, passkeyLogin, passkeyRegister, IS_ANDROID,
+  mePhoneStart, mePhoneVerify, mePhoneRemove,
+  meEmailStart, meEmailVerify, meEmailRemove } from '../lib/api.js'
 import { pushSupported, enablePush, disablePush, sendTestPush, wantsPush, withPush } from '../lib/push.js'
 import { wakeLockSupported } from '../lib/wakelock.js'
 import { t, LANGS } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, shareExport, syncReminder } from '../lib/mobile.js'
 import { loadStarterPlan, confirmSheet, importFromApp } from '../sheets.jsx'
+import CodeFlow from '../components/CodeFlow.jsx'
+import { phoneFirst, phoneComplaint } from './Login.jsx'
 import Icon from '../components/Icon.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField } from '../components/ui.jsx'
 
@@ -23,6 +27,45 @@ export default function Settings() {
   const fileRef = useRef(null)
   const importRef = useRef(null)
   const wakeOK = wakeLockSupported()
+  /* Whether this instance has an SMS gateway. Nothing is offered when it does not — the same
+   * rule the sign-in screen follows, for the same reason. */
+  const [phoneAuth, setPhoneAuth] = useState(false)
+  const [emailVerify, setEmailVerify] = useState(false)
+  useEffect(() => {
+    if (MOBILE || DEMO || !user) return
+    api('/api/config')
+      .then(c => { setPhoneAuth(!!c.phoneAuth); setEmailVerify(!!c.emailVerify) })
+      .catch(() => {})
+  }, [!!user])
+
+  const linkPhone = () => useUI.getState().openSheet(close =>
+    <PhoneLinkSheet close={close} setUser={setUser} toast={toast} />)
+
+  /* Removing it is a confirmation rather than a tap, because it is the removal of a way in
+   * rather than the edit of a contact detail — and the server refuses outright when it is the
+   * *only* way in, which is a sentence worth showing verbatim: it names the thing to do next. */
+  const linkEmail = () => useUI.getState().openSheet(close =>
+    <EmailLinkSheet close={close} setUser={setUser} toast={toast} />)
+
+  const unlinkEmail = () => confirmSheet({
+    title: t('Remove your email address?'),
+    message: t('Your password goes with it — neither works without the other.'),
+    confirmText: t('Remove'), danger: true,
+    onConfirm: async () => {
+      try { setUser(await meEmailRemove()); toast(t('Email address removed')) }
+      catch (e) { toast(e.message) }
+    }
+  })
+
+  const unlinkPhone = () => confirmSheet({
+    title: t('Remove your phone number?'),
+    message: t('You will not be able to sign in with a code until you add it again.'),
+    confirmText: t('Remove'), danger: true,
+    onConfirm: async () => {
+      try { setUser(await mePhoneRemove()); toast(t('Phone number removed')) }
+      catch (e) { toast(e.message) }
+    }
+  })
 
   const doExport = async () => {
     const json = JSON.stringify(S, null, 2)
@@ -85,7 +128,28 @@ export default function Settings() {
         {REPO && <Row icon="rocket" iconTint="var(--indigo)" title={t('Self-host GymYar')} subtitle={t('Passkey sign-in, sync across your devices, your own data.')} accessory="chevron"
           onClick={() => window.open(REPO, '_blank', 'noopener')} />}
       </> : user ? <>
-        <Row icon="personCircle" iconTint="var(--grey)" title={user.name} subtitle={t('Signed in with passkey — data syncs to this profile.')} />
+        <Row icon="personCircle" iconTint="var(--grey)" title={user.name} subtitle={t('Signed in — your training syncs to this profile.')} />
+        {phoneAuth && (user.phone
+          ? <Row icon="person" iconTint="var(--blue)" title={formatPhone(user.phone)}
+                 subtitle={t('You can sign in with a code sent to this number.')}
+                 accessory="chevron" onClick={unlinkPhone} />
+          : <Row icon="person" iconTint="var(--blue)" title={t('Add your phone number')}
+                 subtitle={t('Sign in with a code instead of a passkey or a password.')}
+                 accessory="chevron" onClick={linkPhone} />)}
+        {emailVerify && (user.email
+          ? <Row icon="key" iconTint="var(--indigo)" title={user.email}
+                 /* Verified or not is the whole reason this row shows the address rather than
+                    just offering to add one: until 011 nothing ever wrote that column, so an
+                    older account reads as verified and a new unverified one can be fixed from
+                    here — which is also the only way to get a reset link working again. */
+                 subtitle={user.emailVerified
+                   ? t('Confirmed — you can sign in and reset your password with it.')
+                   : t('Not confirmed yet. Tap to send a new code.')}
+                 accessory="chevron"
+                 onClick={user.emailVerified ? unlinkEmail : linkEmail} />
+          : <Row icon="key" iconTint="var(--indigo)" title={t('Add your email address')}
+                 subtitle={t('A second way in, and how you reset a forgotten password.')}
+                 accessory="chevron" onClick={linkEmail} />)}
         {user.isCoach && <Row icon="clipboard" iconTint="var(--accent)" title={t('Your clients')} subtitle={t('Rosters, adherence and programme proposals')} accessory="chevron" onClick={() => nav('/coach')} />}
         <Row icon="personCircle" iconTint="var(--indigo)" title={t('Coaching')} subtitle={t('Who can see your training')} accessory="chevron" onClick={() => nav('/coaching')} />
         {user.isAdmin && <Row icon="wrench" iconTint="var(--indigo)" title={t('Admin dashboard')} accessory="chevron" onClick={() => nav('/admin')} />}
@@ -349,6 +413,97 @@ function PushCard({ S, update, toast }) {
 // The same registration as the sign-in screen's, reached from Settings instead. It asks for
 // the invite code on the same terms: an invite-only instance rejects a registration without
 // one, so a form that cannot collect it is a form that cannot succeed.
+/**
+ * Attaching a phone number to an account that already exists.
+ *
+ * Somebody who joined with a passkey on a laptop, or with an email address, and now wants to
+ * open the app on their phone without carrying either. Same two steps as the sign-in sheet and
+ * the same component behind them — see components/CodeFlow.jsx.
+ *
+ * There is no third step: the account already has a name, and the only thing this can be told
+ * that it did not know is that the number belongs to somebody else. That arrives as a plain
+ * error, after a correct code, which is the only point at which the server is willing to say it.
+ */
+function PhoneLinkSheet({ close, setUser, toast }) {
+  return <CodeFlow
+    validate={phoneComplaint}
+    sentTo={maskPhone}
+    first={phoneFirst({
+      title: t('Add your phone number'),
+      blurb: t('Then you can sign in with a code instead of a passkey or a password.'),
+      sendLabel: t('Send me a code')
+    })}
+    start={phone => mePhoneStart(phone)}
+    verify={async (phone, code) => {
+      setUser(await mePhoneVerify({ phone, code }))
+      close()
+      toast(t('Phone number added'))
+    }}
+  />
+}
+
+/**
+ * Attaching an email address, and the password that makes it a way in.
+ *
+ * The asymmetry with the number above is the whole reason this is its own sheet. A phone number
+ * is a credential on its own — the code proves the SIM and that is the sign-in. An address is
+ * half of one: it signs nobody in without a password, and an account created by phone has
+ * none. So the server refuses with `password_required` after a correct code, and that is when
+ * the field appears — the same trick the sign-in sheet uses to ask a new number for a name, and
+ * it costs nothing because the code survives the refusal.
+ *
+ * An account that already has a password never sees that step. Changing an address is not a
+ * reason to make somebody choose a new password, and this sheet is not a password reset.
+ */
+function EmailLinkSheet({ close, setUser, toast }) {
+  const [password, setPassword] = useState('')
+
+  return <CodeFlow
+    validate={v => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim()) ? null : t('Enter a valid email address.')}
+    sentTo={v => v.trim().toLowerCase()}
+    first={({ value, setValue, send, busy, err }) => <>
+      <h3>{t('Add your email address')}</h3>
+      <div className="muted small" style={{ marginBottom: 14 }}>
+        {t('We send a code to confirm you can read it.')}
+      </div>
+      <input className="input" type="email" inputMode="email" autoComplete="email" dir="ltr"
+             placeholder={t('Email')} value={value}
+             onChange={e => setValue(e.target.value)}
+             onKeyDown={e => e.key === 'Enter' && send()} />
+      {err && <p className="err small" style={{ textAlign: 'left' }}>{err}</p>}
+      <div style={{ height: 12 }} />
+      <Button variant="primary" disabled={busy} onClick={send}>
+        {busy ? t('Working…') : t('Send me a code')}
+      </Button>
+    </>}
+    start={email => meEmailStart(email)}
+    verify={async (email, code) => {
+      setUser(await meEmailVerify({ email, code, password }))
+      close()
+      toast(t('Email address added'))
+    }}
+    moreOn="password_required"
+    more={({ submit, busy, err }) => <>
+      <h3>{t('Choose a password')}</h3>
+      <div className="muted small" style={{ marginBottom: 14 }}>
+        {t('Your address is confirmed. A password is what signs you in with it.')}
+      </div>
+      <input className="input" type="password" autoComplete="new-password" autoFocus
+             placeholder={t('Password')} value={password}
+             onChange={e => setPassword(e.target.value)}
+             onKeyDown={e => e.key === 'Enter' && password.length >= 10 && submit()} />
+      <div className="dim small" style={{ marginTop: 6, textAlign: 'left' }}>
+        {t('At least 10 characters.')}
+      </div>
+      {err && <p className="err small" style={{ textAlign: 'left' }}>{err}</p>}
+      <div style={{ height: 12 }} />
+      <Button variant="primary" disabled={busy || password.length < 10} onClick={submit}>
+        {busy ? t('Working…') : t('Save')}
+      </Button>
+    </>}
+  />
+}
+
 function RegisterInline({ close, setUser, syncNow, toast }) {
   const nameRef = useRef(null)
   const [code, setCode] = useState('')
