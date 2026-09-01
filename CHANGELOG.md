@@ -488,12 +488,15 @@ backup" and mean it — and a form check cannot be one. So there is a volume now
   rather than assumed: the root, `/issues` and both of the site's `/blob/HEAD/` links answer 200.
 - 🌳 **Two documents were describing a branch that does not exist.** `CONTRIBUTING.md` asked for
   pull requests against `gymyar` and `docs/PUBLISHING.md` said that was the default branch and
-  put it in two `git push` examples. The branch is `gymbuddy`. Anyone following the publishing
+  put it in two `git push` examples. The branch was `gymbuddy`. Anyone following the publishing
   guide would have watched the push fail; anyone opening a pull request would have aimed it at
-  nothing. The repository takes the product's name and the branch keeps the fork's, which is
-  the split that matters — the repository name is what every source link in the app resolves
-  through, and the branch name is not in a single URL, because the site's links go through
-  `/blob/HEAD/`.
+  nothing. It was reconciled the wrong way round at first — the documents were corrected down
+  to the branch, on the argument that the repository name is what every source link resolves
+  through while a branch name is in no URL at all, so the split cost nothing. It cost one
+  thing: a second name for the same product, in the two files whose whole job is explaining
+  that product to somebody who has not seen it. The branch is `gymyar` now, renamed through
+  GitHub rather than pushed and deleted, so the old name still resolves and a clone taken
+  before it keeps fetching.
 - 🌐 **The four sharing descriptions are translated now.** Three of them never were: they reach
   `t()` as `t(SCOPE_INFO[key].detail)`, a dynamic argument `check-locales.mjs` cannot see, so
   every language read the English. They are the sentences somebody reads while deciding what to

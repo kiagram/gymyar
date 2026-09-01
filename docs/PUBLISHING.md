@@ -13,10 +13,16 @@ re-upload is the one carrying [a leaked session secret](../NOTICE.md).
 ## Setting up your own
 
 **Done for this tree:** `origin` is <https://github.com/kiagram/gymyar>, public, with both
-`gymbuddy` and `main` pushed and `gymbuddy` as the default branch. The branch keeps the name
-the work was done under; the repository does not, because the repository name is the URL
-every source link in the app and on the site points at, and that one has to read as the
-product. What follows is what was run, and what a fork of this project would run in turn.
+`gymyar` and `main` pushed and `gymyar` as the default branch. Repository and branch both read
+as the product. For a while only the repository did — the branch kept `gymbuddy`, the name the
+fork was started under, on the argument that a branch name appears in no URL and so costs
+nothing to leave alone. That is true and it is not the whole cost: it is a second name for the
+same thing, in the two documents that tell somebody else how to contribute, and every reader
+has to be told which one is which. One name is cheaper than the explanation.
+
+GitHub's own branch rename was used rather than a push-and-delete, so the old name still
+resolves and a clone taken before it keeps fetching. What follows is what was run, and what a
+fork of this project would run in turn.
 
 It was `kiagram/gymbuddy` until the rename, which is the name the fork was started under and
 the last thing still carrying it. Renaming a repository does not break anything already
@@ -35,11 +41,11 @@ Create an empty repository wherever you want this to live, then:
 
 ```bash
 git remote add origin <your-repo-url>
-git push -u origin gymbuddy
+git push -u origin gymyar
 ```
 
 The `main` branch in this tree is still the openGym import, untouched. Keeping it is useful — it
-is what `git log gymbuddy ^main` diffs against, and it is the attribution trail. Push it too if
+is what `git log gymyar ^main` diffs against, and it is the attribution trail. Push it too if
 you want that history preserved:
 
 ```bash
@@ -67,7 +73,7 @@ That can happen to you. Push to a second remote from the start:
 
 ```bash
 git remote add mirror <second-host-url>
-git push mirror gymbuddy
+git push mirror gymyar
 ```
 
 ## What must never be committed

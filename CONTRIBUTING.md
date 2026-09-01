@@ -105,7 +105,7 @@ test passes, so they get stated rather than left to be inferred.
 ## Where to ask what
 
 - **A bug, or a feature you want:** <https://github.com/kiagram/gymyar/issues>
-- **A change you have written:** a pull request against `gymbuddy`, which is the default branch.
+- **A change you have written:** a pull request against `gymyar`, which is the default branch.
   `main` is the untouched openGym import and nothing lands there.
 - **A security problem:** not either of the above — [SECURITY.md](SECURITY.md) has the private
   channel, and a public issue with a working exploit in it is a bad day for every instance
