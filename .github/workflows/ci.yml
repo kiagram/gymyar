@@ -63,25 +63,36 @@ jobs:
         # and the default is `/data/media` — a path the container owns and the runner cannot
         # create. Without it the first form-check upload is a 500 from `mkdir /data`, which is
         # what this step has actually been failing on rather than on anything it tests.
+        #
+        # `ci_start` rather than `&` so the API does not outlive this step. See the header of
+        # infra/scripts/ci-server.sh: it did, and the browser step below ran against it.
         env:
           STORAGE_PATH: ${{ runner.temp }}/media
         run: |
+          source infra/scripts/ci-server.sh
           node packages/db/src/cli.js reset
-          npm start -w @gymyar/api &
+          ci_start 3000 npm start -w @gymyar/api
           npx wait-on -t 30000 http://127.0.0.1:3000/api/health
           ./infra/scripts/smoke.sh http://127.0.0.1:3000
       - name: Browser end-to-end test
         # Same reason, and a directory of its own so a failure here is not reading the last
-        # step's bytes.
+        # step's bytes — which is exactly what it was doing while the step above leaked its
+        # API onto :3000 and this one's died on EADDRINUSE without failing anything.
+        #
+        # Both URLs, because waiting only on :5173 asks Vite's proxy whether *something*
+        # answers `/api/health`. That is the question that used to be answered by the previous
+        # step's server. Naming :3000 too makes an API that did not start read as an API that
+        # did not start.
         env:
           STORAGE_PATH: ${{ runner.temp }}/media-e2e
         run: |
+          source infra/scripts/ci-server.sh
           npx playwright install --with-deps chromium
           node packages/db/src/cli.js reset
           SEED_DEMO=1 node packages/db/src/cli.js demo
-          npm start -w @gymyar/api &
-          npm run dev -w @gymyar/client -- --port 5173 --host 127.0.0.1 &
-          npx wait-on -t 60000 http://127.0.0.1:5173/api/health
+          ci_start 3000 npm start -w @gymyar/api
+          ci_start 5173 npm run dev -w @gymyar/client -- --port 5173 --host 127.0.0.1
+          npx wait-on -t 60000 http://127.0.0.1:3000/api/health http://127.0.0.1:5173/api/health
           node infra/scripts/e2e.mjs http://127.0.0.1:5173
 
       - name: Icons match the vectors in logo/
