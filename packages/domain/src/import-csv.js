@@ -529,8 +529,15 @@ export function parseBodyweight(text, { unit = 'kg' } = {}) {
  * Bad records are skipped, never thrown on: a decade of health data contains oddities and
  * losing the file over one of them helps nobody.
  */
-export function parseAppleHealth(text, { unit = 'kg' } = {}) {
+export function parseAppleHealth(text, { unit = 'kg', onProgress = null } = {}) {
   const s = String(text)
+  // Progress is reported as a fraction of the file, not of the work: the two passes are read
+  // ends-to-end, so `lastIndex` over the length is the only honest measure available and it is
+  // the one the caller needs — a bar that sits at 100% while the second pass runs reads as a
+  // hang exactly like no bar at all. Pass one is the first half, pass two the second; they
+  // cost roughly the same because both walk the whole string.
+  const say = onProgress ? (base, at) => onProgress(Math.min(1, base + (at / s.length) * 0.5)) : null
+  let seen = 0
   const weights = new Map()      // iso date -> { w, t }
   let fileUnit = ''
   const spans = []               // { ms, end, ... } one per HKWorkout, sorted after pass 1
@@ -559,7 +566,15 @@ export function parseAppleHealth(text, { unit = 'kg' } = {}) {
     const inner = tag.endsWith('/>') ? '' : innerOf(s, p1.lastIndex, '</Workout>')
     const w = workoutFromHK(tag, inner)
     if (w) spans.push(w)
+    // Every 16 rather than every 4096 as in pass two, because what this pass matches is rare
+    // — a few hundred sessions and a few hundred weigh-ins in a file of a million records —
+    // so ticking per match is free here. It also means the first half of the bar advances
+    // with where those elements sit rather than smoothly: Apple writes every session at the
+    // end of the file, so a profile that has never logged a weight sees this half move only
+    // as it finishes. The phase label is what carries that stretch, which is why there is one.
+    if (say && (++seen & 15) === 0) say(0, p1.lastIndex)
   }
+  if (say) say(0.5, 0)
   spans.sort((a, b) => a.ms - b.ms)
 
   // ---- pass 2: heart rate, against the spans pass one found.
@@ -591,7 +606,11 @@ export function parseAppleHealth(text, { unit = 'kg' } = {}) {
       day.splice(i, 0, bpm)
       if (day.length > RESTING_LOWEST) day.pop()
     }
+    // Every 4096 records rather than every one: a year of watch data is ~175,000 of them, and
+    // a postMessage per record costs more than the parse it is reporting on.
+    if (say && (++seen & 4095) === 0) say(0.5, p2.lastIndex)
   }
+  if (say) say(1, 0)
 
   // ---- what any of that amounts to
   const created = new Map()

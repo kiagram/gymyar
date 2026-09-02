@@ -19,7 +19,8 @@ import { Button, Slider, Switch, Segmented, SelectRow, Row, TextField, TextArea,
 import { glyphOf, GLYPH_GROUPS, DEFAULT_GLYPH } from './lib/glyphs.js'
 import BodyMap from './components/BodyMap.jsx'
 import { loadOfWorkouts } from '@gymyar/domain'
-import { parseImport, mergeImport, MIN_HR_SAMPLES } from '@gymyar/domain'
+import { mergeImport, MIN_HR_SAMPLES } from '@gymyar/domain'
+import { runImport } from './lib/import-runner.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from '@gymyar/domain'
 import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS } from '@gymyar/domain'
@@ -231,23 +232,68 @@ function ImportSummary({ parsed, close }) {
   </>
 }
 
-/** Read a CSV/XML export, then show what it would do. */
+/* What the file is doing right now. Named phases and not one spinner, because reading a
+   hundred megabytes off flash, inflating it and scanning it are three waits of seconds each,
+   and a bar that does not say which of them it is in is a bar nobody trusts. */
+const PHASE = {
+  read: 'Reading the file…',
+  unzip: 'Unzipping the export…',
+  parse: 'Reading your history…'
+}
+
+/* Opened the moment a file is picked, and it becomes the summary when there is one to show.
+   One sheet rather than a toast then a sheet: an import of an Apple Health export takes long
+   enough that something has to be on screen for the whole of it. */
+function ImportRunner({ file, close, onDone }) {
+  const [at, setAt] = useState({ phase: 'read', pct: 0 })
+  const [parsed, setParsed] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    runImport(file, { unit: S().unit }, p => { if (alive) setAt(p) })
+      .then(p => {
+        if (!alive) return
+        // The same three refusals as before, said in the sheet rather than in a toast — it is
+        // already open, and a toast beside an open sheet is a message next to the thing it is
+        // about rather than in it.
+        if (p.error === 'empty') return setError(t('That file is empty'))
+        if (p.error) return setError(t("That file's columns aren't recognised — see the docs for supported apps."))
+        const nothing = p.kind === 'bodyweight' ? !p.bodyweight.length : !p.workouts.length
+        if (nothing) return setError(t('Nothing to import from that file'))
+        setParsed(p)
+        onDone && onDone()
+      })
+      .catch(e => {
+        if (!alive) return
+        setError(e && e.code === 'too_big'
+          ? t('That export is too big for the browser to open in one piece. Nothing was imported.')
+          : t('Could not read that file'))
+      })
+    return () => { alive = false }
+  }, [file])
+
+  if (parsed) return <ImportSummary parsed={parsed} close={close} />
+  return <>
+    <h3>{t('Import history')}</h3>
+    {error
+      ? <>
+        <div className="small" style={{ color: 'var(--red)', marginBottom: 12 }}>{error}</div>
+        <Button variant="ghost" className="dim" onClick={close}>{t('Cancel')}</Button>
+      </>
+      : <>
+        <div className="upl" style={{ marginBottom: 12 }}>
+          <div className="upl-bar"><i style={{ width: `${Math.round((at.pct || 0) * 100)}%` }} /></div>
+          <span className="ss">{t(PHASE[at.phase] || PHASE.read)}</span>
+        </div>
+        <div className="small dim">{t('A watch export can run to hundreds of megabytes — this can take a minute.')}</div>
+      </>}
+  </>
+}
+
+/** Read a picked export — zipped or not — then show what it would do. */
 export function importFromApp(file, onDone) {
-  const rd = new FileReader()
-  rd.onload = () => {
-    let parsed
-    try { parsed = parseImport(String(rd.result), { unit: S().unit }) }
-    catch (e) { toast(t('Could not read that file')); return }
-    if (parsed.error === 'empty') { toast(t('That file is empty')); return }
-    if (parsed.error) { toast(t("That file's columns aren't recognised — see the docs for supported apps.")); return }
-    if (parsed.kind === 'bodyweight' ? !parsed.bodyweight.length : !parsed.workouts.length) {
-      toast(t('Nothing to import from that file')); return
-    }
-    ui().openSheet(close => <ImportSummary parsed={parsed} close={close} />)
-    onDone && onDone()
-  }
-  rd.onerror = () => toast(t('Could not read that file'))
-  rd.readAsText(file)
+  ui().openSheet(close => <ImportRunner file={file} close={close} onDone={onDone} />)
 }
 
 /* ============================ target weight ============================ */

@@ -117,11 +117,30 @@ a check constraint rather than a convention, because three different writers wil
 have to obey it. The session sheet shows the average and the peak once ten readings are behind
 them.
 
-**Not built.** *The zip, and progress.* The client still reads one text file. `export.zip` has
-to be unzipped in the browser, which means a dependency — the app has none for this today —
-and the progress reporting the plan already calls for. Until then this reads an `export.xml`
-that has been unzipped by hand, which is a real thing a person can do and not a thing most
-people will.
+**Unzipped.** The picker takes `export.zip` as Apple hands it over. `read-export.js` reads the
+bytes, inflates the one entry that matters — anchored on `export.xml`, since the `export_cda.xml`
+beside it is a clinical document that sorts first and would otherwise be picked — and hands the
+text to the parser. All of it runs in a worker: reading, inflating and scanning are seconds of
+synchronous work each, and on the main thread that is a frozen app with a progress bar that
+cannot repaint. The half-gigabyte string never enters the window's heap at all; only the few
+hundred parsed sessions come back.
+
+fflate rather than `DecompressionStream('deflate-raw')`, which would have cost no dependency.
+On Android the WebView is updated through the Play Store, this project ships through Cafe Bazaar
+and Myket to phones that may never have seen it, and a WebView from 2021 has no
+DecompressionStream. Eight kilobytes to not depend on that.
+
+Progress is three named phases — reading, unzipping, scanning — with a real bar under each. The
+parser reports its own position as a fraction of the file, so the longest stretch is the one
+that moves. The first half of that bar advances with the sessions and weigh-ins it finds rather
+than smoothly, because Apple writes every `<Workout>` at the end of the file; the phase label is
+what carries that stretch.
+
+**The ceiling.** A JavaScript string cannot hold more than about 512 MB, and an export of many
+years with a watch can inflate past that. The decoder throws, and the failure is caught and
+named rather than shown as "something went wrong" to somebody who has just waited two minutes.
+Reading it in pieces means teaching the parser to scan across chunk boundaries — worth doing
+when somebody actually hits it.
 
 **Still homeless.** The parser also computes a daily resting heart rate, and there is nowhere
 to keep it: `bodyweight_entries` is the shape it wants and not the table it belongs in, since a
