@@ -10,7 +10,7 @@ strict about who may write what.
 ```
 apps/client       React 19 + Vite PWA. android/ + ios/ are the Capacitor shells (docs/MOBILE.md).
 apps/api          Fastify — auth, delta sync, coaching, billing.
-apps/site         marketing site: hand-written HTML/CSS/JS, no build step.
+apps/site         marketing site: hand-written HTML/CSS/JS, no build step. Persian at /, English at /en/.
 packages/domain   runtime-agnostic training logic, imported by both client and server.
 packages/db       Postgres schema, migrations, sync engine, coaching rules.
 packages/ai       the language layer, and the deterministic path underneath it.

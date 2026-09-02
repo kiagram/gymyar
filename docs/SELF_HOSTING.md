@@ -52,7 +52,9 @@ code — see [NOTICE.md](../NOTICE.md). Fine for a personal instance; a commerci
 its own licence or its own assets.
 
 **Three things on one origin.** `/` is the project site (`apps/site` — hand-written HTML, no
-build step), `/app/` is the application, `/api/` is the backend. Sharing an origin is not
+build step) in Persian, with the same site in English at `/en/`; `/app/` is the application,
+`/api/` is the backend. Persian is on the root because Iran is this project's market — swapping
+the two is editing `apps/site` and nothing else. Sharing an origin is not
 tidiness: a passkey is bound to one, a session cookie is scoped to one, and the app fetching
 `/api` with no CORS anywhere is a property of `infra/web/nginx.conf`. If you want the site and
 the app on separate hostnames you will need a second certificate, a second deployment, and a

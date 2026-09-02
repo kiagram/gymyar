@@ -40,7 +40,7 @@ HTTPS, passkeys on a domain you own, backups, invite-only signup — see
 ```
 apps/client       React 19 + Vite PWA, wrapped by Capacitor 7 for iOS and Android
 apps/api          Fastify — auth, delta sync, coaching
-apps/site         the project site, served at / with the app at /app/ (static, no build)
+apps/site         the project site: Persian at /, English at /en/, the app at /app/ (no build)
 packages/domain   runtime-agnostic training logic, shared by client and server
 packages/db       Postgres schema, migrations, sync engine, coaching rules
 packages/storage  uploaded bytes — the one thing that is not a row

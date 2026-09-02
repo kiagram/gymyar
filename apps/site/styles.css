@@ -1,198 +1,428 @@
-/* GymYar project site — matches the app: dark, brand emerald, cards, system font. */
+/* GymYar — the project site.
+ *
+ * Editorial, not a landing page. Ivory paper, onyx ink, emerald used the way a printer uses
+ * a second colour: rules, the mark, one accent per screen — never a fill behind a paragraph.
+ *
+ * Three things carry the whole design, and each replaced something that made the old sheet
+ * read as generated: hairlines instead of rounded cards, a ruled index instead of a grid of
+ * emoji, and one typeface at four sizes instead of eight weights of nothing in particular.
+ *
+ * The same file serves both languages. Every rule with a side to it is written with logical
+ * properties, so <html lang="fa" dir="rtl"> mirrors the page and there is one stylesheet
+ * rather than two that drift. The only genuinely language-specific rules are at the foot.
+ */
+
+/* ── The typeface ────────────────────────────────────────────────────────────────────────
+ *
+ * Vazirmatn, self-hosted. The old sheet named it and shipped nothing, which on a Persian-first
+ * site means the primary language falls through to whatever Arabic face the machine happens
+ * to carry — a different typeface per visitor, and no way to set a type scale against it.
+ *
+ * One variable file covers 100–900 for both scripts, which is also why there is no second
+ * Latin face: this site mixes scripts inside single lines (AGPL, docker compose, ۱٬۳۲۴) and a
+ * Latin-first stack sets each half of such a line in a different typeface.
+ *
+ * Self-hosted rather than Google Fonts, which is not reachable from Iran. The file is copied
+ * into the image from infra/web/ by infra/web/Dockerfile — see apps/site/README.md.
+ */
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/vazirmatn-variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --bg: #0c0e12; --card: #16181d; --card2: #1c1f26; --line: #23262d;
-  --fg: #f2f2f7; --dim: #8e8e93; --faint: #6e6e73;
-  --acc: #1fa774; --acc-dim: rgba(31, 167, 116, .12);
-  /* Brand emerald carries text at 6.3:1 on --bg, but white on it is only 3.1:1. Filled
-   * controls therefore sit one step darker so their white label clears AA. Same emerald
-   * to the eye; the difference is only there to make the contrast legal. */
-  --acc-fill: #17835b;
-  color-scheme: dark;
+  /* Paper and ink. Ivory and onyx are the brand's own two neutrals; everything between them
+   * is a step off one of the two, never a grey borrowed from somewhere else. */
+  --paper:   #f3f0e8;   /* IVORY — the ground */
+  --paper-2: #eae6da;   /* one step down: insets, the mat behind a screenshot */
+  --paper-3: #fbfaf6;   /* one step up: the single raised panel per section */
+  --ink:     #0b0d0e;   /* ONYX — 17.1:1 on ivory */
+  --ink-2:   #4a4c46;   /* secondary prose — 7.6:1 */
+  --ink-3:   #63655c;   /* labels, captions, indices — 5.2:1, still AA */
+  --rule:      #d6d0be; /* a drawn line: section edges, frames */
+  --rule-soft: #e4dfd1; /* a whisper: rows inside a list */
+
+  /* Emerald, in two values that are not interchangeable.
+   * --emerald is the brand, #1FA774, and it is only 2.7:1 on ivory — so it draws lines and
+   * marks and never carries a word. --emerald-ink is the same colour taken deep enough to be
+   * read: 5.9:1 on ivory, 6.7:1 under white, and it is the only one allowed on text or behind
+   * a label. Swapping the two is how this page would lose its contrast silently. */
+  --emerald:     #1fa774;
+  --emerald-ink: #12694a;
+  --emerald-air: rgba(31, 167, 116, .09);
+
+  --code:    #14171a;   /* code sits dark on the light page, the way it does in print */
+  --code-fg: #e7e4dc;
+
+  color-scheme: light;
+  --shot-shadow: 0 1px 2px rgba(11, 13, 14, .05), 0 12px 34px -18px rgba(11, 13, 14, .35);
 }
+
+/* The dark counterpart. Not a second design — the same one with paper and ink exchanged,
+ * which is what keeps it from drifting. Brand emerald reads at 6.4:1 on onyx, so on this
+ * side it is the accent ink and the deep green is not needed. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:   #0b0d0e;
+    --paper-2: #14171a;
+    --paper-3: #131618;
+    --ink:     #f3f0e8;
+    --ink-2:   #b4b3a8;
+    --ink-3:   #8c8c82;
+    --rule:      #2a2d2f;
+    --rule-soft: #1e2123;
+    --emerald-ink: #1fa774;
+    --emerald-air: rgba(31, 167, 116, .12);
+    --code:    #05070a;
+    --code-fg: #e7e4dc;
+    color-scheme: dark;
+    --shot-shadow: 0 14px 40px -22px rgba(0, 0, 0, .9);
+  }
+}
+
 * { margin: 0; box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+html { scroll-behavior: smooth; scroll-padding-top: 90px; -webkit-text-size-adjust: 100%; }
 body {
-  background: var(--bg); color: var(--fg);
-  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Roboto, sans-serif;
+  font-size: 17px;
+  line-height: 1.62;
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
 }
-a { color: var(--acc); text-decoration: none; }
-a:hover { text-decoration: underline; }
-img { max-width: 100%; }
+img, svg { max-width: 100%; }
+a { color: var(--emerald-ink); text-decoration: none; }
+/* Underlines sit off the baseline: Persian descenders and dots are struck through by one
+ * drawn at the default offset. */
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--emerald-ink); outline-offset: 3px; border-radius: 1px; }
 
-.wrap { max-width: 1060px; margin: 0 auto; padding: 0 22px; }
+.wrap { max-width: 1140px; margin-inline: auto; padding-inline: clamp(20px, 5vw, 44px); }
 
-/* ---------- nav ---------- */
+/* ── Labels ──────────────────────────────────────────────────────────────────────────────
+ * The small ruled caption that names a section, and the running index beside it. Latin gets
+ * tracking and small caps; Persian gets neither — see the foot of this file. */
+.eyebrow {
+  font-size: 12.5px; font-weight: 600; letter-spacing: .15em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.eyebrow .no { color: var(--emerald-ink); font-variant-numeric: tabular-nums; }
+
+/* ── Nav ─────────────────────────────────────────────────────────────────────────────────
+ * A rule under a row of words. No pill, no blur, no shadow: the page below it is paper, and
+ * a floating translucent bar is the one thing paper cannot be. */
 nav {
-  position: sticky; top: 0; z-index: 10;
-  background: rgba(12, 14, 18, .82); backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 20;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
 }
-.nav-in { display: flex; align-items: center; gap: 20px; height: 58px; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--fg); }
+.nav-in { display: flex; align-items: center; gap: 22px; min-height: 64px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 700; }
 .brand:hover { text-decoration: none; }
-.brand svg { width: 26px; height: 26px; }
-.nav-links { display: flex; gap: 18px; margin-inline-start: auto; align-items: center; flex-wrap: wrap; }
-.nav-links a { color: var(--dim); font-size: 14.5px; font-weight: 500; }
-.nav-links a:hover { color: var(--fg); text-decoration: none; }
-.nav-links a.cta { color: #fff; background: var(--acc-fill); padding: 7px 14px; border-radius: 10px; font-weight: 600; }
-.icn { fill: none; stroke: var(--acc); stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
-
-/* ---------- hero ---------- */
-header.hero { text-align: center; padding: 74px 0 30px; }
-.hero .logo {
-  width: 108px; height: 108px; margin: 0 auto 22px; border-radius: 26px;
-  background: var(--card); display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 90px rgba(230, 57, 53, .16);
+.brand img { width: 23px; height: 32px; display: block; }
+.brand .name { font-size: 17px; }
+.nav-links { display: flex; align-items: center; gap: 20px; margin-inline-start: auto; }
+.nav-links a { color: var(--ink-2); font-size: 14.5px; font-weight: 500; }
+.nav-links a:hover { color: var(--ink); text-decoration: none; }
+/* The language switch. Deliberately not a flag: a flag names a country and the choice here is
+ * a script. It is set in its own language, which is the only label a person looking for it
+ * can actually read. */
+.nav-links a.lang { color: var(--ink); border-bottom: 1px solid var(--rule); padding-bottom: 2px; }
+.nav-links a.lang:hover { border-color: var(--emerald-ink); }
+.nav-links a.cta {
+  color: var(--paper); background: var(--emerald-ink);
+  padding: 9px 18px; border-radius: 2px; font-weight: 600;
 }
-.hero .logo svg { width: 66px; height: 66px; }
-.hero h1 { font-size: clamp(38px, 7vw, 56px); letter-spacing: -.03em; }
-.hero .tag { font-size: clamp(17px, 3vw, 21px); color: var(--dim); margin: 10px auto 6px; max-width: 640px; }
-.hero .sub { color: var(--faint); font-size: 15px; max-width: 560px; margin: 0 auto; }
-.hero-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+.nav-links a.cta:hover { color: var(--paper); filter: brightness(1.12); }
 
-.btn {
-  display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 13px;
-  background: var(--acc-fill); color: #fff; font-weight: 600; font-size: 16px;
+/* ── The hero ────────────────────────────────────────────────────────────────────────────
+ * Asymmetric on purpose. A centred column under a rounded-square icon is the shape every
+ * generated landing page has; this one hangs the type off the reading edge and lets the
+ * screenshot run past the fold. */
+.hero { padding: clamp(44px, 7vw, 86px) 0 0; }
+.hero-in {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 296px);
+  gap: clamp(28px, 6vw, 72px); align-items: end;
 }
-.btn:hover { text-decoration: none; filter: brightness(1.08); }
-.btn.ghost { background: var(--card2); color: var(--fg); }
-.btn .ct { background: rgba(0, 0, 0, .22); border-radius: 7px; padding: 1px 8px; font-size: 13.5px; font-variant-numeric: tabular-nums; }
-.btn.ghost .ct { background: rgba(255, 255, 255, .08); }
-
-/* ---------- sections ---------- */
-section { padding: 54px 0 10px; }
-.kicker { color: var(--acc); font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: .08em; }
-h2 { font-size: clamp(26px, 4.5vw, 34px); letter-spacing: -.02em; margin: 6px 0 10px; }
-.lead { color: var(--dim); max-width: 680px; margin-bottom: 30px; }
-
-/* ---------- feature grid ---------- */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-.feat { background: var(--card); border-radius: 16px; padding: 18px; }
-.feat .ic {
-  width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center;
-  justify-content: center; font-size: 19px; margin-bottom: 12px; background: var(--acc-dim);
+.hero .mark { width: 40px; height: 56px; display: block; margin-bottom: 26px; }
+.hero h1 {
+  font-size: clamp(38px, 6.4vw, 70px); font-weight: 700; line-height: 1.06;
+  letter-spacing: -.03em; margin: 14px 0 0; max-width: 15ch;
 }
-.feat h3 { font-size: 16px; margin-bottom: 4px; }
-.feat p { font-size: 13.5px; color: var(--dim); }
+.hero .lead { color: var(--ink-2); font-size: clamp(16.5px, 2vw, 19px); max-width: 46ch; margin-top: 20px; }
+.hero-btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px; }
 
-/* ---------- screenshots ---------- */
-.shots { display: flex; gap: 16px; overflow-x: auto; padding: 8px 2px 18px; scroll-snap-type: x mandatory; }
-.shots figure { flex: 0 0 auto; scroll-snap-align: center; text-align: center; }
-.shots img {
-  width: min(240px, 62vw); height: auto; border-radius: 22px;
-  border: 1px solid var(--line); display: block; background: var(--card);
+/* The line of facts under the buttons. Four claims separated by rules — the same information
+ * the old page put in four rounded boxes, in a quarter of the space. */
+.facts {
+  display: flex; flex-wrap: wrap; margin-top: 40px;
+  border-top: 1px solid var(--rule); padding-top: 16px; gap: 4px 28px;
 }
-.shots figcaption { color: var(--faint); font-size: 13px; margin-top: 8px; }
+.facts span { font-size: 13.5px; color: var(--ink-3); }
+.facts b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 
-/* ---------- demo-seed note ---------- */
-.demo-note { text-align: center; color: var(--faint); font-size: 13.5px; margin-top: 14px; }
-
-/* ---------- flavors ---------- */
-.duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
-.card {
-  background: var(--card); border-radius: 18px; padding: 24px; border: 1px solid transparent;
+/* The phone. A hairline frame and a mat, like a plate in a book — not a floating card. */
+.hero-shot { margin: 0; align-self: end; }
+.hero-shot img {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--rule); background: var(--paper-2); padding: 7px;
+  box-shadow: var(--shot-shadow);
 }
-.card.hl { border-color: rgba(230, 57, 53, .35); }
-.card h3 { font-size: 20px; margin-bottom: 4px; display: flex; gap: 9px; align-items: center; }
-.card .for { color: var(--faint); font-size: 13.5px; margin-bottom: 14px; }
-.card ul { list-style: none; padding: 0; margin: 0 0 18px; }
-.card li { padding: 6px 0; padding-inline-start: 26px; position: relative; font-size: 14.5px; color: var(--dim); }
-.card li::before { content: "✓"; position: absolute; inset-inline-start: 2px; color: var(--acc); font-weight: 700; }
-.card li.no::before { content: "—"; color: var(--faint); }
-.card .btn { width: 100%; justify-content: center; }
-.meta { font-size: 12.5px; color: var(--faint); margin-top: 10px; text-align: center; }
-
-/* ---------- story / quote ---------- */
-.story {
-  background: linear-gradient(160deg, var(--card) 0%, #12161c 100%);
-  border-radius: 20px; padding: clamp(24px, 5vw, 44px); margin-top: 6px;
+@media (max-width: 860px) {
+  .hero-in { grid-template-columns: minmax(0, 1fr); }
+  .hero-shot { display: none; }   /* the filmstrip below shows the same screen, larger */
 }
-.story blockquote { font-size: clamp(18px, 3vw, 23px); line-height: 1.5; letter-spacing: -.01em; max-width: 760px; }
-.story blockquote strong { color: var(--acc); font-weight: 600; }
-.story .who { color: var(--faint); margin-top: 16px; font-size: 14.5px; }
 
-/* ---------- open source strip ---------- */
-.os { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
-.stat { background: var(--card); border-radius: 14px; padding: 16px 22px; min-width: 130px; }
-.stat b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
-.stat span { color: var(--faint); font-size: 13px; }
+/* ── Bands ───────────────────────────────────────────────────────────────────────────────
+ * Every section is a band: a rule across the page, an index and a label in the margin, the
+ * argument in the wide column. The margin column is what makes the page read as set rather
+ * than stacked, and it is the first thing to go on a phone. */
+.band { border-top: 1px solid var(--rule); padding: clamp(46px, 6.5vw, 84px) 0; }
+.band-head {
+  display: grid; grid-template-columns: 148px minmax(0, 1fr);
+  gap: clamp(14px, 3vw, 44px); align-items: start; margin-bottom: clamp(28px, 4vw, 46px);
+}
+.band-head .eyebrow { padding-top: .55em; }
+.band h2 {
+  font-size: clamp(25px, 3.6vw, 40px); font-weight: 650; line-height: 1.18;
+  letter-spacing: -.025em; max-width: 20ch;
+}
+.band .lead { color: var(--ink-2); max-width: 62ch; margin-top: 14px; font-size: 16.5px; }
+@media (max-width: 760px) {
+  .band-head { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .band-head .eyebrow { padding-top: 0; }
+}
 
-/* ---------- live instance counters ---------- */
-/* `#instance` is the one section on this site whose contents come from the database. It ships
- * with the `hidden` attribute and site.js removes it once the API has answered — so a site
- * served with no backend behind it, or one whose owner publishes nothing, simply does not have
- * this section rather than having an empty one. */
-.kicker.live::before {
-  content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-  background: var(--acc); margin-inline-end: 8px; vertical-align: 1px;
+/* ── The hairline grid ───────────────────────────────────────────────────────────────────
+ * Cells divided by a 1px gap that the container's own colour shows through, so every rule
+ * between two cells is exactly one line and there are no rounded boxes anywhere. Ruled top
+ * and bottom, open at the sides — a table in a book, not a set of cards. */
+.hair {
+  display: grid; gap: 1px; background: var(--rule-soft);
+  border-block: 1px solid var(--rule);
+}
+.hair > * { background: var(--paper); padding: clamp(22px, 2.6vw, 30px) clamp(16px, 2.2vw, 28px); }
+.hair.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hair.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.hair.c4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.hair.c5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1000px) { .hair.c5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .hair.c3, .hair.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) {
+  .hair.c2, .hair.c3, .hair.c4 { grid-template-columns: minmax(0, 1fr); }
+  .hair.c5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.note-item .glyph { display: block; margin-bottom: 14px; }
+.note-item .glyph svg { width: 26px; height: 26px; display: block; }
+.gl { fill: none; stroke: var(--emerald-ink); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.note-item h3 { font-size: 16.5px; font-weight: 650; margin-bottom: 6px; }
+.note-item p { font-size: 14.5px; color: var(--ink-2); line-height: 1.62; }
+
+/* ── The ruled index ─────────────────────────────────────────────────────────────────────
+ * Fifteen features. As cards that is a wall of boxes with an emoji apiece; as an index it is
+ * a page of a manual, which is what it actually is. Two columns of rows on a wide screen,
+ * each row a number, a name and a sentence. */
+.index { list-style: none; padding: 0; margin: 0; column-gap: clamp(24px, 4vw, 56px); }
+@media (min-width: 900px) { .index { columns: 2; } }
+.index li {
+  break-inside: avoid; display: grid; grid-template-columns: 2.6rem minmax(0, 1fr);
+  gap: 2px 12px; padding: 15px 0; border-top: 1px solid var(--rule-soft);
+}
+.index li:first-child { border-top: 0; }
+.index .n {
+  grid-row: 1 / span 2; font-size: 12.5px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums; padding-top: .45em;
+}
+.index h3 { font-size: 16px; font-weight: 650; }
+.index p { font-size: 14.5px; color: var(--ink-2); line-height: 1.6; }
+
+/* ── Figures ─────────────────────────────────────────────────────────────────────────────
+ * Numbers set as numbers: tabular, large, on a rule. Not five pills. */
+.figure b {
+  display: block; font-size: clamp(28px, 3.6vw, 42px); font-weight: 600;
+  letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.figure span { display: block; font-size: 13px; color: var(--ink-3); margin-top: 6px; }
+/* `#instance` is the one section whose contents come out of the database. It ships with the
+ * `hidden` attribute and site.js removes it only once an instance has answered — so the same
+ * files serve correctly with no backend behind them: the section simply is not there. */
+.live { display: inline-flex; align-items: center; gap: 8px; }
+.live::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--emerald); flex: none;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .kicker.live::before { animation: live-pulse 2.6s ease-in-out infinite; }
+  .live::before { animation: pulse 2.8s ease-in-out infinite; }
 }
-@keyframes live-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .3 } }
-/* The strip's own footnote sits under a left-aligned block, unlike `.meta` inside a card. */
-#instance .meta { text-align: start; margin-top: 18px; max-width: 680px; }
+@keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
 
-/* ---------- docs / prose pages ---------- */
-.prose { max-width: 760px; padding: 46px 0 20px; }
-.prose h1 { font-size: clamp(30px, 5vw, 40px); letter-spacing: -.02em; margin-bottom: 8px; }
-.prose > p.lead { margin-bottom: 34px; }
-.prose h2 { font-size: 24px; margin: 44px 0 10px; }
-.prose h3 { font-size: 17.5px; margin: 26px 0 8px; }
-.prose p, .prose li { color: #c7c7cc; font-size: 15.5px; }
-.prose ul, .prose ol { padding-inline-start: 22px; margin: 10px 0; }
-.prose li { margin: 5px 0; }
+/* ── Screens ─────────────────────────────────────────────────────────────────────────────
+ * A contact sheet. Hairline frames, a mat, captions ruled underneath. */
+.strip {
+  display: flex; gap: clamp(14px, 2vw, 22px); overflow-x: auto;
+  padding-bottom: 20px; scroll-snap-type: x mandatory; scrollbar-width: thin;
+}
+.strip figure { flex: 0 0 auto; scroll-snap-align: center; width: min(232px, 60vw); margin: 0; }
+.strip img {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--rule); background: var(--paper-2); padding: 6px;
+}
+.strip figcaption {
+  font-size: 12.5px; color: var(--ink-3); margin-top: 10px; padding-top: 8px;
+  border-top: 1px solid var(--rule-soft); letter-spacing: .12em; text-transform: uppercase;
+}
+
+/* ── Panels ──────────────────────────────────────────────────────────────────────────────
+ * Pricing, and the two downloads. Two columns of one hairline grid, and the one that matters
+ * is a shade of paper rather than a border in the accent colour. */
+.panel h3 { font-size: 20px; font-weight: 650; letter-spacing: -.015em; }
+.panel .for { color: var(--ink-3); font-size: 14px; margin: 4px 0 18px; }
+.panel ul { list-style: none; padding: 0; margin: 0 0 20px; }
+.panel li {
+  font-size: 14.5px; color: var(--ink-2); padding: 7px 0; padding-inline-start: 22px;
+  position: relative; border-top: 1px solid var(--rule-soft);
+}
+.panel li:first-child { border-top: 0; }
+.panel li::before {
+  content: ""; position: absolute; inset-inline-start: 2px; top: 1.05em;
+  width: 8px; height: 1.5px; background: var(--emerald-ink);
+}
+.panel li.no::before { background: var(--ink-3); opacity: .5; }
+.panel .btn { width: 100%; justify-content: center; }
+.panel .btn + .btn { margin-top: 10px; }
+.panel .meta { font-size: 12.5px; color: var(--ink-3); margin-top: 12px; line-height: 1.65; }
+.panel.primary { background: var(--paper-3); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────────────────
+ * 2px, not 13. A radius large enough to notice is a decision the rest of this page does not
+ * make anywhere else. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 13px 24px; border: 1px solid var(--emerald-ink); border-radius: 2px;
+  background: var(--emerald-ink); color: var(--paper);
+  font: inherit; font-size: 15.5px; font-weight: 600;
+  transition: border-color .16s ease, color .16s ease, filter .16s ease;
+}
+.btn:hover { text-decoration: none; color: var(--paper); filter: brightness(1.12); }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
+.btn.ghost:hover { border-color: var(--ink); filter: none; color: var(--ink); }
+.btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* ── The one dark band ───────────────────────────────────────────────────────────────────
+ * Full bleed, onyx, ivory type: the fork's own paragraph, set as a plate. One per page. */
+.slab {
+  background: var(--ink); color: var(--paper);
+  padding: clamp(56px, 8vw, 104px) 0;
+}
+.slab .eyebrow { color: rgba(243, 240, 232, .58); }
+.slab blockquote {
+  font-size: clamp(20px, 2.9vw, 31px); line-height: 1.42; letter-spacing: -.02em;
+  max-width: 26ch; font-weight: 500; margin: 0;
+}
+.slab blockquote strong { color: var(--emerald); font-weight: 600; }
+.slab .who { margin-top: 26px; font-size: 14.5px; color: rgba(243, 240, 232, .6); }
+.slab .who a { color: var(--paper); border-bottom: 1px solid rgba(243, 240, 232, .35); }
+.slab .who a:hover { text-decoration: none; border-color: var(--emerald); }
+.slab-in { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: clamp(14px, 3vw, 44px); }
+@media (max-width: 760px) { .slab-in { grid-template-columns: minmax(0, 1fr); gap: 14px; } }
+
+/* ── Held-back paragraphs ────────────────────────────────────────────────────────────────
+ * An edge rule in the accent and a breath of paper — no tinted panel, no icon, nothing that
+ * announces itself as a callout. */
+.aside {
+  border-inline-start: 2px solid var(--emerald-ink); background: var(--emerald-air);
+  padding: 18px clamp(16px, 2.4vw, 26px); margin-top: 30px; font-size: 15px; color: var(--ink-2);
+  max-width: 76ch;
+}
+.aside b { color: var(--ink); }
+.foot-note { font-size: 13.5px; color: var(--ink-3); margin-top: 20px; max-width: 72ch; }
+
+/* ── Prose pages ─────────────────────────────────────────────────────────────────────────
+ * docs and about. One measure, headings hung on rules, and nothing else. */
+.prose { max-width: 74ch; padding: clamp(40px, 6vw, 72px) 0 20px; }
+.prose h1 { font-size: clamp(30px, 4.6vw, 46px); font-weight: 700; letter-spacing: -.03em; line-height: 1.1; }
+.prose > .lead { font-size: 18px; color: var(--ink-2); margin-top: 16px; margin-bottom: 38px; }
+.prose h2 {
+  font-size: 22px; font-weight: 650; letter-spacing: -.02em;
+  margin: 52px 0 12px; padding-top: 18px; border-top: 1px solid var(--rule);
+}
+.prose h3 { font-size: 17px; font-weight: 650; margin: 30px 0 8px; }
+.prose p, .prose li { color: var(--ink-2); font-size: 16.5px; }
+.prose p { margin: 12px 0; }
+.prose strong, .prose b { color: var(--ink); font-weight: 650; }
+.prose ul, .prose ol { padding-inline-start: 20px; margin: 12px 0; }
+.prose li { margin: 7px 0; }
+
+.toc { display: flex; gap: 8px; flex-wrap: wrap; margin: 24px 0 8px; }
+.toc a {
+  font-size: 13.5px; color: var(--ink-2); border: 1px solid var(--rule);
+  border-radius: 2px; padding: 6px 13px;
+}
+.toc a:hover { border-color: var(--ink); color: var(--ink); text-decoration: none; }
+
 .note {
-  background: var(--acc-dim); border-inline-start: 3px solid var(--acc);
-  border-start-start-radius: 0; border-end-start-radius: 0;
-  border-start-end-radius: 10px; border-end-end-radius: 10px; padding: 12px 16px; margin: 16px 0; font-size: 14.5px;
+  border-inline-start: 2px solid var(--emerald-ink); background: var(--emerald-air);
+  padding: 14px 18px; margin: 20px 0; font-size: 15.5px; color: var(--ink-2);
 }
+.note p { margin: 6px 0; font-size: 15.5px; }
+.note b { color: var(--ink); }
+
 pre {
-  background: #0a0c10; border: 1px solid var(--line); border-radius: 12px;
-  padding: 16px; overflow-x: auto; font-size: 13.5px; line-height: 1.55; margin: 14px 0;
+  background: var(--code); color: var(--code-fg); border-radius: 2px;
+  padding: 16px 18px; overflow-x: auto; font-size: 13.5px; line-height: 1.6; margin: 16px 0;
 }
-code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-p code, li code { background: var(--card2); border-radius: 6px; padding: 1.5px 6px; font-size: 13.5px; }
-.toc { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0 6px; }
-.toc a { background: var(--card); border-radius: 999px; padding: 7px 15px; font-size: 13.5px; color: var(--dim); }
-.toc a:hover { color: var(--fg); text-decoration: none; }
+code { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+pre code { color: inherit; }
+p code, li code, td code {
+  background: var(--paper-2); border: 1px solid var(--rule-soft); border-radius: 2px;
+  padding: 1px 6px; font-size: 13.5px;
+}
 
-/* ---------- footer ---------- */
-footer { border-top: 1px solid var(--line); margin-top: 70px; padding: 30px 0 46px; }
-.foot { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; color: var(--faint); font-size: 14px; }
-.foot .links { margin-inline-start: auto; display: flex; gap: 16px; flex-wrap: wrap; }
-.foot a { color: var(--dim); }
+table { border-collapse: collapse; width: 100%; margin: 18px 0; font-size: 15px; }
+th, td { text-align: start; padding: 10px 12px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+th { color: var(--ink-3); font-weight: 600; font-size: 13px; border-bottom-color: var(--rule); }
+td { color: var(--ink-2); }
 
-@media (max-width: 640px) {
-  .nav-links { gap: 12px; }
+/* ── Footer ──────────────────────────────────────────────────────────────────────────────*/
+footer { border-top: 1px solid var(--rule); margin-top: clamp(48px, 7vw, 90px); padding: 34px 0 56px; }
+.foot { display: flex; gap: 14px 26px; flex-wrap: wrap; align-items: center; color: var(--ink-3); font-size: 13.5px; }
+.foot a { color: var(--ink-2); }
+.foot .links { margin-inline-start: auto; display: flex; gap: 18px; flex-wrap: wrap; }
+
+@media (max-width: 720px) {
+  .nav-links { gap: 14px; }
   .nav-links a.hide-s { display: none; }
   .nav-in { gap: 12px; }
-  header.hero { padding-top: 52px; }
 }
 
-/* ---------- Persian, and right to left ---------- */
-/* The Persian pages under /fa/ load this same stylesheet with <html lang="fa" dir="rtl">.
- * Nothing above needs a mirrored copy: every rule that had a side to it — the nav's
- * margin, the ✓ before a card's list item, the prose indent, the note's accent edge — is
- * written with logical properties, so it flips with `dir` and there is one stylesheet
- * rather than two that drift. Only the things below are genuinely language-specific. */
+/* ── Persian, and right to left ──────────────────────────────────────────────────────────
+ *
+ * The pages at `/` are Persian and the ones under `/en/` are English; both load this file.
+ * Nothing above needs a mirrored copy — every rule with a side to it is logical, so `dir`
+ * flips it. Only what follows is genuinely about the script.
+ */
 
-/* No webfont. Google Fonts is not reachable from Iran, a self-hosted Vazirmatn is ~80 KB
- * of network before the first paint, and every platform that matters already ships a
- * Persian face: Segoe UI and Tahoma on Windows, the system UI font on iOS and macOS,
- * Noto Naskh/Roboto on Android. Naming Vazirmatn first costs nothing and picks it up on
- * the machines of the Iranian designers who do have it installed. */
-:lang(fa) {
-  font-family: Vazirmatn, "Segoe UI", Tahoma, "Iranian Sans", -apple-system,
-               BlinkMacSystemFont, "Noto Naskh Arabic", sans-serif;
-  line-height: 1.85;   /* Persian sits lower and its ascenders are taller; 1.6 crowds it. */
-}
+/* The type scale above carries negative tracking at four steps, which is right for the Latin
+ * it was set against and wrong for Persian: it tightens joins that already touch. The correct
+ * Persian value is not a smaller number, it is none — the same reset the app's index.css
+ * applies, and for the same reason. Do not replace this with per-step Persian values. */
+:lang(fa) * { letter-spacing: normal; }
+/* Persian sits lower on its line and its ascenders are taller; 1.62 crowds it. */
+:lang(fa) body { line-height: 1.8; }
+:lang(fa) .prose p, :lang(fa) .prose li { line-height: 1.95; }
+/* Small caps is a Latin device — there are no capitals to make small. Persian labels take
+ * their rank from weight and colour instead. */
+:lang(fa) .eyebrow, :lang(fa) .strip figcaption { text-transform: none; font-size: 13.5px; }
 /* Code, versions and shell commands stay Latin and left to right inside Persian prose —
  * `docker compose up -d` reversed is not a command anyone can run. */
-:lang(fa) code, :lang(fa) pre { direction: ltr; text-align: left; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-:lang(fa) .stat b { direction: ltr; }
-
-/* The language switch in the nav. Deliberately not a flag: a flag names a country, and
- * the choice here is a script. */
-.nav-links a.lang { color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 13px; }
-.nav-links a.lang:hover { border-color: var(--acc); }
+:lang(fa) code, :lang(fa) pre { direction: ltr; text-align: left; }
+:lang(fa) .figure b, :lang(fa) .facts b { direction: ltr; }
+/* A Persian headline runs longer than its English counterpart at the same meaning, and the
+ * display sizes above are set against English. Two steps back, and the measure opens up. */
+:lang(fa) .hero h1 { font-size: clamp(31px, 5.2vw, 56px); line-height: 1.32; max-width: 18ch; }
+:lang(fa) .band h2 { line-height: 1.42; max-width: 24ch; }
+:lang(fa) .slab blockquote { line-height: 1.62; max-width: 30ch; }
