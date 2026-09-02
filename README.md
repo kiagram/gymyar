@@ -187,6 +187,9 @@ the App Store and Google Play are not available on this path at all, and which c
 - [x] **Phase 7** — the visual identity, every icon cut from one vector and checked in CI
 - [x] **Phase 8** — check-ins and reminders, the rename to GymYar, self-hosting with backup
   and restore, the source published
+- [ ] **Phase 9** — wearables: Apple Health import and live heart rate over Bluetooth, so the
+  watch people already own feeds the log. The plan, and why the hubs are integrated rather
+  than the watches, is in [docs/WEARABLES.md](docs/WEARABLES.md)
 - [ ] **Launch** — exercise media licence, legal review
 
 See [CHANGELOG.md](CHANGELOG.md) for what all of that actually amounts to, and for the
