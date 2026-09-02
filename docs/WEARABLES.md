@@ -142,10 +142,17 @@ named rather than shown as "something went wrong" to somebody who has just waite
 Reading it in pieces means teaching the parser to scan across chunk boundaries — worth doing
 when somebody actually hits it.
 
-**Still homeless.** The parser also computes a daily resting heart rate, and there is nowhere
-to keep it: `bodyweight_entries` is the shape it wants and not the table it belongs in, since a
-day can have a resting figure without a weigh-in. That is a table, a sync surface and a chart
-— a feature rather than a migration — so it is read and dropped for now.
+**Resting heart rate, kept.** `013_resting_hr.sql` is a row per person per day, shaped like
+`bodyweight_entries` because it is the same kind of thing — and not a column *on* it, since a
+day can have a resting figure and no weigh-in, which most days of an import are. It syncs like
+every other daily row, and the Stats screen draws it under body weight, sharing that card's
+range control because the two are read together. Plotted the right way up, unlike the effort
+chart: a pulse is a number people already read.
+
+It reaches a coach under no circumstances — there is no scope for it and the coach view names
+what may cross rather than removing what may not, with a test pinning that. A session's heart
+rate does reach a coach who holds the `workouts` scope, since it is an attribute of a session
+that was shared; if that turns out to be the wrong line, it is one to move deliberately.
 
 ### M2 — Live heart rate over Bluetooth · 7 days
 

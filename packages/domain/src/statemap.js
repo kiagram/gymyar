@@ -321,6 +321,13 @@ export function stateToRows(S, { userId, modeFor }) {
     on_date: b.d,
     weight_kg: toKg(num(b.w), unit)
   }))
+  /* And the same again for a resting heart rate: one per day, the date is the key, no id.
+   * `bpm` is rounded here rather than trusted — it arrives from an importer's arithmetic and
+   * the column is a smallint with a range check on it, so a fractional 54.5 would be a failed
+   * push rather than a stored 54. */
+  const resting = (S.resting || [])
+    .filter(r => r && r.bpm != null && isFinite(Number(r.bpm)))
+    .map(r => ({ user_id: userId, on_date: r.d, bpm: Math.round(Number(r.bpm)) }))
   const weekPlan = Object.entries(S.week || {})
     .filter(([, rid]) => rid)
     .map(([weekday, routineId]) => ({ user_id: userId, weekday: Number(weekday), routine_id: routineId }))
@@ -357,7 +364,7 @@ export function stateToRows(S, { userId, modeFor }) {
   for (const k of SETTING_KEYS) if (S[k] !== undefined) settings[k] = S[k]
 
   return {
-    routines, workouts, workoutSets, bodyweight, weekPlan, dayOverrides, checkins,
+    routines, workouts, workoutSets, bodyweight, resting, weekPlan, dayOverrides, checkins,
     habits, habitTicks, exercises, settings
   }
 }
@@ -399,6 +406,16 @@ export function applyRows(S, changes, { modeFor }) {
       else by.set(d, { d, w: fromKg(num(row.weight_kg), unit) })
     }
     next.bodyweight = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1))
+  }
+
+  if (changes.resting) {
+    const by = new Map((next.resting || []).map(r => [r.d, r]))
+    for (const row of changes.resting) {
+      const d = iso(row.on_date)
+      if (row.deleted_at) by.delete(d)
+      else by.set(d, { d, bpm: num(row.bpm) })
+    }
+    next.resting = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1))
   }
 
   if (changes.checkins) {

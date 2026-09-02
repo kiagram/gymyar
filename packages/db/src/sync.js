@@ -41,6 +41,7 @@ const TABLES = {
   routines:           { key: 'routines',     id: r => r.id },
   workouts:           { key: 'workouts',     id: r => r.id },
   bodyweight_entries: { key: 'bodyweight',   id: r => String(r.on_date) },
+  resting_hr:         { key: 'resting',      id: r => String(r.on_date) },
   checkins:           { key: 'checkins',     id: r => String(r.on_date) },
   habits:             { key: 'habits',       id: r => r.id },
   /* Two columns in one address. The date is always the last ten characters of it, which is why
@@ -85,12 +86,13 @@ export async function pull(userId, since = 0, s = db()) {
 /** Everything a user has, as a first sync. Also how a coach reads a client's training. */
 export async function pullAll(userId, s = db()) {
   const cursor = await cursorFor(userId, s)
-  const [routines, workouts, bodyweight, exercises, weekPlan, dayOverrides, checkins,
+  const [routines, workouts, bodyweight, resting, exercises, weekPlan, dayOverrides, checkins,
          habits, habitTicks, settings] =
     await Promise.all([
       s`select * from routines where user_id = ${userId} and deleted_at is null order by position`,
       loadWorkouts(s, userId),
       s`select * from bodyweight_entries where user_id = ${userId} and deleted_at is null order by on_date`,
+      s`select * from resting_hr where user_id = ${userId} and deleted_at is null order by on_date`,
       s`select * from exercises where owner_id = ${userId} and deleted_at is null`,
       s`select * from week_plan where user_id = ${userId}`,
       s`select * from day_overrides where user_id = ${userId} and deleted_at is null`,
@@ -102,7 +104,7 @@ export async function pullAll(userId, s = db()) {
   return {
     cursor,
     changes: {
-      routines, workouts, bodyweight, exercises, weekPlan, dayOverrides, checkins,
+      routines, workouts, bodyweight, resting, exercises, weekPlan, dayOverrides, checkins,
       habits, habitTicks,
       settings: settings[0]?.settings ?? {}
     }
@@ -123,6 +125,9 @@ async function readRows(s, table, userId, ids) {
   }
   if (table === 'bodyweight_entries') {
     return s`select * from bodyweight_entries where user_id = ${userId} and on_date in ${s(ids)}`
+  }
+  if (table === 'resting_hr') {
+    return s`select * from resting_hr where user_id = ${userId} and on_date in ${s(ids)}`
   }
   if (table === 'checkins') {
     return s`select * from checkins where user_id = ${userId} and on_date in ${s(ids)}`
@@ -236,6 +241,24 @@ export async function push(userId, payload = {}, s = db()) {
           'done', 'done_at')}`
       }
       await logChange(tx, userId, 'workouts', w.id)
+      touched++
+    }
+
+    // Same key, same rules and the same absence of a cross-account write to guard against:
+    // one figure per person per day, so the primary key scopes the upsert on its own.
+    for (const r of payload.resting || []) {
+      if (r.deleted) {
+        await tx`update resting_hr set deleted_at = now(), updated_at = now()
+                 where user_id = ${userId} and on_date = ${r.on_date}`
+        await logChange(tx, userId, 'resting_hr', String(r.on_date), 'delete')
+      } else {
+        await tx`
+          insert into resting_hr (user_id, on_date, bpm)
+          values (${userId}, ${r.on_date}, ${r.bpm})
+          on conflict (user_id, on_date) do update set
+            bpm = excluded.bpm, deleted_at = null, updated_at = now()`
+        await logChange(tx, userId, 'resting_hr', String(r.on_date))
+      }
       touched++
     }
 

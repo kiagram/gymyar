@@ -137,6 +137,27 @@ describe('heart rate', () => {
     ])
   })
 
+  it('carries the daily resting figures into the profile too', () => {
+    const p = parseAppleHealth(file(
+      ...restingDay('10', 50),
+      ...restingDay('11', 60),
+      workout('Running', '2026-01-11 18:00:00', '2026-01-11 18:30:00', ' duration="30" durationUnit="min"')))
+    const S = state()
+    const res = mergeImport(S, p)
+    expect(res.resting).toBe(2)
+    expect(S.resting).toEqual([{ d: '2026-01-10', bpm: 55 }, { d: '2026-01-11', bpm: 65 }])
+  })
+
+  it('leaves a day that already has a resting figure alone', () => {
+    const p = parseAppleHealth(file(
+      ...restingDay('10', 50),
+      workout('Running', '2026-01-11 18:00:00', '2026-01-11 18:30:00', ' duration="30" durationUnit="min"')))
+    const S = state()
+    S.resting.push({ d: '2026-01-10', bpm: 47 })     // measured, or imported from elsewhere first
+    expect(mergeImport(S, p).resting).toBe(0)
+    expect(S.resting).toEqual([{ d: '2026-01-10', bpm: 47 }])
+  })
+
   it('is carried into the profile with the session it belongs to', () => {
     const p = parseAppleHealth(withHr)
     const S = state()
@@ -184,7 +205,7 @@ describe('weigh-ins in the same file', () => {
   })
 })
 
-const state = () => ({ workouts: [], bodyweight: [], customEx: [], exWeights: {} })
+const state = () => ({ workouts: [], bodyweight: [], resting: [], customEx: [], exWeights: {} })
 
 describe('merging one into a profile', () => {
   const p = () => parseAppleHealth(file(
@@ -195,7 +216,7 @@ describe('merging one into a profile', () => {
   it('takes the sessions and the weigh-ins together', () => {
     const S = state()
     const res = mergeImport(S, p())
-    expect(res).toEqual({ added: 2, skipped: 0, weighIns: 1 })
+    expect(res).toEqual({ added: 2, skipped: 0, weighIns: 1, resting: 0 })
     expect(S.workouts.map(w => w.d)).toEqual(['2026-01-10', '2026-01-11'])
     expect(S.bodyweight).toHaveLength(1)
     expect(S.customEx).toHaveLength(1)             // the walk; the run was in the library
@@ -205,7 +226,7 @@ describe('merging one into a profile', () => {
     const S = state()
     mergeImport(S, p())
     const again = mergeImport(S, p())
-    expect(again).toEqual({ added: 0, skipped: 2, weighIns: 0 })
+    expect(again).toEqual({ added: 0, skipped: 2, weighIns: 0, resting: 0 })
     expect(S.workouts).toHaveLength(2)
     expect(S.bodyweight).toHaveLength(1)
     expect(S.customEx).toHaveLength(1)

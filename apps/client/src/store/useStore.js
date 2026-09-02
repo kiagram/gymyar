@@ -14,6 +14,10 @@ export const DEF = {
   unit: 'kg', restSec: 90, sound: true, keepAwake: true, lang: detectLang(),
   theme: 'dark', accent: 'red', body: 'male', targetW: null,
   bodyweight: [], routines: [], week: {}, dayPlan: {},
+  // A resting heart rate per day, from a health export. Empty on DEF for the same reason as
+  // the three below it: saved state is overlaid on this, so a profile written before it
+  // existed gets an array rather than every screen guarding against `undefined`.
+  resting: [],
   // Weekly answers, the habits somebody keeps, and every tick on them. Present on DEF rather
   // than left undefined because saved state is overlaid on this — a profile from before these
   // existed gets the empty arrays instead of a screen guarding against `undefined` everywhere.
