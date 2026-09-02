@@ -250,7 +250,9 @@ export default function Settings() {
     </Section>
     <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={doImport} />
     {/* Reset after reading so picking the same file twice still fires onChange. */}
-    <input ref={importRef} type="file" accept=".csv,.xml,text/csv,text/xml" style={{ display: 'none' }}
+    {/* `.zip` because that is the shape Apple Health arrives in, and asking somebody to unzip
+        it first is asking most people not to bother. */}
+    <input ref={importRef} type="file" accept=".csv,.xml,.zip,text/csv,text/xml,application/zip" style={{ display: 'none' }}
       onChange={ev => { const f = ev.target.files[0]; if (f) importFromApp(f); ev.target.value = '' }} />
 
     {/* "Add to Home screen" makes no sense inside the native app */}
