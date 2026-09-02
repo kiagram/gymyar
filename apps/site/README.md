@@ -59,9 +59,10 @@ registers it; it is reached only by a browser that already has the old one.
 
 ## Before deploying
 
-- **Set the domain.** `index.html` carries `https://gymyar.example/` in its Open Graph
-  `og:url` and `og:image` and in the JSON-LD `url`. Open Graph needs absolute URLs, so these
-  cannot be made relative — they have to be edited. Both languages carry their own.
+- ~~**Set the domain.**~~ Done: both `index.html` files carry `https://gymyar.kiarash.tech/`
+  in their Open Graph `og:url` and `og:image` and in the JSON-LD `url`, with `/fa/` on the
+  Persian side. Open Graph needs absolute URLs, so these cannot be made relative — if the
+  site ever moves, they have to be edited again, in both languages.
 - ~~**Set the repository.**~~ Done: `REPO` in `site.js` points at
   `github.com/kiagram/gymyar`, so the `data-repo` links are live — nav, footer, and the
   open-source button row, in both languages. Paths use `/blob/HEAD/`, which resolves to the
