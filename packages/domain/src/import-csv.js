@@ -14,12 +14,14 @@
 // spreadsheet round-trips people actually have on disk, as long as the file has a
 // date, an exercise name and something measured.
 //
-// Apple Health is a different animal — an XML dump, often hundreds of MB — and only its
-// body-weight records are interesting here. parseBodyweight() scans for those without
-// building a DOM.
+// Apple Health is a different animal — an XML dump, often hundreds of MB. parseAppleHealth()
+// reads its sessions, its heart rate and its weigh-ins by scanning rather than building a
+// DOM; parseBodyweight() is the older and narrower path, and still the one a plain CSV of
+// weights takes.
 
 import { EXDB, EXIDX } from './exercises.js'
 import { uid } from './format.js'
+import { hrStats, restingHr, RESTING_LOWEST } from './heartrate.js'
 
 /* ----------------------------------------------------------------- CSV ---- */
 
@@ -501,10 +503,263 @@ export function parseBodyweight(text, { unit = 'kg' } = {}) {
   }
 }
 
+/* ------------------------------------------------------- Apple Health ----- */
+
+/**
+ * The whole of an Apple Health export, not only the weights: sessions, and the heart rate
+ * recorded during them.
+ *
+ * This is the one integration that reaches every watch at once. Apple Watch writes here,
+ * and so does Zepp, Garmin, Polar, Fitbit, Whoop and Oura — the hub is the integration, and
+ * a vendor is not (see docs/WEARABLES.md). It is also the only one that needs no native
+ * code, no permission and no account, so it runs in the PWA and in both native builds
+ * unchanged.
+ *
+ * ## Why two passes and not a DOM
+ *
+ * `export.xml` runs to hundreds of megabytes, nearly all of it step counts and heart rate.
+ * `parseBodyweight` above already scans rather than parses for that reason and this keeps
+ * its technique. Two passes rather than one because Apple writes every `<Record>` first and
+ * every `<Workout>` last, so the spans a heart-rate sample might belong to are not known
+ * until the file has been read once — and the alternative, holding every sample in memory
+ * until the workouts show up, is a hundred thousand objects on a phone. Pass one takes the
+ * body mass and the sessions, which are rare; pass two streams the heart rate past those
+ * spans and keeps only what lands inside one, plus ten numbers per day for a resting figure.
+ *
+ * Bad records are skipped, never thrown on: a decade of health data contains oddities and
+ * losing the file over one of them helps nobody.
+ */
+export function parseAppleHealth(text, { unit = 'kg' } = {}) {
+  const s = String(text)
+  const weights = new Map()      // iso date -> { w, t }
+  let fileUnit = ''
+  const spans = []               // { ms, end, ... } one per HKWorkout, sorted after pass 1
+
+  // ---- pass 1: body mass and sessions. Both are rare, so the alternation is cheap.
+  // `<Workout` needs the boundary: without it the same pattern matches `<WorkoutStatistics`
+  // and `<WorkoutEvent`, which are children of a session rather than sessions, and every one
+  // of them would be read as a workout with no start date.
+  const p1 = /<Record[^>]*type="HKQuantityTypeIdentifierBodyMass"[^>]*>|<Workout(?=[\s>])[^>]*>/g
+  let m
+  while ((m = p1.exec(s))) {
+    const tag = m[0]
+    if (tag.startsWith('<Record')) {
+      const val = attr(tag, 'value'), dt = attr(tag, 'startDate') || attr(tag, 'creationDate')
+      const when = dt && appleDate(dt)
+      if (!val || !when) continue
+      const u = attr(tag, 'unit')
+      if (u) fileUnit = /lb/i.test(u) ? 'lb' : 'kg'
+      weights.set(when.d, { w: parseFloat(val), t: when.ms })
+      continue
+    }
+    // A workout carries its distance either as attributes (older exports) or as
+    // <WorkoutStatistics> children (iOS 16 and later), so the element's own body is read
+    // when it has one. There are a few hundred of these in a file, not a few hundred
+    // thousand, which is what makes looking inside them affordable at all.
+    const inner = tag.endsWith('/>') ? '' : innerOf(s, p1.lastIndex, '</Workout>')
+    const w = workoutFromHK(tag, inner)
+    if (w) spans.push(w)
+  }
+  spans.sort((a, b) => a.ms - b.ms)
+
+  // ---- pass 2: heart rate, against the spans pass one found.
+  //
+  // `lowest` keeps each day's ten smallest readings and nothing else — see RESTING_LOWEST in
+  // heartrate.js for why a count rather than a percentile. Everything outside a workout and
+  // above those ten is read once and dropped, which is what keeps a decade of data from
+  // having to fit in memory to be imported.
+  const lowest = new Map()       // iso date -> the day's ten smallest bpm, ascending
+  let hrSamples = 0
+  const p2 = /<Record[^>]*type="HKQuantityTypeIdentifierHeartRate"[^>]*>/g
+  while ((m = p2.exec(s))) {
+    const tag = m[0]
+    const bpm = Math.round(parseFloat(attr(tag, 'value')))
+    const dt = attr(tag, 'startDate') || attr(tag, 'creationDate')
+    if (!isFinite(bpm) || bpm < 25 || bpm > 240 || !dt) continue
+    const when = appleDate(dt)
+    if (!when) continue
+    hrSamples++
+
+    const span = spanAt(spans, when.ms)
+    if (span) span.hr.push({ t: when.ms, bpm })
+
+    let day = lowest.get(when.d)
+    if (!day) lowest.set(when.d, day = [])
+    if (day.length < RESTING_LOWEST || bpm < day[day.length - 1]) {
+      let i = day.length
+      while (i > 0 && day[i - 1] > bpm) i--
+      day.splice(i, 0, bpm)
+      if (day.length > RESTING_LOWEST) day.pop()
+    }
+  }
+
+  // ---- what any of that amounts to
+  const created = new Map()
+  const unmatched = new Set()
+  const workouts = spans.map(sp => {
+    let id = sp.exId
+    if (!id) {
+      let c = created.get(sp.name)
+      if (!c) {
+        c = { id: 'im' + uid(), n: sp.name, custom: true, eq: 'custom', tg: '', desc: '', bp: 'cardio' }
+        created.set(sp.name, c)
+        unmatched.add(sp.name)
+      }
+      id = c.id
+    }
+    const set = { min: sp.min, speed: sp.min > 0 && sp.km > 0 ? Math.round(sp.km / (sp.min / 60) * 10) / 10 : 0, done: true }
+    const w = {
+      id: 'iw' + uid(), d: sp.d, start: sp.ms, end: sp.end > sp.ms ? sp.end : sp.ms,
+      routineId: null, name: sp.title, entries: [{ id, sets: [set], topW: null }], prs: [], vol: 0,
+    }
+    // Read, reported, and deliberately not merged into the workout: `workouts` has no column
+    // for it, so `rowsToWorkout` would drop it on the first sync and the number would vanish
+    // from a PWA account without anything having failed. The migration that gives it a home
+    // is M3 in docs/WEARABLES.md; until then the summary says how much of it is in the file.
+    const hr = hrStats(sp.hr)
+    return hr ? { ...w, hr } : w
+  })
+
+  const dates = [...weights.keys()].sort()
+  const bodyweight = dates.map(d => ({ d, w: convertWeight(weights.get(d).w, fileUnit, unit), t: weights.get(d).t }))
+  const resting = [...lowest.keys()].sort()
+    .map(d => ({ d, bpm: restingHr(lowest.get(d).map(bpm => ({ bpm }))) }))
+    .filter(x => x.bpm != null)
+
+  // A weights-only export is what this file used to be able to read, and it still returns the
+  // shape that path expects rather than a new one the caller would have to learn.
+  if (!workouts.length) {
+    if (!bodyweight.length) return { error: 'unrecognised' }
+    return {
+      kind: 'bodyweight', source: 'Apple Health', bodyweight, fileUnit,
+      converted: !!fileUnit && fileUnit !== unit, from: dates[0], to: dates[dates.length - 1],
+    }
+  }
+
+  const days = workouts.map(w => w.d).sort()
+  const all = [...days, ...dates].sort()
+  return {
+    kind: 'health', source: 'Apple Health',
+    workouts, bodyweight, customEx: [...created.values()],
+    matched: new Set(workouts.map(w => w.entries[0].id).filter(id => EXIDX[id])).size,
+    created: created.size, unmatchedNames: [...unmatched].sort(),
+    sets: workouts.length,
+    fileUnit, converted: !!fileUnit && fileUnit !== unit, mixedUnits: false,
+    // Heart rate is counted here and stored nowhere — see the comment on the workout above.
+    hrSamples, hrWorkouts: workouts.filter(w => w.hr).length, resting,
+    from: all[0] || null, to: all[all.length - 1] || null,
+  }
+}
+
+// One attribute out of one tag. A tag here is at most a few hundred characters and there are
+// only a handful of attributes wanted per tag, so this is a regex per lookup rather than a
+// parse of the whole attribute list — the same trade the body-mass scan above already makes.
+const attr = (tag, name) => {
+  const m = new RegExp(`\\s${name}="([^"]*)"`).exec(tag)
+  return m ? m[1] : null
+}
+
+/** The text between here and the next `close`, or '' when there is no close tag ahead. */
+function innerOf(s, from, close) {
+  const end = s.indexOf(close, from)
+  return end === -1 ? '' : s.slice(from, end)
+}
+
+// "2024-03-07 18:20:00 +0330" — the phone's local time, with the offset it was recorded at.
+//
+// Both halves are wanted and they are not the same question. The local date is what the day a
+// session belongs to means to the person who trained: a 21:00 run in Tehran is that Tuesday,
+// whatever UTC calls it. The epoch is what a heart-rate sample is matched to a session with,
+// and getting that from the local half would put every sample three and a half hours out.
+//
+// Built by hand rather than handed to `new Date`, which is only specified to parse ISO 8601
+// — this format is not that, and what a runtime does with it is its own business.
+const APPLE_DT = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\s*([+-])(\d{2}):?(\d{2}))?/
+export function appleDate(str) {
+  const m = APPLE_DT.exec(String(str || '').trim())
+  if (!m) return null
+  const [, y, mo, da, h, mi, se, sign, oh, om] = m
+  const off = sign ? (sign === '-' ? -1 : 1) * ((+oh) * 3600000 + (+om) * 60000) : 0
+  return {
+    d: `${y}-${mo}-${da}`,
+    t: (+h) * 3600000 + (+mi) * 60000 + (+se) * 1000,
+    ms: Date.UTC(+y, +mo - 1, +da, +h, +mi, +se) - off,
+  }
+}
+
+// The session types the dataset has a real exercise for. Short on purpose: the rule the whole
+// importer runs on is that a wrong match is silent and permanent, so a type without an
+// obvious counterpart becomes a custom exercise named after itself rather than the nearest
+// thing in the library. There is no plain "walk" or "outdoor cycle" in the dataset, and
+// filing a walk under "walking on incline treadmill" would be inventing a treadmill.
+const HK_EXERCISE = {
+  running: '0685',
+  jumprope: '2612',
+  elliptical: '2141',
+  stairclimbing: '2311',
+  stairclimbingmachine: '2311',
+}
+
+// "HKWorkoutActivityTypeTraditionalStrengthTraining" -> "traditional strength training"
+const hkActivity = type => String(type || '')
+  .replace(/^HKWorkoutActivityType/, '')
+  .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+  .trim().toLowerCase()
+
+const DIST_STAT = /<WorkoutStatistics[^>]*type="HKQuantityTypeIdentifierDistance[^"]*"[^>]*>/
+
+/** One `<Workout>` element into the span the rest of this works from, or null. */
+function workoutFromHK(tag, inner) {
+  const when = appleDate(attr(tag, 'startDate'))
+  if (!when) return null
+  const endAt = appleDate(attr(tag, 'endDate'))
+
+  // Apple's own `duration` excludes the time a session was paused, which is what a speed
+  // should be computed against. Wall-clock from the two timestamps is the fallback.
+  const durUnit = (attr(tag, 'durationUnit') || 'min').toLowerCase()
+  const dur = parseFloat(attr(tag, 'duration'))
+  const min = isFinite(dur) && dur > 0
+    ? Math.round((durUnit === 's' || durUnit === 'sec' ? dur / 60 : durUnit === 'hr' ? dur * 60 : dur) * 10) / 10
+    : endAt ? Math.round((endAt.ms - when.ms) / 60000 * 10) / 10 : 0
+
+  let km = 0
+  const dv = attr(tag, 'totalDistance')
+  if (dv) km = toKm(dv, attr(tag, 'totalDistanceUnit') || 'km')
+  else if (inner) {
+    const st = DIST_STAT.exec(inner)
+    if (st) km = toKm(attr(st[0], 'sum'), attr(st[0], 'unit') || 'km')
+  }
+
+  const name = hkActivity(attr(tag, 'workoutActivityType')) || 'workout'
+  return {
+    ms: when.ms, end: endAt ? endAt.ms : when.ms, d: when.d,
+    min: min > 0 ? min : 0, km: km > 0 ? km : 0,
+    exId: HK_EXERCISE[name.replace(/\s/g, '')] || null,
+    name, title: name.replace(/^./, c => c.toUpperCase()),
+    hr: [],
+  }
+}
+
+/** The span containing this instant, by binary search on starts. Null outside all of them. */
+function spanAt(spans, ms) {
+  let lo = 0, hi = spans.length - 1, found = null
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (spans[mid].ms <= ms) { found = spans[mid]; lo = mid + 1 } else hi = mid - 1
+  }
+  return found && ms <= found.end ? found : null
+}
+
+// The same rounding and the same conversion the CSV path uses, in one place so the two
+// cannot drift into disagreeing about what 185 lb is.
+const convertWeight = (w, from, to) =>
+  !from || from === to ? Math.round(w * 10) / 10
+    : from === 'lb' ? Math.round(w * LB_TO_KG * 10) / 10 : Math.round(w / LB_TO_KG * 10) / 10
+
 /** Sniff the file and parse it as whatever it is. */
 export function parseImport(text, opts) {
   const s = String(text)
-  if (s.includes('HKQuantityTypeIdentifier') || /^\s*</.test(s)) return parseBodyweight(s, opts)
+  if (s.includes('HKQuantityTypeIdentifier') || /^\s*</.test(s)) return parseAppleHealth(s, opts)
   const asWorkouts = parseWorkoutCSV(s, opts)
   if (!asWorkouts.error) return asWorkouts
   const asWeights = parseBodyweight(s, opts)
@@ -513,16 +768,28 @@ export function parseImport(text, opts) {
 
 /* --------------------------------------------------------------- merge ---- */
 
+/** Weigh-ins into state. A day already weighed stands — this never overwrites a number. */
+function mergeBodyweight(S, rows) {
+  const have = new Set(S.bodyweight.map(b => b.d))
+  const fresh = rows.filter(b => !have.has(b.d))
+  S.bodyweight = [...S.bodyweight, ...fresh].sort((a, b) => (a.d < b.d ? -1 : 1))
+  return { added: fresh.length, skipped: rows.length - fresh.length }
+}
+
 /** Merge into state. Existing days win — importing twice never duplicates a workout. */
 export function mergeImport(S, parsed) {
-  if (parsed.kind === 'bodyweight') {
-    const have = new Set(S.bodyweight.map(b => b.d))
-    const fresh = parsed.bodyweight.filter(b => !have.has(b.d))
-    S.bodyweight = [...S.bodyweight, ...fresh].sort((a, b) => (a.d < b.d ? -1 : 1))
-    return { added: fresh.length, skipped: parsed.bodyweight.length - fresh.length }
-  }
+  if (parsed.kind === 'bodyweight') return mergeBodyweight(S, parsed.bodyweight)
+  // An Apple Health export is both things at once, and the weigh-ins in it are the same
+  // records the weights-only path has always read.
+  const weighIns = parsed.kind === 'health' && parsed.bodyweight
+    ? mergeBodyweight(S, parsed.bodyweight).added
+    : null
   const have = new Set(S.workouts.map(w => w.d))
-  const fresh = parsed.workouts.filter(w => !have.has(w.d))
+  // `hr` is dropped here rather than stored. There is no column for it, so a synced account
+  // would lose it on the first round-trip through the server and the number would disappear
+  // with nothing having failed — see the comment where it is computed, and M3 in
+  // docs/WEARABLES.md for the migration that gives it somewhere to live.
+  const fresh = parsed.workouts.filter(w => !have.has(w.d)).map(({ hr, ...w }) => w)
   const used = new Set(fresh.flatMap(w => w.entries.map(e => e.id)))
   const customs = parsed.customEx.filter(c => used.has(c.id) && !EXIDX[c.id])
   S.customEx = [...(S.customEx || []), ...customs]
@@ -532,5 +799,6 @@ export function mergeImport(S, parsed) {
     const mx = Math.max(0, ...e.sets.map(s => s.w || 0), e.topW || 0)
     if (mx > 0) { const cur = S.exWeights[e.id]; if (!cur || w.d >= cur.d) S.exWeights[e.id] = { w: mx, d: w.d } }
   }))
-  return { added: fresh.length, skipped: parsed.workouts.length - fresh.length }
+  const out = { added: fresh.length, skipped: parsed.workouts.length - fresh.length }
+  return weighIns == null ? out : { ...out, weighIns }
 }
