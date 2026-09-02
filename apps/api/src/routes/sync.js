@@ -28,7 +28,7 @@ export default async function syncRoutes(app) {
   app.post('/api/sync', async req => {
     const user = await requireUser(req)
     const payload = req.body?.changes ?? {}
-    const rows = ['routines', 'workouts', 'bodyweight', 'exercises', 'weekPlan', 'dayOverrides']
+    const rows = ['routines', 'workouts', 'bodyweight', 'resting', 'exercises', 'weekPlan', 'dayOverrides']
       .reduce((n, k) => n + (payload[k]?.length || 0), 0)
     // A bound, not a policy: a client with more than this to say has lost its cursor and should
     // be doing a full resync, not one enormous transaction that blocks everyone else's writes.

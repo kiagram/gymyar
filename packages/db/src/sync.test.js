@@ -158,6 +158,39 @@ describe('delta sync', () => {
     await expect(bad({ hr_avg_bpm: 138, hr_min_bpm: 96, hr_max_bpm: 171, hr_samples: 0 })).rejects.toThrow()
   })
 
+  it('carries a resting heart rate per day', async () => {
+    const u = await createUser({ name: 'A' })
+    await push(u.id, { resting: [{ on_date: '2026-06-01', bpm: 54 }, { on_date: '2026-06-02', bpm: 52 }] })
+    const { changes } = await pullAll(u.id)
+    expect(changes.resting.map(r => r.bpm)).toEqual([54, 52])
+  })
+
+  it('lets two people have the same resting day', async () => {
+    // The same trap the weigh-in row fell into: an id derived from the date alone is the same
+    // string for everybody, so the second person's day collided with the first's.
+    const a = await createUser({ name: 'A' })
+    const b = await createUser({ name: 'B' })
+    await push(a.id, { resting: [{ on_date: '2026-06-01', bpm: 54 }] })
+    await push(b.id, { resting: [{ on_date: '2026-06-01', bpm: 61 }] })
+    expect((await pullAll(a.id)).changes.resting[0].bpm).toBe(54)
+    expect((await pullAll(b.id)).changes.resting[0].bpm).toBe(61)
+  })
+
+  it('reports a changed and a deleted resting day in a delta', async () => {
+    const u = await createUser({ name: 'A' })
+    const first = await push(u.id, { resting: [{ on_date: '2026-06-01', bpm: 54 }, { on_date: '2026-06-02', bpm: 52 }] })
+    await push(u.id, { resting: [{ on_date: '2026-06-01', bpm: 49 }, { on_date: '2026-06-02', deleted: true }] })
+    const delta = await pull(u.id, first.cursor)
+    expect(delta.changes.resting).toHaveLength(2)
+    expect(delta.changes.resting.find(r => r.bpm === 49)).toBeTruthy()
+    expect(delta.changes.resting.find(r => r.deleted_at)).toBeTruthy()
+  })
+
+  it('refuses a resting rate no heart produced', async () => {
+    const u = await createUser({ name: 'A' })
+    await expect(push(u.id, { resting: [{ on_date: '2026-06-01', bpm: 3 }] })).rejects.toThrow()
+  })
+
   it('rolls the whole push back when one row fails', async () => {
     const u = await createUser({ name: 'A' })
     const before = await pull(u.id, 0)

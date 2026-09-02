@@ -216,6 +216,12 @@ function ImportSummary({ parsed, close }) {
       {t('{0} of these sessions bring a heart rate with them — an average, a low and a high, from {1} readings.',
         parsed.hrWorkouts, parsed.workouts.filter(w => w.hr).reduce((a, w) => a + w.hr.n, 0))}
     </div>}
+    {/* The resting figures are neither sessions nor weigh-ins and land in neither tile, so
+        they are said in a line of their own — a year of them is most of what a health export
+        is worth and it would otherwise arrive invisibly. */}
+    {isHealth && parsed.resting && parsed.resting.length > 0 && <div className="small dim" style={{ marginBottom: 10 }}>
+      {t('A resting heart rate for {0} days comes with it.', parsed.resting.length)}
+    </div>}
     {!isBW && parsed.unmatchedNames.length > 0 && <>
       <h4 className="sec">{t('Not in the library — added as your own exercises')}</h4>
       <div className="mchips" style={{ marginBottom: 12 }}>

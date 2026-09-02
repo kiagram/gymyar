@@ -77,6 +77,46 @@ describe('sets', () => {
   })
 })
 
+describe('resting heart rate', () => {
+  const S = { unit: 'kg', resting: [{ d: '2026-08-01', bpm: 54 }, { d: '2026-08-02', bpm: 52 }] }
+
+  it('goes out as one row per day, keyed by the date and nothing else', () => {
+    const { resting } = stateToRows(S, { userId: 'u1' })
+    expect(resting).toEqual([
+      { user_id: 'u1', on_date: '2026-08-01', bpm: 54 },
+      { user_id: 'u1', on_date: '2026-08-02', bpm: 52 }
+    ])
+  })
+
+  it('rounds, because the column is a smallint and the number is somebody s arithmetic', () => {
+    const { resting } = stateToRows({ resting: [{ d: '2026-08-01', bpm: 54.5 }] }, { userId: 'u1' })
+    expect(resting[0].bpm).toBe(55)
+  })
+
+  it('drops a day with no figure rather than pushing a null the column refuses', () => {
+    const { resting } = stateToRows(
+      { resting: [{ d: '2026-08-01', bpm: null }, { d: '2026-08-02' }, { d: '2026-08-03', bpm: 51 }] },
+      { userId: 'u1' })
+    expect(resting).toEqual([{ user_id: 'u1', on_date: '2026-08-03', bpm: 51 }])
+  })
+
+  it('comes back keyed by day, oldest first, with deletes applied', () => {
+    const next = applyRows({ resting: [{ d: '2026-08-01', bpm: 54 }] }, {
+      resting: [
+        { on_date: '2026-08-03', bpm: 50 },
+        { on_date: '2026-08-02', bpm: 52 },
+        { on_date: '2026-08-01', bpm: 54, deleted_at: '2026-08-04T00:00:00Z' }
+      ]
+    }, { unit: 'kg' })
+    expect(next.resting).toEqual([{ d: '2026-08-02', bpm: 52 }, { d: '2026-08-03', bpm: 50 }])
+  })
+
+  it('is absent rather than empty for a profile that has never had one', () => {
+    const { resting } = stateToRows({ unit: 'kg' }, { userId: 'u1' })
+    expect(resting).toEqual([])
+  })
+})
+
 describe('workouts', () => {
   const w = {
     id: 'w1', d: '2026-08-01', start: Date.parse('2026-08-01T18:00:00Z'),

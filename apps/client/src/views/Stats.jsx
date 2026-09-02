@@ -191,6 +191,12 @@ export default function Stats() {
 
   const bwPts = S.bodyweight.filter(b => range === 0 || (b.t || new Date(b.d).getTime()) > now - range * 86400000)
     .map(b => ({ t: b.t || new Date(b.d).getTime(), y: b.w, d: b.d }))
+  // The resting figures share the range control with body weight — they are read together
+  // ("weight down, resting rate down") and two range pickers side by side would be two
+  // controls for one question.
+  const restPts = (S.resting || [])
+    .filter(r => range === 0 || new Date(r.d).getTime() > now - range * 86400000)
+    .map(r => ({ t: new Date(r.d).getTime(), y: r.bpm, d: r.d }))
   const bw30 = S.bodyweight.filter(b => (b.t || new Date(b.d).getTime()) > now - 30 * 86400000)
   const bwDelta30 = bw30.length > 1 ? bw30[bw30.length - 1].w - bw30[0].w : null
   // The month a workout belongs to is the reader's month: under fa-IR that is Shahrivar, and
@@ -276,6 +282,20 @@ export default function Stats() {
           options={[{ value: 30, label: t('1M') }, { value: 90, label: t('3M') }, { value: 365, label: t('1Y') }, { value: 0, label: t('All') }]} />
         <div className="chart"><LineChart points={bwPts} h={160} unit={S.unit} goal={S.targetW} /></div>
       </div>
+
+      {/* Only for a profile that has some. This is the one number here that reports on the
+          recovery half of training rather than the work half — it falls over months of it and
+          rises before somebody gets ill — and it arrives from a health export rather than
+          from anything the app can ask for, so most profiles will never have one. A card
+          that is always present and always empty would teach people to ignore it. */}
+      {restPts.length > 1 && <div className="card">
+        <h2>{t('Resting heart rate')}</h2>
+        {/* Plotted the right way up, unlike the effort chart above. RIR is an abstract scale
+            that counts down as it gets harder, so flipping it puts "harder" at the top; a
+            pulse is a number people already read, and a rising line that meant a falling
+            heart rate would be misread by everyone who has seen one anywhere else. */}
+        <div className="chart"><LineChart points={restPts} h={160} unit={t('bpm')} color="var(--red)" /></div>
+      </div>}
 
       <div className="card">
         <h2>{t('Exercise progress')}</h2>

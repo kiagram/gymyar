@@ -167,7 +167,10 @@ describe('coaching over http', () => {
     const { coach, client_, code } = await setup()
     await client_.c.post(`/api/invites/${code}/accept`, { scopes: ['programmes'] })
     await client_.c.post('/api/sync', {
-      changes: { bodyweight: [{ on_date: '2026-08-01', weight_kg: 82 }] }
+      changes: {
+        bodyweight: [{ on_date: '2026-08-01', weight_kg: 82 }],
+        resting: [{ on_date: '2026-08-01', bpm: 54 }]
+      }
     })
     const view = await coach.c.get(`/api/coach/clients/${client_.user.id}`)
     expect(view.status).toBe(200)
@@ -175,6 +178,11 @@ describe('coaching over http', () => {
     expect(view.body.routines).toBeDefined()
     expect(view.body.bodyweight).toBeUndefined()   // shared programmes, not weigh-ins
     expect(view.body.workouts).toBeUndefined()
+    // A resting heart rate is measured while somebody sleeps and has no scope at all, so it
+    // reaches a coach under no circumstances. This is here because the view is built by
+    // naming what may cross rather than by removing what may not, and a `resting` line added
+    // to it by reflex would be a silent change of that rule.
+    expect(view.body.resting).toBeUndefined()
   })
 
   it('keeps a stranger out of a client\'s training', async () => {

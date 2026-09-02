@@ -794,14 +794,23 @@ function mergeBodyweight(S, rows) {
   return { added: fresh.length, skipped: rows.length - fresh.length }
 }
 
+/** A day's resting heart rate. A day that already has one keeps it, as with a weigh-in: a
+ *  figure somebody measured or imported first is not overwritten by a later file. */
+function mergeResting(S, rows) {
+  const have = new Set((S.resting || []).map(r => r.d))
+  const fresh = rows.filter(r => !have.has(r.d))
+  S.resting = [...(S.resting || []), ...fresh].sort((a, b) => (a.d < b.d ? -1 : 1))
+  return { added: fresh.length }
+}
+
 /** Merge into state. Existing days win — importing twice never duplicates a workout. */
 export function mergeImport(S, parsed) {
   if (parsed.kind === 'bodyweight') return mergeBodyweight(S, parsed.bodyweight)
-  // An Apple Health export is both things at once, and the weigh-ins in it are the same
+  // An Apple Health export is several things at once, and the weigh-ins in it are the same
   // records the weights-only path has always read.
-  const weighIns = parsed.kind === 'health' && parsed.bodyweight
-    ? mergeBodyweight(S, parsed.bodyweight).added
-    : null
+  const health = parsed.kind === 'health'
+  const weighIns = health && parsed.bodyweight ? mergeBodyweight(S, parsed.bodyweight).added : null
+  const resting = health && parsed.resting ? mergeResting(S, parsed.resting).added : null
   const have = new Set(S.workouts.map(w => w.d))
   const fresh = parsed.workouts.filter(w => !have.has(w.d))
   const used = new Set(fresh.flatMap(w => w.entries.map(e => e.id)))
@@ -814,5 +823,7 @@ export function mergeImport(S, parsed) {
     if (mx > 0) { const cur = S.exWeights[e.id]; if (!cur || w.d >= cur.d) S.exWeights[e.id] = { w: mx, d: w.d } }
   }))
   const out = { added: fresh.length, skipped: parsed.workouts.length - fresh.length }
-  return weighIns == null ? out : { ...out, weighIns }
+  if (weighIns != null) out.weighIns = weighIns
+  if (resting != null) out.resting = resting
+  return out
 }
