@@ -144,18 +144,25 @@ export function bwSheet(opts = {}) {
 function ImportSummary({ parsed, close }) {
   const st = useStore(s => s.S)
   const isBW = parsed.kind === 'bodyweight'
+  // An Apple Health export is sessions and weigh-ins at once, so "is there anything new in
+  // here" has to be asked of both halves. Asked of the sessions alone, a file whose training
+  // is already in would offer a disabled button while carrying a year of weigh-ins nobody has.
+  const isHealth = parsed.kind === 'health'
   const have = isBW
     ? parsed.bodyweight.filter(b => st.bodyweight.some(x => x.d === b.d)).length
     : parsed.workouts.filter(w => st.workouts.some(x => x.d === w.d)).length
   const fresh = (isBW ? parsed.bodyweight.length : parsed.workouts.length) - have
+  const freshBw = isHealth
+    ? parsed.bodyweight.filter(b => !st.bodyweight.some(x => x.d === b.d)).length
+    : 0
 
   const doImport = () => {
     let res
     update(s => { res = mergeImport(s, parsed) })
     close()
-    toast(isBW
-      ? t('{0} weigh-ins imported', res.added)
-      : t('{0} workouts imported', res.added))
+    toast(isBW ? t('{0} weigh-ins imported', res.added)
+      : isHealth && res.weighIns ? t('{0} workouts and {1} weigh-ins imported', res.added, res.weighIns)
+        : t('{0} workouts imported', res.added))
   }
 
   return <>
@@ -170,7 +177,12 @@ function ImportSummary({ parsed, close }) {
         <div className="tile"><div className="l">{t('New')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{fresh}</div></div>
       </> : <>
         <div className="tile"><div className="l">{t('Workouts')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{parsed.workouts.length}</div></div>
-        <div className="tile"><div className="l">{t('Sets')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{parsed.sets}</div></div>
+        {/* A Health session is one entry and never a list of sets, so counting them would
+            print the workout total twice. The weigh-ins in the same file are the number
+            worth the tile instead. */}
+        {isHealth
+          ? <div className="tile"><div className="l">{t('Weigh-ins')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{parsed.bodyweight.length}</div></div>
+          : <div className="tile"><div className="l">{t('Sets')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{parsed.sets}</div></div>}
         <div className="tile"><div className="l">{t('Exercises matched')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{parsed.matched}</div></div>
         <div className="tile"><div className="l">{t('Added as your own')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{parsed.created}</div></div>
       </>}
@@ -195,6 +207,12 @@ function ImportSummary({ parsed, close }) {
         : '{0} sets bring an {1} with them.',
       parsed.rirSets || parsed.rpeSets, parsed.rirSets ? 'RIR' : 'RPE')}
     </div>}
+    {/* The file has heart rate in it and this app has nowhere to put it yet. Said out loud
+        rather than left out: somebody importing a watch export is importing it *for* the
+        heart rate, and silence would read as "there was none in the file". */}
+    {isHealth && parsed.hrSamples > 0 && <div className="small dim" style={{ marginBottom: 10 }}>
+      {t('{0} heart-rate readings are in this file, {1} of them during these sessions — GymYar cannot store them yet.', parsed.hrSamples, parsed.hrWorkouts ? parsed.workouts.filter(w => w.hr).reduce((a, w) => a + w.hr.n, 0) : 0)}
+    </div>}
     {!isBW && parsed.unmatchedNames.length > 0 && <>
       <h4 className="sec">{t('Not in the library — added as your own exercises')}</h4>
       <div className="mchips" style={{ marginBottom: 12 }}>
@@ -203,8 +221,8 @@ function ImportSummary({ parsed, close }) {
       </div>
     </>}
 
-    <Button variant="primary" onClick={doImport} disabled={!fresh}>
-      {fresh ? t('Import') : t('Nothing new to import')}
+    <Button variant="primary" onClick={doImport} disabled={!fresh && !freshBw}>
+      {fresh || freshBw ? t('Import') : t('Nothing new to import')}
     </Button>
     <div style={{ height: 8 }} />
     <Button variant="ghost" className="dim" onClick={close}>{t('Cancel')}</Button>

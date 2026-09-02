@@ -516,6 +516,8 @@ export default {
   "Nothing new to import": "چیز جدیدی برای وارد کردن نیست",
   "{0} workouts imported": "{0} تمرین وارد شد",
   "{0} weigh-ins imported": "{0} توزین وارد شد",
+  "{0} workouts and {1} weigh-ins imported": "{0} تمرین و {1} توزین وارد شد",
+  "{0} heart-rate readings are in this file, {1} of them during these sessions — GymYar cannot store them yet.": "{0} ثبت ضربان قلب در این فایل هست، {1} تای آن‌ها در همین جلسه‌ها — جیم‌یار هنوز نمی‌تواند آن‌ها را نگه دارد.",
   "Could not read that file": "خواندن آن فایل ممکن نشد",
   "That file is empty": "آن فایل خالی است",
   "That file's columns aren't recognised — see the docs for supported apps.": "ستون‌های آن فایل شناخته نشد — برای برنامه‌های پشتیبانی‌شده به مستندات نگاه کن.",

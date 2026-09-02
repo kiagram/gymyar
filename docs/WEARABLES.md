@@ -3,7 +3,9 @@
 Get training data off the watch people already own, and into GymYar. Apple Watch and Zepp
 first, because between them they are most of what is actually on wrists here.
 
-This is a plan, not a description of something that exists. Nothing below is implemented.
+Mostly a plan rather than a description of something that exists. **M1 is partly built** —
+the reader and its heart-rate maths are in `packages/domain`, and the marker below says what
+of it is still missing. M2, M3 and M4 are not started.
 
 ## The constraint, stated plainly
 
@@ -92,6 +94,33 @@ So: same file, same technique, same tests — add `HKWorkout` and
 
 This is the best ratio of anything in this document, and it is first for that reason.
 
+#### Where M1 actually stands
+
+**Built.** `parseAppleHealth()` reads sessions, heart rate and weigh-ins out of one
+`export.xml` in two passes — one for the rare elements, one that streams the heart rate past
+the spans the first pass found, because Apple writes every `<Record>` before the first
+`<Workout>` and holding a year of samples to wait for them is a hundred thousand objects on a
+phone. A session becomes a workout on a library exercise where one honestly matches (running,
+jump rope, elliptical, stair machine) and on a custom cardio exercise named after the activity
+where none does. `packages/domain/src/heartrate.js` is the zone maths: maximum from age,
+five zones, per-span aggregates, time-in-zone, and a daily resting figure taken as the mean of
+a day's ten lowest readings — a count rather than a percentile so it can be computed from ten
+numbers per day as the file streams past. Both are covered by `import-health.test.js` and
+`heartrate.test.js`.
+
+**Not built, and the two are different kinds of missing.**
+
+1. *The zip, and progress.* The client still reads one text file. `export.zip` has to be
+   unzipped in the browser, which means a dependency — the app has none for this today — and
+   the progress reporting the plan already calls for.
+2. *Anywhere to put the heart rate.* `workouts` has no column for it, so `rowsToWorkout`
+   drops anything the parser attaches and a synced account would lose the number on its first
+   round-trip with nothing having failed. So the reader reports heart rate and the import
+   discards it, and the import sheet says so in as many words rather than letting it look
+   like the file held none. Fixing this is `012_health.sql` — which this document files under
+   M3, and which M1 turns out to need first if "import a year of heart rate" is to mean
+   anything.
+
 ### M2 — Live heart rate over Bluetooth · 7 days
 
 `@capacitor-community/bluetooth-le` in the native builds, Web Bluetooth in Chrome on
@@ -177,6 +206,8 @@ contracts drift. The hubs already give us those devices for nothing.
 ## Done means
 
 - [ ] An Apple Watch user can import a year of workouts and heart rate from `export.zip`
+      — the workouts are read and kept, the heart rate is read and reported, and neither the
+      zip nor a home for the heart rate exists yet (see *Where M1 actually stands*)
 - [ ] A Zepp user can do the same on iPhone, and on Android via Health Connect after M4
 - [ ] A live BPM is visible during a set with an Amazfit in Heart Rate Push mode, and with a
       generic chest strap
