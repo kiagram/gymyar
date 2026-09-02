@@ -31,10 +31,32 @@ done
 # The same defaults docker-compose.yml uses, so this works with no .env at all — and reads .env
 # when there is one, because an instance that changed POSTGRES_DB must be dumped by that name
 # rather than by the default that happens to also exist on the server.
-[ -f .env ] && set -a && . ./.env && set +a || true
-PGUSER="${POSTGRES_USER:-gymyar}"
-PGDB="${POSTGRES_DB:-gymyar}"
-PROJECT="$(docker compose config --format json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).name||"gymyar")}catch{console.log("gymyar")}})' || echo gymyar)"
+#
+# Read, not sourced. `. ./.env` executes the file, which makes every backup a run of whatever is
+# in it; and on a .env saved by a Windows editor it assigns values with a trailing carriage
+# return. That is not a cosmetic difference. It is what reported
+#     FATAL: role "gymyar" does not exist
+# on an instance whose role is plainly gymyar — the name actually sent ended in a CR, and a CR
+# is invisible in the very error message you would use to debug it. Shell environment wins over
+# .env here, which is the precedence compose itself uses.
+env_get() { # env_get KEY → the last assignment of KEY in .env, unquoted, carriage return gone
+  [ -f .env ] || return 0
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" .env | tail -n 1 | tr -d '\r' \
+    | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+}
+PGUSER="${POSTGRES_USER:-$(env_get POSTGRES_USER)}"; PGUSER="${PGUSER:-gymyar}"
+PGDB="${POSTGRES_DB:-$(env_get POSTGRES_DB)}";       PGDB="${PGDB:-gymyar}"
+
+# The project name is what the media volume is named after, so getting it wrong means archiving
+# nothing. Asked of compose, which is the only thing that truly knows; then of .env; then the
+# directory name, normalised the way compose normalises it. It used to be asked of node — which
+# is not on the PATH of every machine that runs a backup, and notably not on the PATH of a
+# non-interactive ssh session, which is exactly how a backup gets run by anything automatic.
+# When node was missing the fallback answered "gymyar" without comment: correct here, and
+# silently wrong on any instance that had been renamed.
+PROJECT="${COMPOSE_PROJECT_NAME:-$(env_get COMPOSE_PROJECT_NAME)}"
+[ -n "$PROJECT" ] || PROJECT="$(docker compose ps --format '{{.Project}}' 2>/dev/null | head -n 1)"
+[ -n "$PROJECT" ] || PROJECT="$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')"
 MEDIA_VOL="${PROJECT}_media"
 
 STAMP=$(date +%F-%H%M%S)
@@ -45,6 +67,24 @@ MANIFEST="$OUT/gymyar-$STAMP.manifest.txt"
 
 step() { printf '  %s\n' "$1"; }
 fail() { echo "FAIL: $1" >&2; exit 1; }
+
+# A file that is not a backup must not be left sitting where backups are kept. The redirection
+# below creates $DUMP before pg_dump has written one byte into it, so every failure from here on
+# used to leave a plausible .sql.gz behind — twenty bytes, decompressing to nothing, filed by
+# date beside the real ones and indistinguishable from them until the day you reach for it. This
+# script's own header says the failure it exists to prevent is "somebody took half of one"; it
+# was taking half of one. Now only a run that reaches the end leaves anything at all.
+PARTIAL=("$DUMP" "$MEDIA" "$MANIFEST")
+VDB=""
+on_exit() {
+  status=$?
+  [ -z "$VDB" ] || docker rm -f "$VDB" >/dev/null 2>&1 || true
+  if [ "$status" -ne 0 ] && [ "${#PARTIAL[@]}" -gt 0 ]; then
+    rm -f "${PARTIAL[@]}"
+    echo "backup: removed the incomplete files this run had written — there is no backup here" >&2
+  fi
+}
+trap on_exit EXIT
 
 echo "backup: $PGDB from project '$PROJECT' → $OUT"
 
@@ -81,14 +121,30 @@ docker volume inspect "$MEDIA_VOL" >/dev/null 2>&1 \
   || fail "no volume named $MEDIA_VOL — check the compose project name"
 docker run --rm -v "$MEDIA_VOL":/data -v "$(cd "$OUT" && pwd)":/out alpine \
   tar czf "/out/$(basename "$MEDIA")" -C /data . || fail "the media archive failed"
+
+# The dump gets checked because it is piped out through this shell; the media archive is written
+# by a container into a bind mount, and so has to be checked for having arrived at all. It can
+# fail to: a docker daemon inside a VM — Colima, Lima, Docker Desktop — shares only the
+# directories it has been configured to share, and mounts one it cannot see as an empty
+# directory. It takes the tar happily and leaves it in the VM. Nothing errors. tar exits 0. The
+# archive is simply not here, and the only previous sign of it was sha256sum complaining on
+# stderr while the last line of the script said "all good".
+[ -s "$MEDIA" ] || fail "the media archive is not in $OUT — the docker daemon wrote it somewhere this machine cannot see.
+  A daemon inside a VM shares only the directories it is configured to share, and silently mounts
+  any other as empty. Back up to a shared directory, or add this one to the daemon's file sharing."
+gzip -t "$MEDIA" || fail "the media archive is not a readable gzip stream"
 MEDIA_FILES=$(docker run --rm -v "$MEDIA_VOL":/data alpine sh -c 'find /data -type f | wc -l')
 step "$MEDIA_FILES files on the media volume"
 
 # ------------------------------------------------------------------ manifest ----
 sha() { if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi; }
+# Read out of package.json rather than asked of node, for the same reason as the project name.
+VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' package.json 2>/dev/null | head -n 1)"
 {
-  echo "taken:      $(date -Is)"
-  echo "version:    $(node -p 'require("./package.json").version' 2>/dev/null || echo '?')"
+  # Not `date -Is`: that is a GNU spelling, and BSD date — the date on the Mac this instance
+  # runs on — rejects it, which left every manifest it ever wrote with a blank taken: line.
+  echo "taken:      $(date +%Y-%m-%dT%H:%M:%S%z)"
+  echo "version:    ${VERSION:-?}"
   echo "commit:     $(git rev-parse --short HEAD 2>/dev/null || echo '?')"
   echo "database:   $PGDB as $PGUSER"
   echo "migrations: $MIGRATIONS"
@@ -100,13 +156,18 @@ sha() { if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -f1;
   echo "media:      $(basename "$MEDIA")  $(sha "$MEDIA")"
 } > "$MANIFEST"
 
+# Complete, checked and hashed: from here the files stand on their own, so stop treating them as
+# this run's debris. It matters for --verify, which can fail for reasons that say nothing about
+# the dump — a throwaway container that never came up on a busy machine. A failure there should
+# leave the backup where you can look at it, not delete the evidence.
+PARTIAL=()
+
 # -------------------------------------------------------------------- verify ----
 # Restores into a container that has never seen this instance, so nothing about the running
 # stack can make a broken dump look fine. Torn down whichever way this exits.
 if [ "$VERIFY" = "1" ]; then
   step "verifying: restoring into a throwaway database"
-  VDB="gymyar-verify-$$"
-  trap 'docker rm -f "$VDB" >/dev/null 2>&1 || true' EXIT
+  VDB="gymyar-verify-$$"   # torn down by on_exit, whichever way this ends
   docker run -d --name "$VDB" -e POSTGRES_PASSWORD=verify -e POSTGRES_USER="$PGUSER" \
     -e POSTGRES_DB="$PGDB" postgres:16-alpine >/dev/null
   for _ in $(seq 1 60); do
