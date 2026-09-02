@@ -151,6 +151,25 @@ export function rowToSet(row, { unit, mode }) {
 /* A workout and its sets travel as one payload. Nobody edits somebody else's session, so there
  * is no second writer to reconcile and no reason to sync a set on its own. */
 
+/* The session's heart rate as its four columns, or as four nulls.
+ *
+ * Half of an aggregate is refused here rather than sent and bounced: migration 012 makes
+ * all-four-or-none a check constraint, so a workout carrying an average with no denominator
+ * would fail the whole push — every other row in it included — over a number nothing was
+ * going to draw. An aggregate that does not hold together is not a heart rate, and the
+ * session is worth more than it is. */
+function hrRow(hr) {
+  const n = num(hr && hr.n), avg = num(hr && hr.avg), min = num(hr && hr.min), max = num(hr && hr.max)
+  const whole = [n, avg, min, max].every(v => v != null && isFinite(v)) &&
+    n > 0 && min >= 25 && max <= 240 && min <= avg && avg <= max
+  return whole
+    ? {
+      hr_avg_bpm: Math.round(avg), hr_min_bpm: Math.round(min),
+      hr_max_bpm: Math.round(max), hr_samples: Math.round(n)
+    }
+    : { hr_avg_bpm: null, hr_min_bpm: null, hr_max_bpm: null, hr_samples: null }
+}
+
 export function workoutToRows(w, { userId, unit, modeFor }) {
   const startedAt = stamp(ms(w.start)) || new Date(`${w.d}T12:00:00Z`).toISOString()
   const row = {
@@ -162,7 +181,8 @@ export function workoutToRows(w, { userId, unit, modeFor }) {
     finished_at: stamp(ms(w.end)),
     bodyweight_kg: w.bw != null ? toKg(num(w.bw), unit) : null,
     notes: w.notes ?? null,
-    prs: w.prs || []
+    prs: w.prs || [],
+    ...hrRow(w.hr)
   }
   const sets = []
   let position = 0
@@ -191,6 +211,14 @@ export function rowsToWorkout(row, setRows, { unit, modeFor }) {
     entries: []
   }
   if (row.notes) w.notes = row.notes
+  // Absent rather than null when there was no heart rate, so `w.hr &&` is the whole test a
+  // view needs and a session from before 012 reads exactly like one recorded without a watch.
+  if (row.hr_avg_bpm != null) {
+    w.hr = {
+      n: num(row.hr_samples), avg: num(row.hr_avg_bpm),
+      min: num(row.hr_min_bpm), max: num(row.hr_max_bpm)
+    }
+  }
   // Sets arrive ordered by position; consecutive runs of one exercise are one entry, which is
   // how the app groups them — and re-grouping by exercise id instead would silently merge an
   // exercise that legitimately appears twice in a session (a routine that opens and closes

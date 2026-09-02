@@ -74,6 +74,13 @@ export function zoneOf(bpm, max) {
   return 5
 }
 
+// Below this many readings a session average is not worth putting on screen. The same
+// argument as MIN_RATED in effort.js: an average over three readings looks exactly like an
+// average over four hundred, and one of the two is a watch that lost contact after a minute.
+// The number is still stored — the denominator is stored with it, so a screen that wants to
+// say "from 6 readings" can, rather than having to pretend the session had none.
+export const MIN_HR_SAMPLES = 10
+
 // A bpm we will believe. Health exports carry occasional garbage — a watch reading through a
 // sleeve, a strap making contact for the first time — and one 0 or one 255 moves an average
 // and owns a maximum outright. The window is wide enough to keep a genuine resting 33 from a

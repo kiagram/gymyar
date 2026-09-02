@@ -137,14 +137,11 @@ describe('heart rate', () => {
     ])
   })
 
-  it('is read and reported, and never written into a workout', () => {
-    // There is no column for it, so storing it would lose it on the first sync without
-    // anything having failed. Until the migration exists the number is shown, not kept.
+  it('is carried into the profile with the session it belongs to', () => {
     const p = parseAppleHealth(withHr)
     const S = state()
     mergeImport(S, p)
-    expect(p.workouts[0].hr).toBeTruthy()
-    expect(S.workouts[0].hr).toBeUndefined()
+    expect(S.workouts[0].hr).toEqual({ n: 3, avg: 160, min: 150, max: 170 })
   })
 })
 

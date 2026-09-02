@@ -612,10 +612,9 @@ export function parseAppleHealth(text, { unit = 'kg' } = {}) {
       id: 'iw' + uid(), d: sp.d, start: sp.ms, end: sp.end > sp.ms ? sp.end : sp.ms,
       routineId: null, name: sp.title, entries: [{ id, sets: [set], topW: null }], prs: [], vol: 0,
     }
-    // Read, reported, and deliberately not merged into the workout: `workouts` has no column
-    // for it, so `rowsToWorkout` would drop it on the first sync and the number would vanish
-    // from a PWA account without anything having failed. The migration that gives it a home
-    // is M3 in docs/WEARABLES.md; until then the summary says how much of it is in the file.
+    // Four numbers rather than the samples they came from: that is what migration 012 gives
+    // a session, and what `statemap.js` carries in both directions. The samples themselves
+    // are read once and dropped — see the header of 012 for why they are not kept.
     const hr = hrStats(sp.hr)
     return hr ? { ...w, hr } : w
   })
@@ -785,11 +784,7 @@ export function mergeImport(S, parsed) {
     ? mergeBodyweight(S, parsed.bodyweight).added
     : null
   const have = new Set(S.workouts.map(w => w.d))
-  // `hr` is dropped here rather than stored. There is no column for it, so a synced account
-  // would lose it on the first round-trip through the server and the number would disappear
-  // with nothing having failed — see the comment where it is computed, and M3 in
-  // docs/WEARABLES.md for the migration that gives it somewhere to live.
-  const fresh = parsed.workouts.filter(w => !have.has(w.d)).map(({ hr, ...w }) => w)
+  const fresh = parsed.workouts.filter(w => !have.has(w.d))
   const used = new Set(fresh.flatMap(w => w.entries.map(e => e.id)))
   const customs = parsed.customEx.filter(c => used.has(c.id) && !EXIDX[c.id])
   S.customEx = [...(S.customEx || []), ...customs]
