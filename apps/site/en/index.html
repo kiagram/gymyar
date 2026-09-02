@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GymYar — coaching, training, and a log that stays yours</title>
+<meta name="description" content="GymYar is an open-source coaching platform. Coaches program for their clients; clients own every row of their training log. Self-host it with Docker, or install the offline Android app.">
+<!-- Two colours, because the page has both a light and a dark state: ivory paper, onyx ink. -->
+<meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0d0e" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="GYMYAR — Strength in motion, together in growth">
+<meta property="og:description" content="Open-source coaching platform. Coach and client programming, a full training log, 12 languages. Self-hosted with Docker, or an offline Android app.">
+<!-- Open Graph needs absolute URLs, so the domain is spelled out here and in the JSON-LD below.
+     Change it in both places, and in the Persian index.html at the root, if the site moves. -->
+<meta property="og:image" content="https://gymyar.kiarash.tech/assets/banner.png">
+<meta property="og:url" content="https://gymyar.kiarash.tech/en/">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="fa_IR">
+<!-- Persian is on the root itself, because Iran is this project's market. `x-default` stays
+     English: that address is for a visitor neither language matches, and they read English. -->
+<link rel="alternate" hreflang="fa" href="/">
+<link rel="alternate" hreflang="en" href="/en/">
+<link rel="alternate" hreflang="x-default" href="/en/">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+<link rel="icon" type="image/png" sizes="180x180" href="/icon-180.png">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="preload" href="/fonts/vazirmatn-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/styles.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"GymYar",
+ "operatingSystem":"Android, Web","applicationCategory":"HealthApplication",
+ "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
+ "license":"https://www.gnu.org/licenses/agpl-3.0.html",
+ "url":"https://gymyar.kiarash.tech/en/",
+ "inLanguage":"en",
+ "isBasedOn":"https://gitea.com/DuarteSantos/openGym"}
+</script>
+</head>
+<body>
+
+<nav><div class="wrap nav-in">
+  <a class="brand" href="/en/">
+    <img src="/brand/gymyar-mark.svg" alt="" width="23" height="32">
+    <span class="name">GymYar</span>
+  </a>
+  <div class="nav-links">
+    <a href="#coaching" class="hide-s">Coaching</a>
+    <a href="#features" class="hide-s">Features</a>
+    <a href="#pricing" class="hide-s">Pricing</a>
+    <a href="docs.html">Docs</a>
+    <a href="about.html" class="hide-s">About</a>
+    <a href="#" data-repo="" class="hide-s" hidden>Source</a>
+    <a class="lang" href="/" hreflang="fa">فارسی</a>
+    <a class="cta" href="/app/">Open the app</a>
+  </div>
+</div></nav>
+
+<header class="hero"><div class="wrap hero-in">
+  <div>
+    <img class="mark" src="/brand/gymyar-mark.svg" alt="The GymYar mark" width="40" height="56">
+    <p class="eyebrow">Open-source coaching platform</p>
+    <h1>Strength in motion, together in growth.</h1>
+    <p class="lead">Coaches program for their clients; clients keep a training log that stays
+       theirs. Run the whole thing on your own server.</p>
+    <div class="hero-btns">
+      <a class="btn" href="/app/">Open the app</a>
+      <a class="btn ghost" href="#download">Get GymYar</a>
+      <a class="btn ghost" href="#coaching">How coaching works</a>
+    </div>
+    <p class="facts">
+      <span><b>1,324</b> exercises</span>
+      <span><b>12</b> languages</span>
+      <span><b>AGPL-3.0</b></span>
+      <span><b>0</b> trackers</span>
+    </p>
+  </div>
+  <figure class="hero-shot">
+    <img src="/assets/home.png" alt="GymYar home screen with weekly overview and body-weight chart"
+         width="1170" height="2532" fetchpriority="high">
+  </figure>
+</div></header>
+
+<section class="band" id="coaching"><div class="wrap">
+  <div class="band-head">
+    <p class="eyebrow"><span class="no">01</span> — Coach and client</p>
+    <div>
+      <h2>A coach can propose. Only the client can accept.</h2>
+      <p class="lead">Most coaching apps make your training log an account your coach
+         administers. GymYar inverts that: the client owns every row, and a coach's work
+         arrives as a proposal that does nothing at all until it is accepted.</p>
+    </div>
+  </div>
+
+  <!-- Six notes on a ruled grid. The glyphs are drawn here in the page rather than being
+       emoji: an emoji is drawn by the reader's machine, so it has a different shape and a
+       different colour on every operating system, and none of those colours is this brand's. -->
+  <div class="hair c3">
+    <div class="note-item">
+      <span class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="gl"><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><path d="M8.5 12.5h7M8.5 16h4.5"/></g></svg></span>
+      <h3>Programmes as proposals</h3>
+      <p>A coach drafts a week and sends it. It waits until the client says yes — and only then is it written, as the client's own data, through the same sync path their phone uses.</p>
+    </div>
+    <div class="note-item">
+      <span class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="gl"><path d="M3 6h18M3 12h13M3 18h8"/><circle cx="18.5" cy="18" r="2.4"/></g></svg></span>
+      <h3>Scopes, section by section</h3>
+      <p>Sharing a programme does not share what you weigh. Every coach-side read is gated on what that client actually granted, and it can be narrowed again at any time.</p>
+    </div>
+    <div class="note-item">
+      <span class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="gl"><circle cx="5.5" cy="6" r="2.2"/><path d="M10 6h11"/><circle cx="5.5" cy="12" r="2.2"/><path d="M10 12h7"/><circle cx="5.5" cy="18" r="2.2"/><path d="M10 18h3.5"/></g></svg></span>
+      <h3>A roster that shows drift</h3>
+      <p>Adherence per client, who has gone quiet, whose loads have stalled — the questions a coach actually opens the app to answer, on one screen.</p>
+    </div>
+    <div class="note-item">
+      <span class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="gl"><path d="M4 4.5h16v11H9.5L4.5 20z"/><path d="M8 8.5h8M8 11.8h5"/></g></svg></span>
+      <h3>Messaging in context</h3>
+      <p>Attached to the client and the week it is about, rather than a separate inbox where nobody remembers which session was being discussed.</p>
+    </div>
+    <div class="note-item">
+      <span class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="gl"><path d="M2.5 17.5l5-5 3 2 4.5-6"/><circle cx="17" cy="16.8" r="3.4"/><path d="M19.5 19.4L22 22"/></g></svg></span>
+      <h3>Review that reads the log</h3>
+      <p>Stalls, missed sessions and volume drifting away from plan, found in the data and written up as a note a person can read, in the language they use.</p>
+    </div>
+    <div class="note-item">
+      <span class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="gl"><path d="M20.5 11.5V19a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2H14"/><path d="M8 12l3.5 3.5L21.5 4.5"/></g></svg></span>
+      <h3>Nothing is applied for you</h3>
+      <p>A generated programme comes back to be looked at. A drafted change fills in the composer the coach already uses. There is no endpoint anywhere that writes someone's training.</p>
+    </div>
+  </div>
+
+  <p class="aside">
+    <b>The numbers are not guessed.</b> Sets, reps, loads, progression and exercise choice are
+    computed against the real exercise library and the same progression rules the app already
+    runs on. A language model is asked to do two things — turn free text into a structured
+    brief, and write the note explaining a change — and both have a deterministic
+    implementation underneath. With no model configured at all, GymYar builds the same
+    plans and finds the same stalls; it phrases them from a template instead. Nothing can
+    invent a lift that is not in the library, or put 140&nbsp;kg on a beginner's bar.
+  </p>
+</div></section>
+
+<section class="band" id="features"><div class="wrap">
+  <div class="band-head">
+    <p class="eyebrow"><span class="no">02</span> — Features</p>
+    <div>
+      <h2>Built in the gym, not in a boardroom</h2>
+      <p class="lead">GymYar is built on <a href="about.html">openGym</a>, whose tracker was
+         sharpened on the gym floor long before any of the coaching existed. All of it is still
+         here, and none of it is behind a paywall.</p>
+    </div>
+  </div>
+
+  <!-- An index, not cards. Fifteen features as fifteen rounded boxes is a wall of boxes; as
+       an index it is a page of a manual, which is what it actually is. -->
+  <ol class="index">
+    <li><span class="n">01</span><h3>Guided workouts</h3><p>Knows what day it is, starts today's session, pre-fills your weights from last time, times your rest, spots PRs.</p></li>
+    <li><span class="n">02</span><h3>1,324 exercises</h3><p>Searchable library with animated demos, filterable by body part and the equipment you actually own — plus your own custom exercises.</p></li>
+    <li><span class="n">03</span><h3>Log a session by typing it</h3><p>"Squats 5×5 at 100, last set felt like two left." It comes back parsed into sets for you to confirm — never written straight in.</p></li>
+    <li><span class="n">04</span><h3>Weekly plan</h3><p>A routine per weekday, and any day can be rescheduled when life happens — without touching the plan.</p></li>
+    <li><span class="n">05</span><h3>Progression that follows a rule</h3><p>Linear, Greyskull LP, double progression or added time — per routine, overridable per exercise. Your weights are already right when the session opens, and every target says why.</p></li>
+    <li><span class="n">06</span><h3>Body weight and goal</h3><p>Interactive chart with your goal line; every change coloured by whether it moves toward it.</p></li>
+    <li><span class="n">07</span><h3>Muscle map</h3><p>A body diagram shaded by how much work each muscle got — and which ones got nothing.</p></li>
+    <li><span class="n">08</span><h3>Activity heatmap</h3><p>A year view of your training time. Streaks included.</p></li>
+    <li><span class="n">09</span><h3>Effort per set</h3><p>Rate a set as RIR or RPE — whichever scale you already think in. Optional, every set keeps the scale it was logged with, and Stats reads it back.</p></li>
+    <li><span class="n">10</span><h3>Bodyweight training, properly</h3><p>Push-ups and pull-ups know they have no weight to type. Reps and sets are the progression, and a dip belt reads as an addition.</p></li>
+    <li><span class="n">11</span><h3>Timed sets, supersets, cardio</h3><p>Planks and carries logged by time. Pairs run back-to-back on one rest. Cardio logged as time and speed, where weight times reps means nothing.</p></li>
+    <li><span class="n">12</span><h3>Estimated 1RM</h3><p>Per exercise, from your best eligible set — and it names which one. Will not guess above 12 reps.</p></li>
+    <li><span class="n">13</span><h3>12 languages, including Persian</h3><p>Full UI translation with a properly mirrored RTL layout, exercise instructions in 10 languages, and weeks that start on the day your locale starts them.</p></li>
+    <li><span class="n">14</span><h3>Bring your history</h3><p>Import from FitNotes, Strong, Hevy — including the RPE they recorded — or body weight straight out of an Apple Health export.</p></li>
+    <li><span class="n">15</span><h3>Yours to keep</h3><p>One-tap JSON export and import. Your training log is a file you own, not a row in someone's cloud.</p></li>
+  </ol>
+</div></section>
+
+<section class="band" id="screens"><div class="wrap">
+  <div class="band-head">
+    <p class="eyebrow"><span class="no">03</span> — Screenshots</p>
+    <div>
+      <h2>Five screens, zero clutter</h2>
+      <p class="lead">All of them taken off the demo seed that one environment variable boots —
+         not mock screens built for a photograph.</p>
+    </div>
+  </div>
+  <div class="strip">
+    <figure><img src="/assets/home.png" alt="GymYar home screen with weekly overview and body-weight chart" loading="lazy" width="1170" height="2532"><figcaption>Home</figcaption></figure>
+    <figure><img src="/assets/workout.png" alt="Guided workout screen with sets, rest timer and pre-filled weights" loading="lazy" width="1170" height="2532"><figcaption>Workout</figcaption></figure>
+    <figure><img src="/assets/stats.png" alt="Stats screen with activity heatmap and charts" loading="lazy" width="1170" height="2532"><figcaption>Stats</figcaption></figure>
+    <figure><img src="/assets/plan.png" alt="Weekly plan screen with routines per weekday" loading="lazy" width="1170" height="2532"><figcaption>Plan</figcaption></figure>
+    <figure><img src="/assets/library.png" alt="Exercise library with search and filters" loading="lazy" width="1170" height="2532"><figcaption>Library</figcaption></figure>
+  </div>
+</div></section>
+
+<section class="band" id="demo"><div class="wrap">
+  <div class="band-head">
+    <p class="eyebrow"><span class="no">04</span> — Demo seed</p>
+    <div>
+      <h2>It boots with a coach and three clients</h2>
+      <p class="lead">Set <code>SEED_DEMO=1</code> and the first start creates a coach, three
+         clients and twelve weeks of training each — enough history that the charts, the
+         adherence numbers and the stall detection all have something to say.</p>
+    </div>
+  </div>
+  <div class="hair c4">
+    <div class="note-item">
+      <h3>The coach</h3>
+      <p>A roster with adherence, one client who has drifted, and a proposal already open.</p>
+    </div>
+    <div class="note-item">
+      <h3>Shares everything</h3>
+      <p>Programmes, workouts and body weight — and a programme waiting to be accepted.</p>
+    </div>
+    <div class="note-item">
+      <h3>Shares some of it</h3>
+      <p>Programmes and workouts, but not body weight. The coach-side screens show exactly that much.</p>
+    </div>
+    <div class="note-item">
+      <h3>Stopped training</h3>
+      <p>Three weeks quiet. This is the one the roster is meant to surface without being asked.</p>
+    </div>
+  </div>
+  <p class="foot-note">Turn <code>SEED_DEMO</code> off for a real instance, and set a real
+     session secret. <a href="docs.html#selfhost">Self-hosting guide →</a></p>
+</div></section>
+
+<section class="band" id="pricing"><div class="wrap">
+  <div class="band-head">
+    <p class="eyebrow"><span class="no">05</span> — Pricing</p>
+    <div>
+      <h2>Training is free. It stays free.</h2>
+      <p class="lead">Logging, programmes, history, stats — everything above under "features" —
+         is ungated and always will be. A subscription exists on the <b>coach</b> side of a
+         hosted instance, and it buys three things.</p>
+    </div>
+  </div>
+  <div class="hair c2">
+    <div class="panel primary">
+      <h3>Training</h3>
+      <p class="for">For everyone. No tier, no trial, no card.</p>
+      <ul>
+        <li>Every tracker feature, forever</li>
+        <li>Sync across your own devices</li>
+        <li>Reading a roster you already built</li>
+        <li>Accepting and running a coach's programme</li>
+        <li><b>A client is never gated at all</b></li>
+      </ul>
+      <p class="meta">A coach whose payment lapses cannot take their clients' training away.
+         It was never the coach's to take.</p>
+    </div>
+    <div class="panel">
+      <h3>Coaching</h3>
+      <p class="for">For coaches, on a hosted instance that charges.</p>
+      <ul>
+        <li>Taking on new clients</li>
+        <li>Proposing programmes to them</li>
+        <li>Messaging them</li>
+        <li class="no">Nothing else sits behind it</li>
+      </ul>
+      <p class="meta">The paid tier is a property of a <i>deployment</i>, not of the software.
+         Self-host with no payment provider configured and coaching is simply free — which is
+         also the only honest reading of the licence. Hosting can be charged for; the code
+         cannot.</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="band" id="download"><div class="wrap">
+  <div class="band-head">
+    <p class="eyebrow"><span class="no">06</span> — Get it</p>
+    <div>
+      <h2>One codebase, two products</h2>
+      <p class="lead">These are genuinely different apps, on purpose. The web app is the whole
+         thing. The Android build is an offline tracker with no accounts and no backend — and
+         it cannot reach a server even if something in it tries.</p>
+    </div>
+  </div>
+  <div class="hair c2">
+    <div class="panel primary">
+      <h3>Web app and PWA</h3>
+      <p class="for">The complete product, including all coaching.</p>
+      <ul>
+        <li>Accounts, sync, coaching, everything</li>
+        <li>Installs to the home screen on iPhone and Android</li>
+        <li>Passkey or password sign-in</li>
+        <li>Runs on your server, under your domain</li>
+        <li>One <code>docker compose up</code></li>
+      </ul>
+      <a class="btn" href="/app/">Open the web app</a>
+      <a class="btn ghost" href="docs.html#selfhost">Self-hosting guide</a>
+      <p class="meta">AGPL-3.0 · nginx, Fastify and Postgres · amd64 and arm64</p>
+    </div>
+    <div class="panel">
+      <h3>Android app</h3>
+      <p class="for">An offline single-user tracker. Nothing to sign into.</p>
+      <ul>
+        <li>Everything stays in a file on the phone</li>
+        <li>No account, no server, no sync</li>
+        <li>Nothing to buy — the paid tier does not exist in it</li>
+        <li>Native workout-day reminders</li>
+        <li class="no">No coaching, no cross-device sync</li>
+      </ul>
+      <a class="btn ghost" href="docs.html#android">How to install it</a>
+      <p class="meta">v1.0.0 · Android 6.0+ · signed APK, plus Cafe Bazaar and Myket</p>
+      <p class="meta"><b>iPhone?</b> Use the web app from Safari → Share → <i>Add to Home
+         Screen</i>. It is the fuller product anyway — see <a href="docs.html#iphone">the docs</a>.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- The page's one dark band. A printed page usually has one black plate too, and this is it:
+     the paragraph that says why the project exists. -->
+<section class="slab" id="story"><div class="wrap slab-in">
+  <p class="eyebrow">Why GymYar exists</p>
+  <div>
+    <blockquote>openGym solved <strong>one person tracking their own training</strong>, and
+      solved it well. It could not become two people — a coach and a client — without changing
+      how the data was stored, because a whole-account overwrite silently destroys one of two
+      simultaneous edits. That rewrite is GymYar.</blockquote>
+    <p class="who"><a href="about.html">The fork, and what changed →</a></p>
+  </div>
+</div></section>
+
+<section class="band" id="instance" hidden><div class="wrap">
+  <div class="band-head">
+    <p class="eyebrow live">This instance, right now</p>
+    <div>
+      <h2>Counted in the database, not written into the copy</h2>
+      <p class="lead">Every number below is read from the same Postgres the app writes to, and
+         recomputed a few times an hour. It describes the instance you are looking at — not the
+         project's total, and not a figure anyone typed into this page.</p>
+    </div>
+  </div>
+  <div class="hair c5">
+    <div class="figure"><b data-stat="athletes">—</b><span>people training</span></div>
+    <div class="figure"><b data-stat="workouts">—</b><span>sessions logged</span></div>
+    <div class="figure"><b data-stat="sets">—</b><span>working sets</span></div>
+    <div class="figure"><b data-stat="tonnes">—</b><span>tonnes lifted</span></div>
+    <div class="figure"><b data-stat="coaches">—</b><span>coaches</span></div>
+  </div>
+  <p class="foot-note">Counts and one sum, and nothing else. The endpoint behind them takes no
+     account, reads no row belonging to anybody, and cannot be asked about a person. Warm-up
+     sets and unfinished sessions are left out — they are rows, not training. An instance can
+     turn the whole thing off with <code>PUBLIC_STATS=off</code>, and this section then does
+     not appear at all.</p>
+</div></section>
+
+<section class="band" id="opensource"><div class="wrap">
+  <div class="band-head">
+    <p class="eyebrow"><span class="no">07</span> — Open source</p>
+    <div>
+      <h2>AGPL-licensed, forever</h2>
+      <p class="lead">GymYar is a derivative work of openGym and stays on its licence. Every
+         fork stays open, every hosted instance owes its source to the people using it, and
+         there is no closed commercial version waiting behind a curtain.</p>
+    </div>
+  </div>
+  <div class="hair c4">
+    <div class="figure"><b>1,324</b><span>exercises</span></div>
+    <div class="figure"><b>12</b><span>languages</span></div>
+    <div class="figure"><b>AGPL</b><span>3.0-or-later</span></div>
+    <div class="figure"><b>0</b><span>trackers</span></div>
+  </div>
+  <div class="btn-row" style="margin-top:26px">
+    <a class="btn ghost" href="#" data-repo="" hidden>GymYar source</a>
+    <a class="btn ghost" href="#" data-repo="/blob/HEAD/CONTRIBUTING.md" hidden>Contributing</a>
+    <a class="btn ghost" href="#" data-repo="/blob/HEAD/CHANGELOG.md" hidden>Changelog</a>
+    <a class="btn ghost" href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym, upstream</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap foot">
+  <span>GymYar · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
+  <div class="links">
+    <a href="docs.html">Docs</a>
+    <a href="about.html">About</a>
+    <a href="#pricing">Pricing</a>
+    <a href="/" hreflang="fa">فارسی</a>
+    <a href="#" data-repo="" hidden>Source</a>
+  </div>
+</div></footer>
+
+<script src="/site.js" defer></script>
+</body>
+</html>

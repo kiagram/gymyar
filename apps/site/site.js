@@ -45,8 +45,8 @@ if (location.hash.startsWith('#/')) {
  * so a failure is silent by design. */
 const stats = document.getElementById('instance')
 if (stats) {
-  // Persian digits in Persian prose, Latin everywhere else: the same rule the pages under
-  // /fa/ already follow for every number written into them by hand.
+  // Persian digits in Persian prose, Latin everywhere else: the same rule the Persian pages
+  // on the root already follow for every number written into them by hand.
   const lang = document.documentElement.lang === 'fa' ? 'fa' : 'en'
   const fmt = n => { try { return new Intl.NumberFormat(lang).format(n) } catch { return String(n) } }
 

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Docs — GymYar</title>
+<meta name="description" content="How to self-host GymYar with Docker, install it on Android or iPhone, connect a coach to a client, import your training history, and keep backups.">
+<meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0d0e" media="(prefers-color-scheme: dark)">
+<meta property="og:locale" content="en_US">
+<link rel="alternate" hreflang="fa" href="/docs.html">
+<link rel="alternate" hreflang="en" href="/en/docs.html">
+<link rel="alternate" hreflang="x-default" href="/en/docs.html">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+<link rel="icon" type="image/png" sizes="180x180" href="/icon-180.png">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="preload" href="/fonts/vazirmatn-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<nav><div class="wrap nav-in">
+  <a class="brand" href="/en/">
+    <img src="/brand/gymyar-mark.svg" alt="" width="23" height="32">
+    <span class="name">GymYar</span>
+  </a>
+  <div class="nav-links">
+    <a href="/en/#coaching" class="hide-s">Coaching</a>
+    <a href="/en/#features" class="hide-s">Features</a>
+    <a href="/en/#pricing" class="hide-s">Pricing</a>
+    <a href="docs.html">Docs</a>
+    <a href="about.html" class="hide-s">About</a>
+    <a href="#" data-repo="" class="hide-s" hidden>Source</a>
+    <a class="lang" href="/docs.html" hreflang="fa">فارسی</a>
+    <a class="cta" href="/app/">Open the app</a>
+  </div>
+</div></nav>
+
+<main class="wrap prose">
+  <h1>Docs</h1>
+  <p class="lead">Everything you need to get GymYar running — on your own server, or as an
+     app on a phone. The maintainer-level documents (architecture, releasing, store listings)
+     live in the repository under <code>docs/</code>.</p>
+
+  <div class="toc">
+    <a href="#selfhost">Self-hosting</a>
+    <a href="#coach">Coach and client</a>
+    <a href="#iphone">iPhone</a>
+    <a href="#android">Android</a>
+    <a href="#import">Import your history</a>
+    <a href="#backup">Backups</a>
+    <a href="#build">Build it yourself</a>
+    <a href="#faq">FAQ</a>
+  </div>
+
+  <h2 id="selfhost">Self-host with Docker</h2>
+  <p>This is the complete product: accounts, sync, coaching, and the PWA people install on
+     their phones. You need <a href="https://docs.docker.com/get-docker/" rel="noopener">Docker</a>
+     with the Compose plugin. No local Node — the images build the app for you.</p>
+  <pre><code>git clone &lt;your-repo&gt; gymyar
+cd gymyar
+cp .env.example .env
+docker compose up -d --build</code></pre>
+  <p>Open <code>http://localhost:8080</code> and create a profile. The first start downloads
+     the exercise images and animations (~140&nbsp;MB) once, migrates the schema, and seeds the
+     1,324-exercise library.</p>
+  <p>Three containers and a database volume: nginx serves the built app <i>and</i> proxies
+     <code>/api</code>, so everything is one origin — which is what passkeys require. The API
+     is internal only. Postgres holds every account and every set ever logged;
+     <code>docker compose down</code> leaves the volume alone, <code>down -v</code> destroys it.</p>
+  <div class="note"><b>With <code>SEED_DEMO=1</code></b> — the default in
+    <code>.env.example</code> — the first boot also creates a demo coach and three clients with
+    twelve weeks of training each, so you can see the coaching screens with something in them.
+    Turn it off for a real instance, and set a real <code>SESSION_SECRET</code>.</div>
+  <div class="note">Want it reachable from your phone with passkeys? You need an HTTPS domain,
+    and passkeys are bound to the exact hostname. The full guide — reverse proxy, backups,
+    invite-only signup, and the AI provider settings — is <code>docs/SELF_HOSTING.md</code> in
+    the repository.</div>
+
+  <h2 id="coach">Connect a coach to a client</h2>
+  <p>Coaching lives entirely in the web app. Both people need an account on the same instance.</p>
+  <ol>
+    <li>The coach invites the client, and the client accepts. Nothing happens until they do.</li>
+    <li>The client chooses <b>scopes</b> — which sections the coach may read. Programmes,
+        workouts and body weight are separate choices, and any of them can be withdrawn later.</li>
+    <li>The coach drafts a programme and sends it. It arrives as a <b>proposal</b>.</li>
+    <li>The client accepts it, and only then is it written — as the client's own data, through
+        the same sync path their phone uses.</li>
+  </ol>
+  <div class="note"><b>A coach never writes a client's rows.</b> That is a property of the
+    schema, not a promise in a settings screen: there is exactly one writer per row, so a
+    coach's edit cannot erase a client's, and a lapsed subscription cannot take a client's
+    training away. See <a href="about.html">About</a> for why the fork exists at all.</div>
+  <p>On an instance with a payment provider configured, the coach side is a subscription —
+     it gates taking on new clients, proposing programmes, and messaging. Reading a roster you
+     already built is never gated, and a client is never gated at all. With no provider
+     configured, coaching is simply free. See <a href="/en/#pricing">pricing</a>.</p>
+
+  <h2 id="iphone">Use on iPhone</h2>
+  <p>Open your GymYar instance in Safari, then <b>Share</b> → <b>Add to Home Screen</b>. You
+     get a full-screen app with its own icon, passkey sign-in, sync and all of the coaching —
+     no expiry, no fees, no store.</p>
+  <p>This is not a consolation prize: the PWA is the <i>complete</i> product, and the native
+     builds are the cut-down offline ones. The best iPhone experience here is the one that
+     involves no app install at all.</p>
+
+  <h2 id="android">Install on Android</h2>
+  <p>The Android app is the <b>offline tracker</b> — no accounts, no sync, no coaching, nothing
+     to buy. If you want coaching on Android, install the PWA from your instance the same way
+     iPhone does it (Chrome → menu → <b>Install app</b>).</p>
+  <ol>
+    <li>Download the signed APK on your phone, or install from
+        <a href="https://cafebazaar.ir" rel="noopener">Cafe Bazaar</a> or
+        <a href="https://myket.ir" rel="noopener">Myket</a>.</li>
+    <li>For the direct APK, your browser will ask whether it may install apps — allow it. This
+        is standard for anything installed outside a store, and the permission can be revoked
+        immediately afterwards.</li>
+    <li>Open it and start logging. There is no account step, because there is no account.</li>
+  </ol>
+  <p>Training data lives in a file in the app's private storage. The only thing fetched from
+     the network is the exercise media.</p>
+
+  <h2 id="import">Import your training history</h2>
+  <p>Coming from another tracker? <b>Settings → Data → Import from another app</b> reads:</p>
+  <ul>
+    <li><b>FitNotes</b> (both the Android and the FitNotes 2 iOS export)</li>
+    <li><b>Strong</b> and <b>Hevy</b> (CSV exports — session lengths carry over, so the
+        activity heatmap fills in properly)</li>
+    <li><b>Apple Health</b> (body-weight history from the XML export)</li>
+    <li>…and anything else with date, exercise-name and weight/reps columns</li>
+  </ul>
+  <p>Exercise names are matched against the 1,324-exercise library; anything genuinely
+     ambiguous becomes one of your own custom exercises instead of being guessed at. A summary
+     shows exactly what will happen before anything is written, and importing is idempotent —
+     running it twice never duplicates a workout.</p>
+
+  <h2 id="backup">Backups</h2>
+  <p><b>Settings → Data → Export backup (JSON)</b> writes your entire log — plan, workouts,
+     weights, settings — into one file. On the Android app it goes out through the share sheet;
+     in the browser it downloads. <b>Import backup</b> restores it anywhere: another phone, your
+     self-hosted instance, or a fresh install.</p>
+  <p>If you run the server, back up the Postgres volume too — that is where every account and
+     every set actually lives. The per-user export is a user's copy of their own data, not an
+     instance backup.</p>
+
+  <h2 id="build">Build it yourself</h2>
+  <ul>
+    <li><b>Web / self-host:</b> <code>docker compose up -d --build</code> builds everything
+        inside the containers.</li>
+    <li><b>From source:</b> <code>npm install</code>, then <code>npm run db:reset</code>,
+        <code>npm run api</code> and <code>npm run dev</code>. <code>npm test</code> runs the
+        domain, database, API, client and release suites; the database ones need a Postgres in
+        <code>DATABASE_URL</code>.</li>
+    <li><b>Android APK:</b> <code>npm run sync:mobile</code> then Gradle's
+        <code>assembleRelease</code>. Signing and distribution notes are in
+        <code>docs/RELEASING.md</code>.</li>
+  </ul>
+  <div class="note">After <code>npm run sync:mobile</code> the client's <code>dist/</code>
+    holds the <i>mobile</i> bundle — the one with no sign-in. Deploying that to a server ships
+    an accountless app to everyone who visits. Build the web app with <code>npm run build</code>.</div>
+
+  <h2 id="faq">FAQ</h2>
+
+  <h3>Is it free?</h3>
+  <p>The software is free as in cost and as in freedom (AGPL-3.0), and training is free in
+     every deployment. On a hosted instance that charges, the only thing a subscription gates
+     is a coach taking on new clients, proposing programmes and messaging them — never a
+     client, and never anyone's training log. Self-host with no payment provider and coaching
+     is free too.</p>
+
+  <h3>What data does GymYar collect?</h3>
+  <p>None. There is no telemetry, no analytics and no crash reporting. A self-hosted instance
+     talks only to your own server; the Android app talks to no server at all.</p>
+
+  <h3>Does the AI see my training?</h3>
+  <p>Only if a model is configured, and only for the two jobs it has: parsing free text into a
+     structured brief, and writing the note that explains a change. Every number is computed
+     locally by the app's own planner. Configure no model and everything still works — plans,
+     stall detection, log parsing — phrased from a template instead of written as prose. You
+     can also point it at a model on your own hardware and nothing leaves the building.</p>
+
+  <h3>Why isn't it on the Play Store or the App Store?</h3>
+  <p>Because the Apple Developer Program and the Google Play Console are not available to
+     Iranian developers or Iranian companies — US sanctions, no Iranian App Store storefront,
+     and Play is not usefully reachable from Iran either. That is not a step that was skipped;
+     it is not a step that exists on this path. What is left is the direct APK, the Iranian
+     Android stores (Cafe Bazaar and Myket), and — for iPhone — the PWA, which is the fuller
+     product anyway.</p>
+
+  <h3>Where does the exercise database come from?</h3>
+  <p>The names and instructions come from the
+     <a href="https://github.com/hasaneyldrm/exercises-dataset" rel="noopener">hasaneyldrm/exercises-dataset</a>
+     project. <b>The images and animations are © <a href="https://gymvisual.com/" rel="noopener">Gym visual</a>
+     and are not covered by GymYar's licence</b> — they are downloaded from the upstream
+     source on first run rather than redistributed here, and they are not ours to sublicense.
+     A commercial deployment needs its own licence for them, or its own artwork; exercise rows
+     carry the media URLs, so swapping the source is a database update. Full details are in the
+     project's <code>NOTICE.md</code>.</p>
+
+  <h3>Can I use my own model provider?</h3>
+  <p>Yes. Anything speaking the OpenAI request shape is one adapter, and a local model is
+     supported as the failover underneath it. Two tiers are configurable, because the note a
+     client actually reads is worth a better model than the parse nobody sees. See
+     <code>.env.example</code>.</p>
+
+  <h3>I used openGym. Can I bring my data?</h3>
+  <p>Yes. GymYar stores the same training in a relational schema instead of one JSON
+     document, and the code that turns an openGym state file into rows lives in the project
+     rather than in a one-off script — the demo seeder runs through it too, so the migration
+     is exercised on every seed. For a single account, an openGym backup file goes in through
+     <b>Settings → Data → Import backup</b>.</p>
+</main>
+
+<footer><div class="wrap foot">
+  <span>GymYar · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
+  <div class="links">
+    <a href="docs.html">Docs</a>
+    <a href="about.html" class="hide-s">About</a>
+    <a href="/en/#pricing">Pricing</a>
+    <a href="/docs.html" hreflang="fa">فارسی</a>
+    <a href="#" data-repo="" hidden>Source</a>
+  </div>
+</div></footer>
+
+<script src="/site.js" defer></script>
+</body>
+</html>

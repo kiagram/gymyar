@@ -1,226 +1,226 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Docs — GymYar</title>
-<meta name="description" content="How to self-host GymYar with Docker, install it on Android or iPhone, connect a coach to a client, import your training history, and keep backups.">
-<meta name="theme-color" content="#0c0e12">
-<meta property="og:locale" content="en_US">
-<link rel="alternate" hreflang="en" href="/docs.html">
-<link rel="alternate" hreflang="fa" href="/fa/docs.html">
-<link rel="alternate" hreflang="x-default" href="/docs.html">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-<link rel="icon" type="image/png" sizes="180x180" href="icon-180.png">
-<link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="styles.css">
+<title>راهنما — جیم‌یار</title>
+<meta name="description" content="راه‌اندازی جیم‌یار روی سرور خودتان با داکر، نصب روی اندروید و آیفون، وصل کردن مربی به شاگرد، آوردن سابقه تمرین، و گرفتن پشتیبان.">
+<meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0d0e" media="(prefers-color-scheme: dark)">
+<meta property="og:locale" content="fa_IR">
+<link rel="alternate" hreflang="fa" href="/docs.html">
+<link rel="alternate" hreflang="en" href="/en/docs.html">
+<link rel="alternate" hreflang="x-default" href="/en/docs.html">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+<link rel="icon" type="image/png" sizes="180x180" href="/icon-180.png">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="preload" href="/fonts/vazirmatn-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 
 <nav><div class="wrap nav-in">
   <a class="brand" href="/">
-    <img src="icon-180.png" alt="" width="26" height="26" style="border-radius:6px">
-    GymYar
+    <img src="/brand/gymyar-mark.svg" alt="" width="23" height="32">
+    <span class="name">جیم‌یار</span>
   </a>
   <div class="nav-links">
-    <a href="/#coaching" class="hide-s">Coaching</a>
-    <a href="/#features" class="hide-s">Features</a>
-    <a href="/#screens" class="hide-s">Screenshots</a>
-    <a href="/#pricing" class="hide-s">Pricing</a>
-    <a href="docs.html">Docs</a>
-    <a href="about.html" class="hide-s">About</a>
-    <a href="#" data-repo="" hidden>Source</a>
-    <a class="lang" href="/fa/docs.html" hreflang="fa">فارسی</a>
-    <a class="cta" href="/app/">Open the app</a>
+    <a href="/#coaching" class="hide-s">مربی‌گری</a>
+    <a href="/#features" class="hide-s">امکانات</a>
+    <a href="/#pricing" class="hide-s">هزینه</a>
+    <a href="docs.html">راهنما</a>
+    <a href="about.html" class="hide-s">درباره</a>
+    <a href="#" data-repo="" class="hide-s" hidden>کد منبع</a>
+    <a class="lang" href="/en/docs.html" hreflang="en">English</a>
+    <a class="cta" href="/app/">ورود به برنامه</a>
   </div>
 </div></nav>
 
 <main class="wrap prose">
-  <h1>Docs</h1>
-  <p class="lead">Everything you need to get GymYar running — on your own server, or as an
-     app on a phone. The maintainer-level documents (architecture, releasing, store listings)
-     live in the repository under <code>docs/</code>.</p>
+  <h1>راهنما</h1>
+  <p class="lead">هرچه برای راه انداختن جیم‌یار لازم دارید — روی سرور خودتان، یا به‌شکل یک
+     برنامه روی گوشی. سندهای سطح نگهدارنده (معماری، انتشار، فهرست فروشگاه‌ها) در مخزن پروژه
+     زیر پوشه <code>docs/</code> هستند و به انگلیسی نوشته شده‌اند.</p>
 
   <div class="toc">
-    <a href="#selfhost">Self-hosting</a>
-    <a href="#coach">Coach and client</a>
-    <a href="#iphone">iPhone</a>
-    <a href="#android">Android</a>
-    <a href="#import">Import your history</a>
-    <a href="#backup">Backups</a>
-    <a href="#build">Build it yourself</a>
-    <a href="#faq">FAQ</a>
+    <a href="#selfhost">راه‌اندازی روی سرور</a>
+    <a href="#coach">مربی و شاگرد</a>
+    <a href="#iphone">آیفون</a>
+    <a href="#android">اندروید</a>
+    <a href="#import">آوردن سابقه</a>
+    <a href="#backup">پشتیبان‌گیری</a>
+    <a href="#build">ساختن از کد</a>
+    <a href="#faq">پرسش‌های متداول</a>
   </div>
 
-  <h2 id="selfhost">Self-host with Docker</h2>
-  <p>This is the complete product: accounts, sync, coaching, and the PWA people install on
-     their phones. You need <a href="https://docs.docker.com/get-docker/" rel="noopener">Docker</a>
-     with the Compose plugin. No local Node — the images build the app for you.</p>
+  <h2 id="selfhost">راه‌اندازی با داکر</h2>
+  <p>این محصول کامل است: حساب کاربری، همگام‌سازی، مربی‌گری، و همان PWA‌ای که مردم روی گوشیشان
+     نصب می‌کنند. به <a href="https://docs.docker.com/get-docker/" rel="noopener">داکر</a> با
+     افزونه Compose نیاز دارید. Node لازم نیست — ایمیج‌ها خودشان برنامه را می‌سازند.</p>
   <pre><code>git clone &lt;your-repo&gt; gymyar
 cd gymyar
 cp .env.example .env
 docker compose up -d --build</code></pre>
-  <p>Open <code>http://localhost:8080</code> and create a profile. The first start downloads
-     the exercise images and animations (~140&nbsp;MB) once, migrates the schema, and seeds the
-     1,324-exercise library.</p>
-  <p>Three containers and a database volume: nginx serves the built app <i>and</i> proxies
-     <code>/api</code>, so everything is one origin — which is what passkeys require. The API
-     is internal only. Postgres holds every account and every set ever logged;
-     <code>docker compose down</code> leaves the volume alone, <code>down -v</code> destroys it.</p>
-  <div class="note"><b>With <code>SEED_DEMO=1</code></b> — the default in
-    <code>.env.example</code> — the first boot also creates a demo coach and three clients with
-    twelve weeks of training each, so you can see the coaching screens with something in them.
-    Turn it off for a real instance, and set a real <code>SESSION_SECRET</code>.</div>
-  <div class="note">Want it reachable from your phone with passkeys? You need an HTTPS domain,
-    and passkeys are bound to the exact hostname. The full guide — reverse proxy, backups,
-    invite-only signup, and the AI provider settings — is <code>docs/SELF_HOSTING.md</code> in
-    the repository.</div>
+  <p><code>http://localhost:8080</code> را باز کنید و یک پروفایل بسازید. اولین اجرا، یک‌بار
+     تصویرها و انیمیشن‌های حرکت‌ها (حدود ۱۴۰ مگابایت) را دانلود می‌کند، شِما را مهاجرت می‌دهد
+     و کتابخانه ۱٬۳۲۴ حرکتی را می‌کارد.</p>
+  <p>سه کانتینر و یک حجم پایگاه داده: nginx هم برنامه ساخته‌شده را سرو می‌کند <i>و هم</i>
+     <code>/api</code> را پراکسی می‌کند، پس همه‌چیز یک مبدأ (origin) دارد — که همان چیزی است
+     که گذرکلید لازم دارد. API فقط داخلی است. Postgres همه حساب‌ها و تک‌تک ست‌های ثبت‌شده را
+     نگه می‌دارد؛ <code>docker compose down</code> به آن حجم کاری ندارد و
+     <code>down -v</code> نابودش می‌کند.</p>
+  <div class="note"><b>با <code>SEED_DEMO=1</code></b> — که در <code>.env.example</code>
+    پیش‌فرض است — اولین بالا آمدن، یک مربی نمایشی و سه شاگرد با دوازده هفته تمرین هم می‌سازد،
+    تا صفحه‌های مربی‌گری را با چیزی داخلشان ببینید. برای یک نمونه واقعی خاموشش کنید و یک
+    <code>SESSION_SECRET</code> واقعی بگذارید.</div>
+  <div class="note">می‌خواهید از گوشی و با گذرکلید در دسترس باشد؟ به یک دامنه HTTPS نیاز
+    دارید، و گذرکلید به همان نام میزبان دقیق گره می‌خورد. راهنمای کامل — پراکسی معکوس،
+    پشتیبان‌گیری، ثبت‌نام فقط با دعوت، و تنظیمات سرویس‌دهنده هوش مصنوعی — در
+    <code>docs/SELF_HOSTING.md</code> مخزن است.</div>
 
-  <h2 id="coach">Connect a coach to a client</h2>
-  <p>Coaching lives entirely in the web app. Both people need an account on the same instance.</p>
+  <h2 id="coach">وصل کردن مربی به شاگرد</h2>
+  <p>مربی‌گری کاملاً در نسخه وب است. هر دو نفر باید روی یک نمونه حساب داشته باشند.</p>
   <ol>
-    <li>The coach invites the client, and the client accepts. Nothing happens until they do.</li>
-    <li>The client chooses <b>scopes</b> — which sections the coach may read. Programmes,
-        workouts and body weight are separate choices, and any of them can be withdrawn later.</li>
-    <li>The coach drafts a programme and sends it. It arrives as a <b>proposal</b>.</li>
-    <li>The client accepts it, and only then is it written — as the client's own data, through
-        the same sync path their phone uses.</li>
+    <li>مربی شاگرد را دعوت می‌کند و شاگرد می‌پذیرد. تا این کار نشود، هیچ اتفاقی نمی‌افتد.</li>
+    <li>شاگرد <b>دسترسی‌ها</b> را انتخاب می‌کند — اینکه مربی کدام بخش‌ها را بتواند بخواند.
+        برنامه‌ها، تمرین‌ها و وزن بدن انتخاب‌های جدا هستند و هرکدام بعداً پس گرفته می‌شود.</li>
+    <li>مربی یک برنامه می‌نویسد و می‌فرستد. به‌شکل <b>پیشنهاد</b> می‌رسد.</li>
+    <li>شاگرد می‌پذیرد، و تنها آن‌وقت نوشته می‌شود — به‌عنوان داده خودِ شاگرد، از همان مسیر
+        همگام‌سازی‌ای که گوشی‌اش استفاده می‌کند.</li>
   </ol>
-  <div class="note"><b>A coach never writes a client's rows.</b> That is a property of the
-    schema, not a promise in a settings screen: there is exactly one writer per row, so a
-    coach's edit cannot erase a client's, and a lapsed subscription cannot take a client's
-    training away. See <a href="about.html">About</a> for why the fork exists at all.</div>
-  <p>On an instance with a payment provider configured, the coach side is a subscription —
-     it gates taking on new clients, proposing programmes, and messaging. Reading a roster you
-     already built is never gated, and a client is never gated at all. With no provider
-     configured, coaching is simply free. See <a href="/#pricing">pricing</a>.</p>
+  <div class="note"><b>مربی هیچ‌وقت سطرهای شاگرد را نمی‌نویسد.</b> این ویژگیِ شِمای پایگاه
+    داده است، نه قولی در یک صفحه تنظیمات: برای هر سطر دقیقاً یک نویسنده وجود دارد، پس ویرایش
+    مربی نمی‌تواند ویرایش شاگرد را پاک کند و اشتراک تمام‌شده نمی‌تواند تمرین شاگرد را از او
+    بگیرد. برای اینکه اصلاً چرا این انشعاب هست، <a href="about.html">درباره</a> را ببینید.</div>
+  <p>روی نمونه‌ای که درگاه پرداخت دارد، سمت مربی اشتراکی است — که گرفتن شاگرد جدید، پیشنهاد
+     دادن برنامه و پیام دادن را محدود می‌کند. خواندن فهرستی که از قبل ساخته‌اید هیچ‌وقت محدود
+     نمی‌شود، و شاگرد اصلاً محدود نمی‌شود. اگر درگاهی تنظیم نشده باشد، مربی‌گری همین‌طور
+     رایگان است. <a href="/#pricing">هزینه</a> را ببینید.</p>
 
-  <h2 id="iphone">Use on iPhone</h2>
-  <p>Open your GymYar instance in Safari, then <b>Share</b> → <b>Add to Home Screen</b>. You
-     get a full-screen app with its own icon, passkey sign-in, sync and all of the coaching —
-     no expiry, no fees, no store.</p>
-  <p>This is not a consolation prize: the PWA is the <i>complete</i> product, and the native
-     builds are the cut-down offline ones. The best iPhone experience here is the one that
-     involves no app install at all.</p>
+  <h2 id="iphone">استفاده روی آیفون</h2>
+  <p>نمونه جیم‌یار خودتان را در سافاری باز کنید، بعد <b>Share</b> ← <b>Add to Home Screen</b>.
+     یک برنامه تمام‌صفحه با نشان خودش می‌گیرید، با ورود گذرکلید، همگام‌سازی و تمام مربی‌گری —
+     بدون انقضا، بدون هزینه، بدون فروشگاه.</p>
+  <p>این جایزه دلداری نیست: PWA محصول <i>کامل</i> است و نسخه‌های بومی، همان نسخه‌های آفلاینِ
+     خلاصه‌شده‌اند. بهترین تجربه آیفون اینجا همانی است که اصلاً نصب برنامه‌ای در کار نیست.</p>
 
-  <h2 id="android">Install on Android</h2>
-  <p>The Android app is the <b>offline tracker</b> — no accounts, no sync, no coaching, nothing
-     to buy. If you want coaching on Android, install the PWA from your instance the same way
-     iPhone does it (Chrome → menu → <b>Install app</b>).</p>
+  <h2 id="android">نصب روی اندروید</h2>
+  <p>برنامه اندروید همان <b>دفتر تمرین آفلاین</b> است — بدون حساب، بدون همگام‌سازی، بدون
+     مربی‌گری و بدون چیزی برای خریدن. اگر مربی‌گری روی اندروید می‌خواهید، PWA را از نمونه
+     خودتان نصب کنید، درست مثل آیفون (کروم ← منو ← <b>نصب برنامه</b>).</p>
   <ol>
-    <li>Download the signed APK on your phone, or install from
-        <a href="https://cafebazaar.ir" rel="noopener">Cafe Bazaar</a> or
-        <a href="https://myket.ir" rel="noopener">Myket</a>.</li>
-    <li>For the direct APK, your browser will ask whether it may install apps — allow it. This
-        is standard for anything installed outside a store, and the permission can be revoked
-        immediately afterwards.</li>
-    <li>Open it and start logging. There is no account step, because there is no account.</li>
+    <li>فایل APK امضاشده را روی گوشی دانلود کنید، یا از
+        <a href="https://cafebazaar.ir" rel="noopener">کافه بازار</a> یا
+        <a href="https://myket.ir" rel="noopener">مایکت</a> نصب کنید.</li>
+    <li>برای APK مستقیم، مرورگر می‌پرسد که آیا اجازه نصب برنامه دارد — اجازه بدهید. این برای
+        هر چیزی که خارج از فروشگاه نصب شود عادی است، و همان لحظه بعدش می‌شود اجازه را پس گرفت.</li>
+    <li>بازش کنید و شروع به ثبت کنید. مرحله ساخت حساب ندارد، چون اصلاً حسابی وجود ندارد.</li>
   </ol>
-  <p>Training data lives in a file in the app's private storage. The only thing fetched from
-     the network is the exercise media.</p>
+  <p>داده تمرین در فایلی در حافظه خصوصی برنامه می‌ماند. تنها چیزی که از شبکه گرفته می‌شود،
+     تصویر و انیمیشن حرکت‌هاست.</p>
 
-  <h2 id="import">Import your training history</h2>
-  <p>Coming from another tracker? <b>Settings → Data → Import from another app</b> reads:</p>
+  <h2 id="import">آوردن سابقه تمرین</h2>
+  <p>از برنامه دیگری می‌آیید؟ <b>تنظیمات ← داده‌ها ← ورود از برنامه دیگر</b> این‌ها را
+     می‌خواند:</p>
   <ul>
-    <li><b>FitNotes</b> (both the Android and the FitNotes 2 iOS export)</li>
-    <li><b>Strong</b> and <b>Hevy</b> (CSV exports — session lengths carry over, so the
-        activity heatmap fills in properly)</li>
-    <li><b>Apple Health</b> (body-weight history from the XML export)</li>
-    <li>…and anything else with date, exercise-name and weight/reps columns</li>
+    <li><b>FitNotes</b> (هم خروجی اندروید و هم خروجی FitNotes 2 روی iOS)</li>
+    <li><b>Strong</b> و <b>Hevy</b> (خروجی CSV — طول جلسه‌ها هم منتقل می‌شود، پس نقشه فعالیت
+        درست پر می‌شود)</li>
+    <li><b>Apple Health</b> (سابقه وزن بدن از خروجی XML)</li>
+    <li>…و هر چیز دیگری که ستون تاریخ، نام حرکت و وزنه/تکرار داشته باشد</li>
   </ul>
-  <p>Exercise names are matched against the 1,324-exercise library; anything genuinely
-     ambiguous becomes one of your own custom exercises instead of being guessed at. A summary
-     shows exactly what will happen before anything is written, and importing is idempotent —
-     running it twice never duplicates a workout.</p>
+  <p>نام حرکت‌ها با کتابخانه ۱٬۳۲۴ حرکتی تطبیق داده می‌شود؛ هرچه واقعاً مبهم باشد به‌جای آنکه
+     حدس زده شود، یکی از حرکت‌های دلخواه خودتان می‌شود. پیش از آنکه چیزی نوشته شود، خلاصه‌ای
+     دقیقاً نشان می‌دهد چه اتفاقی می‌افتد، و ورود اطلاعات خنثی‌پذیر است — دوبار اجرا کردنش
+     هیچ‌وقت تمرینی را تکراری نمی‌کند.</p>
 
-  <h2 id="backup">Backups</h2>
-  <p><b>Settings → Data → Export backup (JSON)</b> writes your entire log — plan, workouts,
-     weights, settings — into one file. On the Android app it goes out through the share sheet;
-     in the browser it downloads. <b>Import backup</b> restores it anywhere: another phone, your
-     self-hosted instance, or a fresh install.</p>
-  <p>If you run the server, back up the Postgres volume too — that is where every account and
-     every set actually lives. The per-user export is a user's copy of their own data, not an
-     instance backup.</p>
+  <h2 id="backup">پشتیبان‌گیری</h2>
+  <p><b>تنظیمات ← داده‌ها ← خروجی پشتیبان (JSON)</b> کل دفترتان را — برنامه، تمرین‌ها، وزن‌ها،
+     تنظیمات — در یک فایل می‌نویسد. در برنامه اندروید از طریق برگه اشتراک‌گذاری بیرون می‌رود و
+     در مرورگر دانلود می‌شود. <b>ورود پشتیبان</b> همه‌جا بازش می‌گرداند: گوشی دیگر، نمونه
+     خودتان، یا یک نصب تازه.</p>
+  <p>اگر سرور را خودتان اجرا می‌کنید، از حجم Postgres هم پشتیبان بگیرید — جایی که هر حساب و
+     تک‌تک ست‌ها واقعاً آنجا هستند. خروجی هر کاربر، نسخه خودش از داده خودش است، نه پشتیبان
+     کل نمونه.</p>
 
-  <h2 id="build">Build it yourself</h2>
+  <h2 id="build">ساختن از کد</h2>
   <ul>
-    <li><b>Web / self-host:</b> <code>docker compose up -d --build</code> builds everything
-        inside the containers.</li>
-    <li><b>From source:</b> <code>npm install</code>, then <code>npm run db:reset</code>,
-        <code>npm run api</code> and <code>npm run dev</code>. <code>npm test</code> runs the
-        domain, database, API, client and release suites; the database ones need a Postgres in
-        <code>DATABASE_URL</code>.</li>
-    <li><b>Android APK:</b> <code>npm run sync:mobile</code> then Gradle's
-        <code>assembleRelease</code>. Signing and distribution notes are in
-        <code>docs/RELEASING.md</code>.</li>
+    <li><b>وب / سرور خودتان:</b> <code>docker compose up -d --build</code> همه‌چیز را داخل
+        کانتینرها می‌سازد.</li>
+    <li><b>از کد منبع:</b> <code>npm install</code>، بعد <code>npm run db:reset</code>،
+        <code>npm run api</code> و <code>npm run dev</code>. دستور <code>npm test</code>
+        مجموعه‌های دامنه، پایگاه داده، API، کلاینت و انتشار را اجرا می‌کند؛ آن‌هایی که به
+        پایگاه داده مربوط‌اند به یک Postgres در <code>DATABASE_URL</code> نیاز دارند.</li>
+    <li><b>APK اندروید:</b> <code>npm run sync:mobile</code> و بعد
+        <code>assembleRelease</code> در Gradle. نکته‌های امضا و توزیع در
+        <code>docs/RELEASING.md</code> است.</li>
   </ul>
-  <div class="note">After <code>npm run sync:mobile</code> the client's <code>dist/</code>
-    holds the <i>mobile</i> bundle — the one with no sign-in. Deploying that to a server ships
-    an accountless app to everyone who visits. Build the web app with <code>npm run build</code>.</div>
+  <div class="note">بعد از <code>npm run sync:mobile</code>، پوشه <code>dist/</code> کلاینت
+    بسته <i>موبایل</i> را دارد — همانی که صفحه ورود ندارد. اگر آن را روی سرور بگذارید، به هر
+    کسی که به سایتتان سر بزند یک برنامه بدون حساب کاربری تحویل می‌دهید. نسخه وب را با
+    <code>npm run build</code> بسازید.</div>
 
-  <h2 id="faq">FAQ</h2>
+  <h2 id="faq">پرسش‌های متداول</h2>
 
-  <h3>Is it free?</h3>
-  <p>The software is free as in cost and as in freedom (AGPL-3.0), and training is free in
-     every deployment. On a hosted instance that charges, the only thing a subscription gates
-     is a coach taking on new clients, proposing programmes and messaging them — never a
-     client, and never anyone's training log. Self-host with no payment provider and coaching
-     is free too.</p>
+  <h3>رایگان است؟</h3>
+  <p>نرم‌افزار هم از نظر هزینه رایگان است و هم از نظر آزادی (AGPL-3.0)، و تمرین در هر
+     راه‌اندازی‌ای رایگان است. روی نمونه‌ای که پول می‌گیرد، تنها چیزی که اشتراک محدود می‌کند
+     گرفتن شاگرد جدید، پیشنهاد برنامه و پیام دادن توسط مربی است — نه هیچ‌وقت شاگرد، و نه
+     هیچ‌وقت دفتر تمرین کسی. اگر خودتان میزبانی کنید و درگاه پرداختی نگذارید، مربی‌گری هم
+     رایگان است.</p>
 
-  <h3>What data does GymYar collect?</h3>
-  <p>None. There is no telemetry, no analytics and no crash reporting. A self-hosted instance
-     talks only to your own server; the Android app talks to no server at all.</p>
+  <h3>جیم‌یار چه داده‌ای جمع می‌کند؟</h3>
+  <p>هیچ. نه تله‌متری، نه ابزار تحلیل رفتار، نه گزارش خطا. نمونه‌ای که خودتان راه انداخته‌اید
+     فقط با سرور خودتان حرف می‌زند؛ برنامه اندروید با هیچ سروری حرف نمی‌زند.</p>
 
-  <h3>Does the AI see my training?</h3>
-  <p>Only if a model is configured, and only for the two jobs it has: parsing free text into a
-     structured brief, and writing the note that explains a change. Every number is computed
-     locally by the app's own planner. Configure no model and everything still works — plans,
-     stall detection, log parsing — phrased from a template instead of written as prose. You
-     can also point it at a model on your own hardware and nothing leaves the building.</p>
+  <h3>هوش مصنوعی تمرین من را می‌بیند؟</h3>
+  <p>فقط اگر مدلی تنظیم شده باشد، و فقط برای همان دو کاری که دارد: تبدیل متن آزاد به یک
+     درخواست ساخت‌یافته، و نوشتن یادداشتی که یک تغییر را توضیح می‌دهد. همه اعداد را
+     برنامه‌ریز خودِ برنامه به‌شکل محلی حساب می‌کند. هیچ مدلی تنظیم نکنید و باز همه‌چیز کار
+     می‌کند — برنامه‌ها، تشخیص توقف، خواندن متن — فقط جمله‌اش از یک الگو می‌آید به‌جای آنکه
+     نثر نوشته شود. می‌توانید به مدلی روی سخت‌افزار خودتان هم وصلش کنید تا هیچ‌چیز از ساختمان
+     بیرون نرود.</p>
 
-  <h3>Why isn't it on the Play Store or the App Store?</h3>
-  <p>Because the Apple Developer Program and the Google Play Console are not available to
-     Iranian developers or Iranian companies — US sanctions, no Iranian App Store storefront,
-     and Play is not usefully reachable from Iran either. That is not a step that was skipped;
-     it is not a step that exists on this path. What is left is the direct APK, the Iranian
-     Android stores (Cafe Bazaar and Myket), and — for iPhone — the PWA, which is the fuller
-     product anyway.</p>
+  <h3>چرا در گوگل‌پلی یا اپ‌استور نیست؟</h3>
+  <p>چون برنامه توسعه‌دهندگان اپل و کنسول گوگل‌پلی در دسترس توسعه‌دهنده‌ها و شرکت‌های ایرانی
+     نیست — تحریم‌های آمریکا، نبودِ ویترین ایرانی برای اپ‌استور، و اینکه گوگل‌پلی هم از ایران
+     عملاً قابل استفاده نیست. این مرحله‌ای نیست که رد شده باشد؛ مرحله‌ای است که روی این مسیر
+     اصلاً وجود ندارد. آنچه می‌ماند: APK مستقیم، فروشگاه‌های ایرانی اندروید (کافه بازار و
+     مایکت)، و برای آیفون همان PWA که در هر حال محصول کامل‌تری است.</p>
 
-  <h3>Where does the exercise database come from?</h3>
-  <p>The names and instructions come from the
+  <h3>پایگاه داده حرکت‌ها از کجا آمده؟</h3>
+  <p>نام‌ها و توضیح‌ها از پروژه
      <a href="https://github.com/hasaneyldrm/exercises-dataset" rel="noopener">hasaneyldrm/exercises-dataset</a>
-     project. <b>The images and animations are © <a href="https://gymvisual.com/" rel="noopener">Gym visual</a>
-     and are not covered by GymYar's licence</b> — they are downloaded from the upstream
-     source on first run rather than redistributed here, and they are not ours to sublicense.
-     A commercial deployment needs its own licence for them, or its own artwork; exercise rows
-     carry the media URLs, so swapping the source is a database update. Full details are in the
-     project's <code>NOTICE.md</code>.</p>
+     می‌آید. <b>تصویرها و انیمیشن‌ها © <a href="https://gymvisual.com/" rel="noopener">Gym visual</a>
+     هستند و مشمول مجوز جیم‌یار نیستند</b> — در اولین اجرا از منبع اصلی دانلود می‌شوند و
+     اینجا بازتوزیع نشده‌اند، و اجازه واگذاری‌شان هم دست ما نیست. یک راه‌اندازی تجاری به مجوز
+     خودش برای آن‌ها نیاز دارد، یا به تصویرهای خودش؛ نشانی رسانه در سطر هر حرکت است، پس عوض
+     کردن منبع یک به‌روزرسانی پایگاه داده است. جزئیات کامل در <code>NOTICE.md</code> پروژه.</p>
 
-  <h3>Can I use my own model provider?</h3>
-  <p>Yes. Anything speaking the OpenAI request shape is one adapter, and a local model is
-     supported as the failover underneath it. Two tiers are configurable, because the note a
-     client actually reads is worth a better model than the parse nobody sees. See
-     <code>.env.example</code>.</p>
+  <h3>می‌توانم سرویس‌دهنده مدل خودم را بگذارم؟</h3>
+  <p>بله. هرچه قالب درخواست OpenAI را بفهمد یک آداپتور است، و مدل محلی هم به‌عنوان جایگزین
+     زیرین آن پشتیبانی می‌شود. دو سطح قابل تنظیم است، چون یادداشتی که شاگرد واقعاً می‌خواند
+     ارزش مدل بهتری را دارد نسبت به تجزیه متنی که کسی نمی‌بیندش. <code>.env.example</code> را
+     ببینید.</p>
 
-  <h3>I used openGym. Can I bring my data?</h3>
-  <p>Yes. GymYar stores the same training in a relational schema instead of one JSON
-     document, and the code that turns an openGym state file into rows lives in the project
-     rather than in a one-off script — the demo seeder runs through it too, so the migration
-     is exercised on every seed. For a single account, an openGym backup file goes in through
-     <b>Settings → Data → Import backup</b>.</p>
+  <h3>از openGym می‌آیم. داده‌ام را می‌توانم بیاورم؟</h3>
+  <p>بله. جیم‌یار همان تمرین را به‌جای یک سند JSON در یک شِمای رابطه‌ای ذخیره می‌کند، و کدی
+     که فایل وضعیت openGym را به سطر تبدیل می‌کند داخل خود پروژه است نه در یک اسکریپت یک‌بارمصرف
+     — دانه‌کار نمایشی هم از همان عبور می‌کند، پس این مهاجرت در هر بار کاشت آزموده می‌شود. برای
+     یک حساب، فایل پشتیبان openGym از <b>تنظیمات ← داده‌ها ← ورود پشتیبان</b> وارد می‌شود.</p>
 </main>
 
 <footer><div class="wrap foot">
-  <span>GymYar · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
+  <span>GymYar · AGPL-3.0 · ساخته‌شده بر پایه <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> نوشته Duarte Santos</span>
   <div class="links">
-    <a href="docs.html">Docs</a>
-    <a href="about.html" class="hide-s">About</a>
-    <a href="/#pricing">Pricing</a>
-    <a href="/fa/docs.html" hreflang="fa">فارسی</a>
-    <a href="#" data-repo="" hidden>Source</a>
+    <a href="docs.html">راهنما</a>
+    <a href="about.html" class="hide-s">درباره</a>
+    <a href="/#pricing">هزینه</a>
+    <a href="/en/docs.html" hreflang="en">English</a>
+    <a href="#" data-repo="" hidden>کد منبع</a>
   </div>
 </div></footer>
 
-<script src="site.js" defer></script>
+<script src="/site.js" defer></script>
 </body>
 </html>

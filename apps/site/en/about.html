@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>About — GymYar</title>
+<meta name="description" content="GymYar is a fork of openGym, rebuilt so a coach and a client can work on the same training without overwriting each other. What changed, and why.">
+<meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0d0e" media="(prefers-color-scheme: dark)">
+<meta property="og:locale" content="en_US">
+<link rel="alternate" hreflang="fa" href="/about.html">
+<link rel="alternate" hreflang="en" href="/en/about.html">
+<link rel="alternate" hreflang="x-default" href="/en/about.html">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+<link rel="icon" type="image/png" sizes="180x180" href="/icon-180.png">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="preload" href="/fonts/vazirmatn-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<nav><div class="wrap nav-in">
+  <a class="brand" href="/en/">
+    <img src="/brand/gymyar-mark.svg" alt="" width="23" height="32">
+    <span class="name">GymYar</span>
+  </a>
+  <div class="nav-links">
+    <a href="/en/#coaching" class="hide-s">Coaching</a>
+    <a href="/en/#features" class="hide-s">Features</a>
+    <a href="/en/#pricing" class="hide-s">Pricing</a>
+    <a href="docs.html">Docs</a>
+    <a href="about.html" class="hide-s">About</a>
+    <a href="#" data-repo="" class="hide-s" hidden>Source</a>
+    <a class="lang" href="/about.html" hreflang="fa">فارسی</a>
+    <a class="cta" href="/app/">Open the app</a>
+  </div>
+</div></nav>
+
+<main class="wrap prose">
+  <h1>About GymYar</h1>
+  <p class="lead">GymYar is a fork of <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a>,
+     rebuilt so that two people — a coach and a client — can work on the same training without
+     one of them silently overwriting the other.</p>
+
+  <h2>What openGym was</h2>
+  <p>openGym is a self-hosted gym and body-weight tracker by Duarte Santos, and it is very good
+     at what it set out to do: log your workouts and your weight, on your own server, with no
+     subscription and no account on someone else's machine. Guided sessions, 1,324 exercises
+     with animations, a muscle map, progression that follows an actual rule, 12 languages. It
+     was built by someone standing in a gym with the thing in their hand, and it shows.</p>
+  <p>Everything in GymYar's <a href="/en/#features">features list</a> that concerns tracking
+     came from there. None of it was rewritten for the sake of rewriting it.</p>
+
+  <h2>The one thing that had to change</h2>
+  <p>openGym stored a user's entire account as a single JSON document and synced it with a
+     whole-state <code>PUT</code> — last write wins. For one person on their own server that
+     is an elegant design: no schema to migrate, no merge logic, nothing to get wrong.</p>
+  <p>It is fatal for coaching. If a coach edits a programme while their client is mid-session,
+     one of those two edits is destroyed and nobody is told. And a server that never parses
+     what it stores can never answer a question about it — so "which of my clients has
+     stalled?" is not a query, it is a thing that cannot be asked.</p>
+  <p>So GymYar stores rows. Every write bumps a per-user counter and records what changed at
+     that value; a client remembers the last counter it saw and asks for whatever came after
+     it. The app still holds the whole state in memory — that part was never the problem, and
+     it is what keeps the app working with no signal in a basement gym — but the wire format
+     and the database underneath are relational.</p>
+  <p>One mapper sits between the two worlds, imported by both the client and the server, so
+     there is one of it rather than two that drift apart.</p>
+
+  <h2>The rule that makes coaching safe</h2>
+  <p><b>A coach never writes a client's rows.</b> A proposed programme lands in its own table
+     and becomes real only when the client accepts it — at which point it is written as the
+     client's own row, through the ordinary sync path. There is only ever one writer per row,
+     so there is nothing to merge, and a client's own edit cannot be erased by a coach's sync.</p>
+  <p>Scopes are the other half of it. Sharing a programme does not share what you weigh. Every
+     coach-side read is checked against the scope that client granted, section by section.</p>
+
+  <h2>What the AI layer is, and is not</h2>
+  <p>The domain owns every number. Sets, reps, loads, progression policies and exercise
+     selection are computed against the real library and the same progression rules the app
+     already runs on. A language model is asked to do exactly two things: turn free text into
+     a structured brief, and write the note explaining a change. Both have a deterministic
+     implementation underneath them.</p>
+  <p>Which model does that is configuration — a hosted provider, or one on your own hardware
+     as the failover underneath it, which is what an outage, a lapsed key and a blocked route
+     all look like from here. With no key set at all, GymYar builds the same plans, finds the
+     same stalls and parses the same logs; it phrases things from a template instead of writing
+     prose, in whichever language the person is using, and the app says so plainly.</p>
+  <p>That is what makes it safe to expose. Nothing can invent a lift that is not in the
+     library, or put 140&nbsp;kg on a beginner's bar.</p>
+
+  <h2>Three products, one codebase</h2>
+  <p>The web app is the whole thing: accounts, sync, coaching, subscriptions. The native builds
+     are a <a href="/en/#download">different product on purpose</a> — an offline single-user
+     tracker with no accounts, no backend and nothing to buy. Training data lives in a file on
+     the phone, and the network layer throws if anything tries to reach a server, so the
+     privacy declaration those builds ship with is enforced rather than promised.</p>
+
+  <h2>Principles</h2>
+  <ul>
+    <li><b>Your data is yours.</b> Local-first, one-file backups, no lock-in — leaving
+        GymYar must always be one export away.</li>
+    <li><b>A client is never the product.</b> Training is free and ungated. The only thing a
+        subscription can ever gate is a coach taking on new work.</li>
+    <li><b>No telemetry, ever.</b> If a feature needs analytics to justify itself, it does not
+        ship.</li>
+    <li><b>The model never has the last word.</b> Anything it produces is a draft that a person
+        confirms, and there is a deterministic path underneath it that works with no model at
+        all.</li>
+    <li><b>Open source that stays open.</b> AGPL-3.0, so every fork and every hosted version
+        owes its code back to everyone — this one included.</li>
+  </ul>
+
+  <h2>Licence and credit</h2>
+  <p>GymYar is licensed <b>AGPL-3.0-or-later</b>, inherited from openGym and kept
+     deliberately. Section 13 means anyone using a hosted instance is entitled to its source,
+     which is the correct outcome for software that holds other people's training.</p>
+  <p>Copyright in the parts derived from openGym remains with Duarte Santos, and the full
+     licence chain — including the app-store additional permission granted under section 7,
+     and the separate terms covering the exercise images and animations — is recorded in the
+     project's <code>NOTICE.md</code>. The exercise media is <b>not</b> covered by the AGPL and
+     is not ours to sublicense; see the <a href="docs.html#faq">FAQ</a>.</p>
+
+  <div class="btn-row" style="margin:36px 0 10px">
+    <a class="btn" href="/en/#download">Get GymYar</a>
+    <a class="btn ghost" href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym, upstream</a>
+    <a class="btn ghost" href="#" data-repo="" hidden>GymYar source</a>
+  </div>
+</main>
+
+<footer><div class="wrap foot">
+  <span>GymYar · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
+  <div class="links">
+    <a href="docs.html">Docs</a>
+    <a href="about.html" class="hide-s">About</a>
+    <a href="/en/#pricing">Pricing</a>
+    <a href="/about.html" hreflang="fa">فارسی</a>
+    <a href="#" data-repo="" hidden>Source</a>
+  </div>
+</div></footer>
+
+<script src="/site.js" defer></script>
+</body>
+</html>
