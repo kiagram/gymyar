@@ -108,18 +108,25 @@ a day's ten lowest readings — a count rather than a percentile so it can be co
 numbers per day as the file streams past. Both are covered by `import-health.test.js` and
 `heartrate.test.js`.
 
-**Not built, and the two are different kinds of missing.**
+**Stored.** `012_heart_rate.sql` puts four columns on `workouts` — average, low, high and the
+count behind them — and `statemap.js` carries them in both directions, so a session's heart
+rate survives a sync instead of living until the first one. Four numbers and not a samples
+table: a reading every few seconds is ~175,000 rows per person per year, for a curve nothing
+draws yet, and the header of that migration argues the asymmetry. All four or none of them is
+a check constraint rather than a convention, because three different writers will eventually
+have to obey it. The session sheet shows the average and the peak once ten readings are behind
+them.
 
-1. *The zip, and progress.* The client still reads one text file. `export.zip` has to be
-   unzipped in the browser, which means a dependency — the app has none for this today — and
-   the progress reporting the plan already calls for.
-2. *Anywhere to put the heart rate.* `workouts` has no column for it, so `rowsToWorkout`
-   drops anything the parser attaches and a synced account would lose the number on its first
-   round-trip with nothing having failed. So the reader reports heart rate and the import
-   discards it, and the import sheet says so in as many words rather than letting it look
-   like the file held none. Fixing this is `012_health.sql` — which this document files under
-   M3, and which M1 turns out to need first if "import a year of heart rate" is to mean
-   anything.
+**Not built.** *The zip, and progress.* The client still reads one text file. `export.zip` has
+to be unzipped in the browser, which means a dependency — the app has none for this today —
+and the progress reporting the plan already calls for. Until then this reads an `export.xml`
+that has been unzipped by hand, which is a real thing a person can do and not a thing most
+people will.
+
+**Still homeless.** The parser also computes a daily resting heart rate, and there is nowhere
+to keep it: `bodyweight_entries` is the shape it wants and not the table it belongs in, since a
+day can have a resting figure without a weigh-in. That is a table, a sync surface and a chart
+— a feature rather than a migration — so it is read and dropped for now.
 
 ### M2 — Live heart rate over Bluetooth · 7 days
 
@@ -176,7 +183,7 @@ week two.
 | M1 | [`packages/domain/src/import-csv.js`](../packages/domain/src/import-csv.js), its tests, the client import flow |
 | M1–M4 | `packages/domain/src/heartrate.js` — new; zones and per-set aggregates, wired into `effort.js` |
 | M2 | `apps/client` — a connect sheet, and live BPM on the logging screen |
-| M3 | `apps/api/src/routes/health.js` — new; `packages/db/migrations/012_health.sql` — HR samples, external workout ids, pairing tokens |
+| M3 | `apps/api/src/routes/health.js` — new; a migration for external workout ids and pairing tokens. The heart rate half of what this row used to name is `012_heart_rate.sql`, which M1 needed first |
 | M4 | `apps/client/android` — permissions, and the Bazaar listing's justification for them |
 
 ## Privacy, and what it costs elsewhere

@@ -19,7 +19,7 @@ import { Button, Slider, Switch, Segmented, SelectRow, Row, TextField, TextArea,
 import { glyphOf, GLYPH_GROUPS, DEFAULT_GLYPH } from './lib/glyphs.js'
 import BodyMap from './components/BodyMap.jsx'
 import { loadOfWorkouts } from '@gymyar/domain'
-import { parseImport, mergeImport } from '@gymyar/domain'
+import { parseImport, mergeImport, MIN_HR_SAMPLES } from '@gymyar/domain'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from '@gymyar/domain'
 import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS } from '@gymyar/domain'
@@ -207,11 +207,13 @@ function ImportSummary({ parsed, close }) {
         : '{0} sets bring an {1} with them.',
       parsed.rirSets || parsed.rpeSets, parsed.rirSets ? 'RIR' : 'RPE')}
     </div>}
-    {/* The file has heart rate in it and this app has nowhere to put it yet. Said out loud
-        rather than left out: somebody importing a watch export is importing it *for* the
-        heart rate, and silence would read as "there was none in the file". */}
-    {isHealth && parsed.hrSamples > 0 && <div className="small dim" style={{ marginBottom: 10 }}>
-      {t('{0} heart-rate readings are in this file, {1} of them during these sessions — GymYar cannot store them yet.', parsed.hrSamples, parsed.hrWorkouts ? parsed.workouts.filter(w => w.hr).reduce((a, w) => a + w.hr.n, 0) : 0)}
+    {/* Said out loud rather than left out: somebody importing a watch export is importing it
+        *for* the heart rate, and silence would read as "there was none in the file". The
+        readings outside a session are counted in the file and kept nowhere — only the four
+        numbers per session survive, which is what migration 012 gives a workout. */}
+    {isHealth && parsed.hrWorkouts > 0 && <div className="small dim" style={{ marginBottom: 10 }}>
+      {t('{0} of these sessions bring a heart rate with them — an average, a low and a high, from {1} readings.',
+        parsed.hrWorkouts, parsed.workouts.filter(w => w.hr).reduce((a, w) => a + w.hr.n, 0))}
     </div>}
     {!isBW && parsed.unmatchedNames.length > 0 && <>
       <h4 className="sec">{t('Not in the library — added as your own exercises')}</h4>
@@ -838,7 +840,11 @@ function WorkoutDetail({ w, close }) {
   const st = useStore(s => s.S)
   return <>
     <h3>{w.name}</h3>
-    <div className="muted small" style={{ marginBottom: 12 }}>{[fmtDate(w.d, true), ...durPart(w.end - w.start), fmtVol(w.vol, st.unit), ...(w.bw ? [fmtNum(w.bw) + ' ' + st.unit] : [])].join(' · ')}</div>
+    {/* The heart rate sits in the same line as the duration and the volume because that is
+        what it is: one more fact about the session. Shown only once enough readings are
+        behind it — see MIN_HR_SAMPLES — since an average off three is a watch that lost
+        contact, and it looks identical to an average off four hundred. */}
+    <div className="muted small" style={{ marginBottom: 12 }}>{[fmtDate(w.d, true), ...durPart(w.end - w.start), fmtVol(w.vol, st.unit), ...(w.bw ? [fmtNum(w.bw) + ' ' + st.unit] : []), ...(w.hr && w.hr.n >= MIN_HR_SAMPLES ? [t('{0} bpm, {1} peak', w.hr.avg, w.hr.max)] : [])].join(' · ')}</div>
     {w.entries.map((e, i) => {
       const ex = EXIDX[e.id]
       return <div key={i} className="row" style={{ marginBottom: 12, alignItems: 'flex-start' }}>

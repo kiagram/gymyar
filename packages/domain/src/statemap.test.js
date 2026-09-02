@@ -121,6 +121,46 @@ describe('workouts', () => {
     expect(back.entries.map(e => e.id)).toEqual(['0025', '0043', '0025'])
   })
 
+  it('round-trips the session heart rate', () => {
+    const hr = { ...w, hr: { n: 412, avg: 138, min: 96, max: 171 } }
+    const { workout, sets } = workoutToRows(hr, { userId: 'u1', unit: 'kg', modeFor: modeReps })
+    expect(workout).toMatchObject({
+      hr_avg_bpm: 138, hr_min_bpm: 96, hr_max_bpm: 171, hr_samples: 412
+    })
+    expect(rowsToWorkout(workout, sets, { unit: 'kg', modeFor: modeReps }).hr)
+      .toEqual({ n: 412, avg: 138, min: 96, max: 171 })
+  })
+
+  it('leaves a session without one absent rather than null on both sides', () => {
+    // `w.hr &&` is the whole test a view should need, and a session recorded before 012 has
+    // to read exactly like one recorded without a watch.
+    const { workout, sets } = workoutToRows(w, { userId: 'u1', unit: 'kg', modeFor: modeReps })
+    expect(workout.hr_avg_bpm).toBeNull()
+    expect('hr' in rowsToWorkout(workout, sets, { unit: 'kg', modeFor: modeReps })).toBe(false)
+  })
+
+  it('sends four nulls rather than half an aggregate', () => {
+    // The database refuses a partial one (012), and it refuses the whole push with it — so a
+    // broken heart rate must not be allowed to cost the session it is attached to.
+    const half = { ...w, hr: { n: 10, avg: 140 } }
+    const { workout } = workoutToRows(half, { userId: 'u1', unit: 'kg', modeFor: modeReps })
+    expect(workout).toMatchObject({
+      hr_avg_bpm: null, hr_min_bpm: null, hr_max_bpm: null, hr_samples: null
+    })
+  })
+
+  it('refuses an aggregate that does not hold together', () => {
+    const impossible = [
+      { n: 10, avg: 200, min: 150, max: 170 },   // an average above the maximum
+      { n: 0, avg: 140, min: 120, max: 170 },    // no readings behind it
+      { n: 10, avg: 20, min: 10, max: 30 },      // not a human heart rate
+    ]
+    for (const hr of impossible) {
+      const { workout } = workoutToRows({ ...w, hr }, { userId: 'u1', unit: 'kg', modeFor: modeReps })
+      expect(workout.hr_avg_bpm).toBeNull()
+    }
+  })
+
   it('survives a pound profile intact', () => {
     const lb = { ...w, entries: [{ id: '0025', sets: [{ w: 225, r: 5 }] }], bw: 180 }
     const { workout, sets } = workoutToRows(lb, { userId: 'u1', unit: 'lb', modeFor: modeReps })

@@ -208,15 +208,20 @@ export async function push(userId, payload = {}, s = db()) {
       }
       const wroteWorkout = await tx`
         insert into workouts (id, user_id, routine_id, routine_name, started_at, finished_at,
-                              bodyweight_kg, notes, prs)
+                              bodyweight_kg, notes, prs,
+                              hr_avg_bpm, hr_min_bpm, hr_max_bpm, hr_samples)
         values (${w.id}, ${userId}, ${w.routine_id ?? null}, ${w.routine_name ?? null},
                 ${w.started_at}, ${w.finished_at ?? null}, ${w.bodyweight_kg ?? null},
-                ${w.notes ?? null}, ${w.prs ?? []})
+                ${w.notes ?? null}, ${w.prs ?? []},
+                ${w.hr_avg_bpm ?? null}, ${w.hr_min_bpm ?? null},
+                ${w.hr_max_bpm ?? null}, ${w.hr_samples ?? null})
         on conflict (id) do update set
           routine_id = excluded.routine_id, routine_name = excluded.routine_name,
           started_at = excluded.started_at, finished_at = excluded.finished_at,
           bodyweight_kg = excluded.bodyweight_kg, notes = excluded.notes,
-          prs = excluded.prs, deleted_at = null, updated_at = now()
+          prs = excluded.prs, hr_avg_bpm = excluded.hr_avg_bpm,
+          hr_min_bpm = excluded.hr_min_bpm, hr_max_bpm = excluded.hr_max_bpm,
+          hr_samples = excluded.hr_samples, deleted_at = null, updated_at = now()
         where workouts.user_id = ${userId}
         returning id`
       assertWrote(wroteWorkout, 'workout', w.id)

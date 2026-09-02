@@ -104,6 +104,60 @@ describe('delta sync', () => {
     expect(changes.routines[0].name).toBe('A only')
   })
 
+  it('carries a session heart rate there and back', async () => {
+    const u = await createUser({ name: 'A' })
+    const at = '2026-08-01T18:00:00Z'
+    await push(u.id, {
+      workouts: [{
+        ...workout('w1', at),
+        hr_avg_bpm: 138, hr_min_bpm: 96, hr_max_bpm: 171, hr_samples: 412
+      }]
+    })
+    const all = await pullAll(u.id)
+    expect(all.changes.workouts[0]).toMatchObject({
+      hr_avg_bpm: 138, hr_min_bpm: 96, hr_max_bpm: 171, hr_samples: 412
+    })
+  })
+
+  it('leaves a session recorded without a watch null in all four', async () => {
+    const u = await createUser({ name: 'A' })
+    await push(u.id, { workouts: [workout('w1', '2026-08-01T18:00:00Z')] })
+    const all = await pullAll(u.id)
+    expect(all.changes.workouts[0]).toMatchObject({
+      hr_avg_bpm: null, hr_min_bpm: null, hr_max_bpm: null, hr_samples: null
+    })
+  })
+
+  it('clears a heart rate that a later push does not carry', async () => {
+    // The upsert assigns every hr_ column from `excluded`, so a session edited on a client
+    // that knows nothing about heart rate would blank it. That is the same rule the rest of
+    // this row already follows — the client sends the whole session, not a patch of it — and
+    // it is here so that it is a decision rather than a surprise.
+    const u = await createUser({ name: 'A' })
+    const at = '2026-08-01T18:00:00Z'
+    await push(u.id, { workouts: [{ ...workout('w1', at), hr_avg_bpm: 138, hr_min_bpm: 96, hr_max_bpm: 171, hr_samples: 412 }] })
+    await push(u.id, { workouts: [workout('w1', at)] })
+    expect((await pullAll(u.id)).changes.workouts[0].hr_avg_bpm).toBeNull()
+  })
+
+  it('refuses half an aggregate rather than storing an average nobody can weigh', async () => {
+    const u = await createUser({ name: 'A' })
+    await expect(push(u.id, {
+      workouts: [{ ...workout('w1', '2026-08-01T18:00:00Z'), hr_avg_bpm: 138 }]
+    })).rejects.toThrow()
+  })
+
+  it('refuses a heart rate no heart produced', async () => {
+    const u = await createUser({ name: 'A' })
+    const bad = extra => push(u.id, {
+      workouts: [{ ...workout('w1', '2026-08-01T18:00:00Z'), ...extra }]
+    })
+    // an average outside its own range, and a reading outside a living one
+    await expect(bad({ hr_avg_bpm: 200, hr_min_bpm: 96, hr_max_bpm: 171, hr_samples: 412 })).rejects.toThrow()
+    await expect(bad({ hr_avg_bpm: 20, hr_min_bpm: 10, hr_max_bpm: 30, hr_samples: 412 })).rejects.toThrow()
+    await expect(bad({ hr_avg_bpm: 138, hr_min_bpm: 96, hr_max_bpm: 171, hr_samples: 0 })).rejects.toThrow()
+  })
+
   it('rolls the whole push back when one row fails', async () => {
     const u = await createUser({ name: 'A' })
     const before = await pull(u.id, 0)
