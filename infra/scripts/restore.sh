@@ -29,15 +29,42 @@ done
 [ -f "$DUMP" ] || { echo "no such dump: $DUMP" >&2; exit 2; }
 [ -z "$MEDIA" ] || [ -f "$MEDIA" ] || { echo "no such media archive: $MEDIA" >&2; exit 2; }
 
-[ -f .env ] && set -a && . ./.env && set +a || true
-PGUSER="${POSTGRES_USER:-gymyar}"
-PGDB="${POSTGRES_DB:-gymyar}"
-PROJECT="$(docker compose config --format json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).name||"gymyar")}catch{console.log("gymyar")}})' || echo gymyar)"
+# Read, not sourced, for the reasons set out in backup.sh: `. ./.env` executes the file, and on a
+# .env saved by a Windows editor it assigns values with a trailing carriage return — asking for a
+# role under a name indistinguishable, in the error message, from one that exists. There it cost
+# a backup. Here it arrives at the guard below, and the guard is the only thing between a
+# mistyped path and `drop schema public cascade`.
+env_get() { # env_get KEY → the last assignment of KEY in .env, unquoted, carriage return gone
+  [ -f .env ] || return 0
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" .env | tail -n 1 | tr -d '\r' \
+    | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+}
+PGUSER="${POSTGRES_USER:-$(env_get POSTGRES_USER)}"; PGUSER="${PGUSER:-gymyar}"
+PGDB="${POSTGRES_DB:-$(env_get POSTGRES_DB)}";       PGDB="${PGDB:-gymyar}"
+
+# Asked of compose rather than of node, which is not on the PATH of a non-interactive ssh session
+# — and a restore is run from one more often than a backup is.
+PROJECT="${COMPOSE_PROJECT_NAME:-$(env_get COMPOSE_PROJECT_NAME)}"
+[ -n "$PROJECT" ] || PROJECT="$(docker compose ps --format '{{.Project}}' 2>/dev/null | head -n 1)"
+[ -n "$PROJECT" ] || PROJECT="$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')"
 MEDIA_VOL="${PROJECT}_media"
 
 step() { printf '  %s\n' "$1"; }
 fail() { echo "FAIL: $1" >&2; exit 1; }
 psq() { docker compose exec -T db psql -qtAX -U "$PGUSER" -d "$PGDB" -c "$1"; }
+
+# The api is stopped for the duration and started again at the end. Anything that exits in
+# between leaves it stopped, which is the right thing — a half-restored database should not be
+# served — but it used to leave it stopped without saying so, and an instance that is down for a
+# reason nobody was told is indistinguishable from one that is down for no reason.
+API_STOPPED=0
+on_exit() {
+  status=$?
+  [ "$status" -eq 0 ] || [ "$API_STOPPED" -eq 0 ] || echo \
+    "restore: the api is still stopped, on purpose — a half-restored database is not served.
+  When you have decided what to do: docker compose start api" >&2
+}
+trap on_exit EXIT
 
 echo "restore: $DUMP → $PGDB (project '$PROJECT')"
 
@@ -53,7 +80,26 @@ MANIFEST="${DUMP%.sql.gz}.manifest.txt"
 [ -f "$MANIFEST" ] && { step "manifest:"; sed 's/^/    /' "$MANIFEST"; }
 
 # ------------------------------------------------------------------- the guard ----
-EXISTING=$(psq 'select count(*) from users' 2>/dev/null || echo 0)
+# This was one line: `EXISTING=$(psq 'select count(*) from users' 2>/dev/null || echo 0)`. It
+# defeated the guard in precisely the case the guard is for. Every way the question can fail to
+# be asked — the stack is down, POSTGRES_DB names a database that is not there, the role is wrong
+# or ends in an invisible carriage return — came back 0, which reads as "empty, nothing to
+# protect", and the next thing this script does is drop the schema. The comment below says
+# stopping here is the whole point of the check; the check could not stop anything, because a
+# question that could not be asked was being recorded as an answer of none.
+psq 'select 1' >/dev/null 2>&1 || fail "cannot query $PGDB as $PGUSER.
+  Is the stack up (docker compose ps), and are POSTGRES_USER and POSTGRES_DB right?
+  Refusing to restore into a database it cannot read: a count of zero users here would
+  mean 'the question failed', not 'the database is empty'."
+
+# A database with no users *table* is a fresh one, and restoring onto it is the ordinary case. A
+# database whose users table exists but cannot be counted is a different thing, and is no longer
+# waved through as if it were the first.
+if [ "$(psq "select to_regclass('public.users') is not null" | tr -d '[:space:]')" = "t" ]; then
+  EXISTING="$(psq 'select count(*) from users' | tr -d '[:space:]')"
+else
+  EXISTING=0
+fi
 if [ "${EXISTING:-0}" != "0" ] && [ "$FORCE" != "1" ]; then
   fail "the target database already holds $EXISTING users.
   This would overwrite them. If that is the intention — a disaster recovery onto a live
@@ -65,6 +111,7 @@ fi
 # ends up with rows from two different databases in it. Stopped first, started at the end.
 step "stopping the api"
 docker compose stop api >/dev/null 2>&1 || true
+API_STOPPED=1
 
 # ------------------------------------------------------------------- database ----
 # Dropping and recreating the schema rather than restoring over it: a plain pg_dump does not
@@ -89,7 +136,22 @@ step "$RU users, $RS sets, $RM migrations"
 if [ -n "$MEDIA" ]; then
   step "restoring the media volume ($MEDIA_VOL)"
   docker volume inspect "$MEDIA_VOL" >/dev/null 2>&1 || docker volume create "$MEDIA_VOL" >/dev/null
-  docker run --rm -v "$MEDIA_VOL":/data -v "$(cd "$(dirname "$MEDIA")" && pwd)":/in alpine \
+  MEDIA_DIR="$(cd "$(dirname "$MEDIA")" && pwd)"
+
+  # The check at the top of this script proved the archive reads *here*. This proves it reads
+  # *there* — before the rm below destroys what is on the volume. A daemon inside a VM (Colima,
+  # Lima, Docker Desktop) shares only the directories it is configured to share, and mounts any
+  # other as an empty one, so the tar is simply absent. In `rm -rf /data/* && tar xzf …` the rm
+  # has already run by the time that is discovered: the failure lands after the media it was
+  # replacing is gone, with the archive meant to replace it never in reach.
+  docker run --rm -v "$MEDIA_DIR":/in alpine \
+    sh -c "tar tzf '/in/$(basename "$MEDIA")' >/dev/null 2>&1" \
+    || fail "the docker daemon cannot read $MEDIA.
+  A daemon inside a VM shares only the directories it is configured to share, and silently mounts
+  any other as empty. Nothing has been deleted. Move the archive to a shared directory — or add
+  this one to the daemon's file sharing — and run this again."
+
+  docker run --rm -v "$MEDIA_VOL":/data -v "$MEDIA_DIR":/in alpine \
     sh -c "rm -rf /data/* && tar xzf '/in/$(basename "$MEDIA")' -C /data" \
     || fail "the media restore failed"
   step "$(docker run --rm -v "$MEDIA_VOL":/data alpine sh -c 'find /data -type f | wc -l') files on the volume"
@@ -101,6 +163,7 @@ fi
 
 step "starting the api"
 docker compose start api >/dev/null
+API_STOPPED=0
 
 # `docker compose start` returns when the container is running, which is a second or two before
 # the API is answering — and in between, the instance serves 502. Waiting means "restore: all

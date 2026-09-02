@@ -56,4 +56,16 @@ COPY assets/banner.png /usr/share/nginx/html/assets/banner.png
 # app's own icon are one file rather than three that drift.
 COPY apps/client/public/icon-180.png apps/client/public/icon-512.png /usr/share/nginx/html/
 
+# The mark, as a vector. The nav and the hero draw it at 23 and 40 CSS pixels and it is the
+# same file logo/ hands to the store assets, so the brand cannot drift between them.
+COPY logo/gymyar-mark.svg logo/gymyar-lockup.svg /usr/share/nginx/html/brand/
+
+# The typeface, from the app's copy rather than a second one. Persian is the site's primary
+# language and every heading size on it is set against Vazirmatn, so this is not a nicety:
+# named-but-not-shipped is how the old stylesheet let the primary language fall through to a
+# different face on every visitor's machine. Google Fonts is not reachable from Iran, so it is
+# served from this origin. SIL OFL — OFL.txt travels beside the file it covers.
+COPY apps/client/src/assets/fonts/vazirmatn-variable.woff2 /usr/share/nginx/html/fonts/
+COPY apps/client/src/assets/fonts/OFL.txt /usr/share/nginx/html/fonts/OFL.txt
+
 # exercise media (img/gif) is mounted at runtime from the media volume

@@ -37,6 +37,10 @@ media
 .claude
 docs
 logo
+# …except the vectors themselves. The web image copies the mark into the site's document root,
+# so the nav and the hero draw the brand from the same file the store assets are cut from
+# rather than from a PNG that has to be re-exported every time the mark moves.
+!logo/*.svg
 # `assets` here is the repository's own top-level folder, not `apps/site/assets` — a
 # .dockerignore pattern without a slash matches at the root only. The two paths below are the
 # exception: the web image copies the screenshots and the banner into the project site, so

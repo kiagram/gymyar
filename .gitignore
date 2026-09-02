@@ -34,6 +34,10 @@ apps/client/android/keystore.properties
 apps/site/assets/
 apps/site/icon-180.png
 apps/site/icon-512.png
+# Same rule, two more sources: the mark comes from logo/ and the typeface from infra/web/,
+# both of which are the canonical copy for the app and the store listings too.
+apps/site/brand/
+apps/site/fonts/
 
 # Local scratch volume for uploaded media in development (see STORAGE_PATH in .env)
 .devmedia/

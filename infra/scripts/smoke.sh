@@ -156,6 +156,30 @@ if [ "$SITE" = "200" ]; then
   curl -sS "$BASE/" | grep -q 'id="instance"' \
     || { echo "FAIL: / did not serve the project site"; exit 1; }
 
+  step "the front door is in Persian, and English is one level down"
+  # Which language sits on the root is a product decision, not a detail: Iran is this
+  # project's market, and the page a visitor gets before choosing anything is the one the
+  # site is for. Nothing else in the tree would notice the two being swapped back.
+  curl -sS "$BASE/" | grep -q '<html lang="fa" dir="rtl">' \
+    || { echo "FAIL: / is not the Persian page"; exit 1; }
+  curl -sS "$BASE/en/" | grep -q '<html lang="en">' \
+    || { echo "FAIL: /en/ is not the English page"; exit 1; }
+
+  step "the old Persian prefix still resolves"
+  # /fa/ was Persian's address for the whole of the first release. Links to it exist.
+  FA=$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "$BASE/fa/docs.html")
+  [ "${FA#* }" = "$BASE/docs.html" ] || { echo "FAIL: /fa/docs.html went to '$FA', wanted a 301 to $BASE/docs.html"; exit 1; }
+
+  step "the typeface and the mark shipped with it"
+  # Both are copied in at build time from outside apps/site — the font from the client and the
+  # mark from logo/ — so a Dockerfile edit can drop either without any page failing to serve.
+  # Persian falling back to whatever face the visitor's machine carries is exactly the failure
+  # bundling it was meant to end, and it is invisible from a status code on the HTML.
+  for A in /fonts/vazirmatn-variable.woff2 /brand/gymyar-mark.svg; do
+    GOT=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE$A")
+    [ "$GOT" = "200" ] || { echo "FAIL: $A returned $GOT — brand assets did not ship"; exit 1; }
+  done
+
   step "the app is one level down"
   curl -sS "$BASE/app/" | grep -q '<div id="root">' \
     || { echo "FAIL: /app/ did not serve the app shell"; exit 1; }
