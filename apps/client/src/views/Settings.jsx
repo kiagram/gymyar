@@ -13,7 +13,7 @@ import { strapAvailable } from '../lib/heart-strap.js'
 import { t, LANGS } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, shareExport, syncReminder } from '../lib/mobile.js'
-import { loadStarterPlan, confirmSheet, importFromApp } from '../sheets.jsx'
+import { loadStarterPlan, confirmSheet, importFromApp, shortcutSheet } from '../sheets.jsx'
 import CodeFlow from '../components/CodeFlow.jsx'
 import { phoneFirst, phoneComplaint } from './Login.jsx'
 import Icon from '../components/Icon.jsx'
@@ -256,6 +256,14 @@ export default function Settings() {
       <Row icon="shuffle" iconTint="var(--teal)" title={t('Import from another app')}
         subtitle={t('FitNotes, Strong, Hevy — or body weight from Apple Health')}
         accessory="chevron" onClick={() => importRef.current.click()} />
+      {/* Only where there is a server to push to. The native builds have no backend and must
+          not grow one — MOBILE.md's promise that nothing leaves the device is the product —
+          and a guest has no account for a key to belong to. */}
+      {!MOBILE && !DEMO && user && (
+        <Row icon="heart" iconTint="var(--red)" title={t('Apple Watch, automatically')}
+          subtitle={t('A shortcut on your iPhone sends each session here as it ends')}
+          accessory="chevron" onClick={shortcutSheet} />
+      )}
       <Row icon="upload" iconTint="var(--blue)" title={t('Import backup')} accessory="chevron" onClick={() => fileRef.current.click()} />
       <Row icon="download" iconTint="var(--blue)" title={t('Export backup (JSON)')} accessory="chevron" onClick={doExport} />
       <Row icon="trash" iconTint="var(--red)" title={t('Reset everything')} danger onClick={() => confirmSheet({ title: t('Reset everything?'), message: t('Deletes your plan, workouts and body weight on this device. This cannot be undone.'), confirmText: t('Delete everything'), danger: true, onConfirm: () => { replaceState(JSON.parse(JSON.stringify(DEF)), true); nav('/home'); toast(t('All data reset')) } })} />

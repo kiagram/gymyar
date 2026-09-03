@@ -22,6 +22,7 @@ import { loadOfWorkouts } from '@gymyar/domain'
 import { mergeImport, MIN_HR_SAMPLES, hrStats, samplesIn, hrMax, zoneOf, heartRateForSets } from '@gymyar/domain'
 import { strapAvailable } from './lib/heart-strap.js'
 import { runImport } from './lib/import-runner.js'
+import { api } from './lib/api.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from '@gymyar/domain'
 import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS } from '@gymyar/domain'
@@ -302,6 +303,111 @@ function ImportRunner({ file, close, onDone }) {
 export function importFromApp(file, onDone) {
   ui().openSheet(close => <ImportRunner file={file} close={close} onDone={onDone} />)
 }
+
+/* ============================ Apple Health, via a shortcut ============================ */
+/* docs/WEARABLES.md M3, from the side the person sees.
+ *
+ * On an iPhone there is no app of ours that can read HealthKit and there is not going to be
+ * one, so the phone pushes instead: an automation on *when a workout ends* calls the endpoint
+ * with a token from here. This screen mints tokens, shows one exactly once, and revokes them.
+ *
+ * There is no `.shortcut` file to hand out. Building one requires a Mac and signing it requires
+ * an Apple developer account, which are the two things RELEASING.md already says this project
+ * cannot have — so the guide is steps a person follows once rather than a file they install,
+ * and it says so rather than promising a download that will never appear.
+ */
+function ShortcutSheet({ close }) {
+  const [tokens, setTokens] = useState(null)
+  const [fresh, setFresh] = useState(null)     // the plaintext, for as long as this sheet is open
+  const [busy, setBusy] = useState(false)
+  const origin = typeof location === 'undefined' ? '' : location.origin
+
+  const load = () => api('/api/health/tokens').then(r => setTokens(r.tokens)).catch(() => setTokens([]))
+  useEffect(() => { load() }, [])
+
+  const create = async () => {
+    setBusy(true)
+    try {
+      const r = await api('/api/health/tokens', { method: 'POST', body: '{}' })
+      setFresh(r.secret)
+      await load()
+    } catch (e) {
+      toast(e.message || t('Could not create a key'))
+    } finally { setBusy(false) }
+  }
+
+  const revoke = id => confirmSheet({
+    title: t('Revoke this key?'),
+    message: t('The shortcut using it will stop working until you paste a new one in.'),
+    confirmText: t('Revoke'), danger: true,
+    onConfirm: async () => {
+      try { await api(`/api/health/tokens/${id}`, { method: 'DELETE' }); await load(); toast(t('Key revoked')) }
+      catch (e) { toast(e.message || t('Could not revoke that key')) }
+    }
+  })
+
+  const copy = text => {
+    try { navigator.clipboard.writeText(text); toast(t('Copied')) }
+    catch { toast(t('Copy it by hand — this browser would not')) }
+  }
+
+  return <>
+    <h3>{t('Apple Watch, automatically')}</h3>
+    <div className="muted small" style={{ marginBottom: 12 }}>
+      {t('iPhone cannot give an app your workouts directly, so the phone sends them here instead — one shortcut, set up once, and every session that ends on your watch arrives on its own.')}
+    </div>
+
+    {fresh && <>
+      <h4 className="sec">{t('Your new key')}</h4>
+      <div className="keybox" onClick={() => copy(fresh)}>{fresh}</div>
+      <div className="small" style={{ color: 'var(--yellow)', marginBottom: 12 }}>
+        {t('This is the only time it is shown. Copy it into the shortcut now — if you lose it, revoke it and make another.')}
+      </div>
+    </>}
+
+    <h4 className="sec">{t('Set it up')}</h4>
+    <ol className="steps">
+      <li>{t('Make a key below and copy it.')}</li>
+      <li>{t('On the iPhone, open Shortcuts → Automation → New → Workout → When a workout ends.')}</li>
+      <li>{t('Add a Get Contents of URL action pointing at:')}
+        <div className="keybox" onClick={() => copy(origin + '/api/health/workout')}>{origin}/api/health/workout</div>
+      </li>
+      <li>{t('Set the method to POST, add a header Authorization with the value Bearer + your key, and set the body to JSON with these fields:')}
+        <div className="keybox">uuid, start, end, type, distanceKm, hrAvg, hrMin, hrMax, hrSamples</div>
+      </li>
+      <li>{t('Dates must be ISO 8601 with the time zone — in the Format Date action pick ISO 8601 and switch Include Time Zone on. Anything else is refused rather than guessed at.')}</li>
+      <li>{t('Turn Run Immediately on, so it fires without asking.')}</li>
+    </ol>
+    <div className="small dim" style={{ marginBottom: 14 }}>
+      {t('Only uuid and start are required. The rest fill in what the session was. Running it twice is safe — the same workout never lands twice.')}
+    </div>
+
+    <h4 className="sec">{t('Your keys')}</h4>
+    {tokens === null ? <div className="small dim">{t('Loading…')}</div>
+      : tokens.length === 0 ? <div className="small dim" style={{ marginBottom: 10 }}>{t('No keys yet.')}</div>
+        : <div className="list" style={{ gap: 0, marginBottom: 10 }}>
+          {tokens.map(k => <div key={k.id} className="row between" style={{ padding: '9px 2px', borderBottom: '1px solid var(--sep)' }}>
+            <div>
+              <div className="small">{t('Made {0}', fmtDate(String(k.created_at).slice(0, 10), true))}</div>
+              {/* The only way to answer "is it still running?" about an automation that fires
+                  silently on a phone in a pocket. */}
+              <div className="ss dim">{k.last_used_at
+                ? t('last used {0}', fmtDate(String(k.last_used_at).slice(0, 10), true))
+                : t('never used')}</div>
+            </div>
+            <button className="iconbtn" style={{ width: 32, height: 30, borderRadius: 8, color: 'var(--red)' }}
+              onClick={() => revoke(k.id)} aria-label={t('Revoke')}><Icon name="trash" /></button>
+          </div>)}
+        </div>}
+
+    <Button variant="primary" icon="plus" disabled={busy} onClick={create}>
+      {busy ? t('Making…') : t('Make a key')}
+    </Button>
+    <div style={{ height: 8 }} />
+    <Button variant="ghost" className="dim" onClick={close}>{t('Done')}</Button>
+  </>
+}
+export const shortcutSheet = () => ui().openSheet(close => <ShortcutSheet close={close} />)
 
 /* ============================ target weight ============================ */
 export function bwDeltaColor(delta, currentW) {

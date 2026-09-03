@@ -231,6 +231,28 @@ PWA only, necessarily: the native builds have no server to POST to, and should n
 Make the endpoint idempotent on `(user, workout_uuid)`. Automations re-fire, and users
 re-run shortcuts by hand when they think nothing happened.
 
+#### Where M3 actually stands
+
+**Built.** `apps/api/src/routes/health.js` and `packages/db/src/health.js`:
+`POST /api/health/workout` takes a session against a bearer token, idempotent on
+`(user_id, external_id)` per `015_health_shortcut.sql`, and `/api/health/tokens` mints, lists
+and revokes — several per account, so an iPhone and an iPad hold one each and either can be
+revoked alone. `last_used_at` is written on every accepted call, which is the only way to tell
+a working automation from one that quietly stopped. The pairing screen is Settings → Data, and
+it shows a key exactly once.
+
+Two things the tests pinned down that were not obvious going in. `Date.parse` is not a
+validator — it reads `03/09/2026` the American way, so a September session would have landed in
+March — and an ISO date with no offset is the *server's* local time, which puts a 21:00 Tehran
+session on the following day. Both are refused now rather than guessed at.
+
+**Not built, and not buildable here.** The `.shortcut` file this section asks for. Building one
+needs a Mac and signing one needs an Apple developer account, which are the two things
+RELEASING.md already says this project cannot have — the same wall the native app hits, hit
+again. So [HEALTH_SHORTCUT.md](HEALTH_SHORTCUT.md) is the twelve minutes of tapping that
+replaces it, and the app's own setup sheet carries the short version. If somebody with a Mac
+ever wants to build and share one, the document specifies exactly what it has to send.
+
 ### M4 — Health Connect read, Android native · 10 days
 
 `@capgo/capacitor-health` or `mley/capacitor-health`. Read workouts, heart rate, calories,
@@ -287,3 +309,6 @@ contracts drift. The hubs already give us those devices for nothing.
       real strap has been held against it yet, which is the only thing that can tick it
 - [ ] Both native builds still make no network calls — assert it, do not assume it
 - [ ] `privacy.md` and the Bazaar permission justification land in the same release
+- [ ] An Apple Watch user's sessions arrive on their own, with no file and no tapping — the
+      endpoint and the pairing are built and tested; unticked until somebody has run the
+      shortcut on a real phone, which is the same thing the strap is waiting for
