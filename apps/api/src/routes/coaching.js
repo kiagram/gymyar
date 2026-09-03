@@ -211,8 +211,8 @@ export default async function coachingRoutes(app) {
      * `readThread` has just refused anybody who is not in this conversation. */
     const files = await forMessages(messages.map(m => m.id))
     return {
-      messages: messages.map(m =>
-        files.has(m.id) ? { ...m, attachments: withUrls(files.get(m.id)) } : m)
+      messages: await Promise.all(messages.map(async m =>
+        files.has(m.id) ? { ...m, attachments: await withUrls(files.get(m.id)) } : m))
     }
   })
 
