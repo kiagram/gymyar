@@ -75,9 +75,19 @@ than hidden — a silently absent panel reads as a bug.
 Form-check video, progress photos and files on a message are the first user data that is not a
 row in Postgres, and the split is deliberate: `attachments` is an index and
 [`packages/storage`](../packages/storage) is a bag of bytes with no opinions. The storage
-interface is four methods — `put`, `signedUrl`, `stat`, `delete` — and keeping it to four is the
-design rather than a preference. The methods that get proposed (list, copy, a directory walk)
-are almost always a caller asking the volume something the database already knows.
+interface is five methods — `put`, `get`, `signedUrl`, `stat`, `delete` — and keeping it that
+short is the design rather than a preference. The methods that get proposed (list, copy, a
+directory walk) are almost always a caller asking the volume something the database already
+knows. `get` earns its place once and late: a model asked to look at a photo is the only reader
+that cannot be handed a URL.
+
+Two drivers implement it. `fs` is a directory on a volume served by the nginx already in front
+of the app, and is the default because S3 and the CDNs in front of it are not reachable from an
+Iranian entity. `s3` is any store that speaks S3, including a MinIO on the same machine. The
+second one exists partly to keep the first honest: an abstraction with one implementation is a
+guess, and writing the second is how you find out. It found one leak — `signedUrl` is awaited
+rather than read, because presigning through the SDK can have to resolve credentials over the
+network first.
 
 **The row is written before the bytes.** An upload is two writes to two systems that cannot
 share a transaction, so one is first, and that choice decides which failure is recoverable.

@@ -263,6 +263,34 @@ it is re-downloaded on first boot if the directory is empty. Individual users ca
 export their own training as JSON from **Settings → Data**, which is a per-user convenience and
 not an instance backup — it carries no other accounts, no credentials and no coaching state.
 
+### …or put the bytes in a bucket instead
+
+The volume is the default because S3, R2 and the CDNs in front of them are not reachable from an
+Iranian entity — an account you cannot open rather than a latency you could tune around. If that
+is not your problem, `STORAGE_DRIVER=s3` puts uploads in any store that speaks S3, including a
+MinIO on this same machine, and the backup above becomes whatever your bucket already does.
+
+```bash
+STORAGE_DRIVER=s3
+STORAGE_S3_BUCKET=gymyar-media
+STORAGE_S3_REGION=eu-central-1
+STORAGE_S3_ENDPOINT=            # set for MinIO or any non-AWS S3
+STORAGE_S3_ACCESS_KEY_ID=       # omit both to use the AWS SDK's own credential chain
+STORAGE_S3_SECRET_ACCESS_KEY=
+```
+
+Two things change and both are worth knowing before you switch:
+
+- **The bytes stop passing through this origin.** The API hands out presigned URLs that the
+  browser fetches from the bucket directly, so `/media/*` answers 501 and `STORAGE_ACCEL` stops
+  meaning anything. **Allow GET from this app's origin in the bucket's CORS rules**, or the
+  browser refuses a video it was handed a perfectly good URL for — which looks like a broken
+  upload and is a bucket setting.
+- **Nothing migrates itself.** Switching drivers does not move existing objects. Attachment rows
+  keep pointing at keys, and the keys are identical on both sides, so copying the volume's
+  contents into the bucket under the same paths is the whole migration — but it is yours to do,
+  and until it happens the old attachments are unavailable while the new ones work.
+
 ## 8. Email, and getting back into an account
 
 Somebody will forget their password. Without a mail relay there is nothing GymYar can do about

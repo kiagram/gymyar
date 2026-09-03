@@ -10,7 +10,7 @@
  *
  *   put({ key, body, contentType })  →  { key, bytes }
  *   get(key)                         →  Buffer | null
- *   signedUrl(key, { ttlSeconds })   →  a URL that stops working shortly
+ *   signedUrl(key, { ttlSeconds })   →  a URL that stops working shortly (await it)
  *   stat(key)                        →  { key, bytes, modifiedAt } | null
  *   delete(key)                      →  true if it was there
  *
@@ -70,7 +70,18 @@ export function storageFor({ secret, env = process.env } = {}) {
       bucket: env.STORAGE_S3_BUCKET,
       region: env.STORAGE_S3_REGION,
       endpoint: env.STORAGE_S3_ENDPOINT || null,
-      prefix: env.STORAGE_S3_PREFIX || ''
+      prefix: env.STORAGE_S3_PREFIX || '',
+      /* Both or neither. Given, they are used; omitted, the SDK's own chain applies — the
+       * `AWS_*` variables, then an instance role, then everything else it knows about. These
+       * exist because a MinIO on the same machine has a key pair and no chain to find it
+       * through, and because `AWS_SECRET_ACCESS_KEY` in the environment of a process that also
+       * holds the session secret is a name worth not reusing. */
+      credentials: env.STORAGE_S3_ACCESS_KEY_ID && env.STORAGE_S3_SECRET_ACCESS_KEY
+        ? {
+          accessKeyId: env.STORAGE_S3_ACCESS_KEY_ID,
+          secretAccessKey: env.STORAGE_S3_SECRET_ACCESS_KEY
+        }
+        : null
     })
   }
   if (driver !== 'fs') {

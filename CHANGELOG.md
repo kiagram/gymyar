@@ -1265,6 +1265,62 @@ it had never been true.
   attributed per record, and there are 374 of them across 273 exercises — 21% of our library
   before any name matching, and static PNGs rather than animations.
 
+### The S3 driver stops being a stub
+
+`packages/storage/src/s3.js` shipped as five methods with real signatures and no bodies. It was
+not laziness — it existed to prove that the interface in `index.js` was shaped by what storage
+*is* rather than by what a directory on a disk makes easy, on the theory that an abstraction
+with one implementation is a guess. Writing the second implementation is how you find out, so
+the bodies are now written and the guess was mostly right.
+
+- 🪣 **`STORAGE_DRIVER=s3` works**, against AWS, R2, or a MinIO on the same machine. Uploads go
+  through lib-storage's `Upload` rather than a plain `PutObject`, because the upload route hands
+  the driver a `Readable` of unknown length — it streams the request body through a size check
+  and never holds it — and `PutObject` wants a `ContentLength` that does not exist yet.
+- 📏 **`put` reports the size the bucket holds**, via a HEAD after the write, the way the
+  filesystem driver stats the file it just renamed. A truncated upload cannot be recorded as a
+  whole one.
+- 🗑️ **`delete` still answers whether it deleted anything**, which S3 declines to say: it
+  succeeds identically against a key that was never there. The driver buys the answer with a
+  HEAD first, because the caller is a sweeper reconciling rows against bytes and "deleted 400"
+  when the real number was 3 sends somebody looking for a leak that does not exist.
+- 🐢 **The SDK is imported on first use, not at module load.** `index.js` imports this driver
+  unconditionally, and the overwhelming majority of deployments run `fs` — a static import would
+  make every one of them load the AWS SDK in order not to use it. Construction stays synchronous
+  and still fails at boot naming the missing variable.
+
+#### What the second implementation found
+
+One thing, and the stub had explicitly predicted it would not happen: its own comment said
+"nothing above this file would have to change".
+
+- ⏳ **`signedUrl` had to become awaitable.** `getSignedUrl` is async because resolving
+  credentials can be — an instance role or an STS assumption is a network call before a byte is
+  hashed. So `withUrl` in `apps/api/src/media.js` is now `async` and nine call sites await it,
+  all of them already inside async handlers. The alternative was hand-rolling SigV4 presigning
+  to keep the signature synchronous, which is possible with static credentials and was rejected:
+  it trades a mechanical change for hand-written signing code in a security-adjacent path, and
+  would have ruled out every credential source that is not two strings in the environment. The
+  filesystem driver still returns a plain string, and awaiting a string is a string.
+
+Everything else held. `signedUrl` being a driver method rather than a shared helper is what let
+S3 use its own presigning instead of fighting the HMAC in `sign.js`; `internalPath` being
+*absent* from the interface is what let `/media/*` answer 501 for this driver rather than
+pretending it can serve bytes that never pass through this origin.
+
+#### Tested against something that speaks S3, not against a double
+
+The file that tests the filesystem driver opens by saying why it uses a real directory rather
+than a mocked `fs`: a fake agrees with the implementation about exactly the things worth
+doubting. That argument is stronger for a remote store, because the questions are S3's answers
+and not ours — whether a missing object is a 404 or a named error, whether `DeleteObject` says
+what it did, whether a presigned URL actually fetches and actually expires.
+
+So the 10 driver tests run against **MinIO**, and CI stands one up beside the Postgres. Without
+`STORAGE_S3_TEST_ENDPOINT` they skip rather than pretend — but skipping in CI would mean the only
+place the driver is exercised is a laptop that happens to have MinIO running, which is the same
+as not testing it.
+
 ### Known limitations
 
 - 💾 **Uploaded media is not in the database dump.** Form-check video and progress photos live

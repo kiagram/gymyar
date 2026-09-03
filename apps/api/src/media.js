@@ -29,13 +29,21 @@ export const resetStorage = () => { cached = null }
  * finished deciding whether this reader may have it, and that decision is the only thing that
  * should ever produce a URL — a screen holding a bare storage key would be a screen able to
  * ask for bytes it was never granted.
+ *
+ * Async because one driver's answer is. The filesystem signs with an HMAC and could return a
+ * string; S3 presigns through the SDK, whose credential resolution may itself be a network call,
+ * so `signedUrl` is awaited rather than read. Awaiting the filesystem's plain string costs a
+ * microtask and changes nothing about it — see packages/storage/src/s3.js, which is where the
+ * one place this interface leaked is written down.
  */
-export const withUrl = (row, { ttlSeconds = config.media.urlTtl } = {}) => {
+export const withUrl = async (row, { ttlSeconds = config.media.urlTtl } = {}) => {
   if (!row) return null
-  return { ...publicView(row), url: storage().signedUrl(row.storage_key, { ttlSeconds }) }
+  return { ...publicView(row), url: await storage().signedUrl(row.storage_key, { ttlSeconds }) }
 }
 
-export const withUrls = (rows, opts) => (rows || []).map(r => withUrl(r, opts))
+/* `Promise.all` rather than a loop: these are independent, and on the filesystem they do not
+ * wait for anything at all. */
+export const withUrls = (rows, opts) => Promise.all((rows || []).map(r => withUrl(r, opts)))
 
 /** The byte ceiling for a kind of upload. Stated by the storage package; read through here. */
 export const limitFor = kind => LIMITS[kind] ?? 0

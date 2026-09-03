@@ -222,7 +222,7 @@ export default async function mediaRoutes(app) {
 
     const row = await finish({ id, bytes })
     reply.code(201)
-    return { attachment: withUrl(row) }
+    return { attachment: await withUrl(row) }
   })
 
   /* -------------------------------------------------------------- rows ---- */
@@ -231,13 +231,13 @@ export default async function mediaRoutes(app) {
     const user = await requireUser(req)
     const workoutId = String(req.query?.workout || '')
     if (!workoutId) throw bad('a workout is required')
-    return { attachments: withUrls(await forWorkout(user.id, workoutId)) }
+    return { attachments: await withUrls(await forWorkout(user.id, workoutId)) }
   })
 
   app.get('/api/attachments/progress', async req => {
     const user = await requireUser(req)
     const limit = Math.min(200, Math.max(1, Number(req.query?.limit) || 60))
-    return { attachments: withUrls(await progressFor(user.id, { limit })) }
+    return { attachments: await withUrls(await progressFor(user.id, { limit })) }
   })
 
   app.get('/api/attachments/usage', async req => {
@@ -250,7 +250,7 @@ export default async function mediaRoutes(app) {
   app.get('/api/attachments/:id', async req => {
     const user = await requireUser(req)
     const row = await mayRead(user, await byId(req.params.id).catch(() => null))
-    return { attachment: withUrl(row) }
+    return { attachment: await withUrl(row) }
   })
 
   app.patch('/api/attachments/:id', async req => {
@@ -288,14 +288,14 @@ export default async function mediaRoutes(app) {
     const workoutId = String(req.query?.workout || '')
     if (!workoutId) throw bad('a workout is required')
     await requireScope(coach.id, req.params.id, 'workouts')
-    return { attachments: withUrls(await forWorkout(req.params.id, workoutId)) }
+    return { attachments: await withUrls(await forWorkout(req.params.id, workoutId)) }
   })
 
   app.get('/api/coach/clients/:id/progress', async req => {
     const coach = await requireUser(req)
     await requireScope(coach.id, req.params.id, 'photos')
     const limit = Math.min(200, Math.max(1, Number(req.query?.limit) || 60))
-    return { attachments: withUrls(await progressFor(req.params.id, { limit })) }
+    return { attachments: await withUrls(await progressFor(req.params.id, { limit })) }
   })
 
   /* ------------------------------------------------------------- bytes ---- */
