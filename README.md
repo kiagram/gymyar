@@ -187,9 +187,10 @@ the App Store and Google Play are not available on this path at all, and which c
 - [x] **Phase 7** — the visual identity, every icon cut from one vector and checked in CI
 - [x] **Phase 8** — check-ins and reminders, the rename to GymYar, self-hosting with backup
   and restore, the source published
-- [ ] **Phase 9** — wearables: Apple Health import and live heart rate over Bluetooth, so the
-  watch people already own feeds the log. The plan, and why the hubs are integrated rather
-  than the watches, is in [docs/WEARABLES.md](docs/WEARABLES.md)
+- [x] **Phase 9** — wearables, four ways in: an Apple Health export, a strap over Bluetooth, an
+  iPhone shortcut, and Health Connect on Android. Built and tested, but **not against real
+  hardware** — no strap, no iPhone, no Android phone has run any of it. Why the hubs are
+  integrated rather than the watches is in [docs/WEARABLES.md](docs/WEARABLES.md)
 - [ ] **Launch** — exercise media licence, legal review
 
 See [CHANGELOG.md](CHANGELOG.md) for what all of that actually amounts to, and for the
@@ -204,4 +205,6 @@ Two things block a paid launch and neither is code:
 1. **Exercise media.** The 1,324 animations are © [Gym visual](https://gymvisual.com/), not MIT.
    The dataset grants us nothing — obtain a commercial licence or replace the media. Exercise
    rows carry `image_url` and `animation_url`, so swapping the source is an `UPDATE`.
-2. **Legal review** of the AGPL position, since we charge for hosting.
+2. **Legal review** of the AGPL position, since we charge for hosting — and of
+   [the privacy policy](apps/site/privacy.html), which is now written and accurate about what
+   the software does, and has been read by nobody qualified to say whether that is enough.
