@@ -36,4 +36,27 @@
          on Android 12+. Where it isn't granted, scheduling silently falls back to inexact
          alarms — the reminder still arrives, just not to the minute. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!-- A heart-rate strap, over Bluetooth LE. Nothing here reaches a network: the app talks
+         to a device in the room and the readings go into the session on this phone, which is
+         the same promise MOBILE.md makes about everything else in this build.
+
+         `neverForLocation` is the load-bearing attribute. Android ties BLE scanning to
+         location by default, on the reasoning that a scan can be used to work out where
+         somebody is — this flag is the app declaring it will not, and it is what stops the OS
+         asking for location permission on Android 12 and later.
+
+         On Android 11 and below there is no such flag and the OS requires location for any
+         scan at all, so the two location permissions below exist for those devices only and
+         are capped so they can never apply on a phone new enough to use the flag. That cap is
+         the whole reason they are written out rather than left to the plugin's defaults.
+
+         Cafe Bazaar asks what each of these is for — see docs/store/listing.fa.md. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
 </manifest>
