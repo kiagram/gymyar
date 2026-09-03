@@ -61,8 +61,12 @@ create index push_user_idx on push_subscriptions (user_id);
 
 -- ── exercises ───────────────────────────────────────────────────────────────────
 -- Library rows (owner_id null) and a user's own rows share one table, so every set
--- carries a real foreign key. Media sits behind image_url/animation_url: replacing the
--- Gym visual assets is an UPDATE, not a migration.
+-- carries a real foreign key. image_url/animation_url record where this instance's artwork
+-- is served from; both are nullable, because a media set need not cover every exercise.
+-- These columns once carried a claim that replacing the Gym visual assets was an UPDATE
+-- here rather than a migration. It was not: the client renders from the filenames compiled
+-- into the dataset and has never read these. The set is chosen in the domain, in
+-- media-set.js, and the seeder resolves through it so these columns agree with the screen.
 create table exercises (
   id            text primary key,
   owner_id      uuid references users(id) on delete cascade,

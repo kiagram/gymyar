@@ -203,8 +203,18 @@ why the AGPL requires that before anyone takes payment for a hosted instance.
 Two things block a paid launch and neither is code:
 
 1. **Exercise media.** The 1,324 animations are © [Gym visual](https://gymvisual.com/), not MIT.
-   The dataset grants us nothing — obtain a commercial licence or replace the media. Exercise
-   rows carry `image_url` and `animation_url`, so swapping the source is an `UPDATE`.
+   The dataset grants us nothing — obtain a commercial licence or replace the media. Which set
+   ships is [`media-set.js`](packages/domain/src/media-set.js) in the domain, read by both the
+   client and the seeder; `npm run media:check` exits non-zero while the active set
+   may not be sold, and `npm run media:coverage` measures a candidate against our library.
+
+   Earlier versions of this line said the swap was an `UPDATE` over `exercises.image_url`.
+   That was wrong — nothing that draws a picture read those columns — and replacing it is
+   not cheap either way: the openly-licensed sets are keyed by name, not by our ids, and the
+   best of them ([Free Exercise DB](https://github.com/yuhonas/free-exercise-db), whose
+   artwork traces to Everkinetic under CC-BY-SA rather than the Unlicense its README prints)
+   safely covers **201 of 1,324** movements, with no animations at all. A replacement is a
+   licence *and* a mapping exercise.
 2. **Legal review** of the AGPL position, since we charge for hosting — and of
    [the privacy policy](apps/site/privacy.html), which is now written and accurate about what
    the software does, and has been read by nobody qualified to say whether that is enough.

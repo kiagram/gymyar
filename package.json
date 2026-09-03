@@ -28,7 +28,9 @@
     "api": "npm start -w @gymyar/api",
     "test:release": "vitest run --root infra",
     "version:stamp": "node infra/scripts/version.mjs",
-    "version:check": "node infra/scripts/version.mjs --check"
+    "version:check": "node infra/scripts/version.mjs --check",
+    "media:check": "node infra/scripts/media-set.mjs check",
+    "media:coverage": "node infra/scripts/media-set.mjs coverage"
   },
   "devDependencies": {
     "playwright-core": "^1.49.0"
