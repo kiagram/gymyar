@@ -16,6 +16,7 @@ import billingRoutes from './routes/billing.js'
 import mediaRoutes from './routes/media.js'
 import publicRoutes from './routes/public.js'
 import checkinRoutes from './routes/checkins.js'
+import healthRoutes from './routes/health.js'
 
 export async function build({
   logger = false, databaseUrl = config.databaseUrl, runMigrations = true, ai = null,
@@ -84,6 +85,7 @@ export async function build({
   await app.register(syncRoutes)
   await app.register(coachingRoutes)
   await app.register(checkinRoutes)
+  await app.register(healthRoutes)
   await app.register(exerciseRoutes)
   await app.register(pushRoutes)
   await app.register(adminRoutes)

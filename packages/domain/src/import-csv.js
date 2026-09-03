@@ -724,6 +724,28 @@ const hkActivity = type => String(type || '')
   .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
   .trim().toLowerCase()
 
+/**
+ * What a HealthKit activity type means here: the library exercise it is, or the name to invent
+ * one under.
+ *
+ * Exported because two different things now speak this vocabulary — the file importer above,
+ * and the endpoint the iOS shortcut POSTs to (docs/WEARABLES.md M3). They have to agree: a run
+ * imported from `export.xml` and the same run pushed in by a shortcut must land on the same
+ * exercise, or one person's history holds two kinds of running that never merge.
+ *
+ * `exerciseId` is null wherever the library has no honest match, and then `name` is what a
+ * custom exercise should be called. That is the same refusal `matchImportedName` makes, for the
+ * same reason: a wrong match here is silent and permanent.
+ */
+export function healthActivity(type) {
+  const name = hkActivity(type) || 'workout'
+  return {
+    name,
+    title: name.replace(/^./, c => c.toUpperCase()),
+    exerciseId: HK_EXERCISE[name.replace(/\s/g, '')] || null
+  }
+}
+
 const DIST_STAT = /<WorkoutStatistics[^>]*type="HKQuantityTypeIdentifierDistance[^"]*"[^>]*>/
 
 /** One `<Workout>` element into the span the rest of this works from, or null. */
@@ -748,12 +770,11 @@ function workoutFromHK(tag, inner) {
     if (st) km = toKm(attr(st[0], 'sum'), attr(st[0], 'unit') || 'km')
   }
 
-  const name = hkActivity(attr(tag, 'workoutActivityType')) || 'workout'
+  const act = healthActivity(attr(tag, 'workoutActivityType'))
   return {
     ms: when.ms, end: endAt ? endAt.ms : when.ms, d: when.d,
     min: min > 0 ? min : 0, km: km > 0 ? km : 0,
-    exId: HK_EXERCISE[name.replace(/\s/g, '')] || null,
-    name, title: name.replace(/^./, c => c.toUpperCase()),
+    exId: act.exerciseId, name: act.name, title: act.title,
     hr: [],
   }
 }
