@@ -170,6 +170,15 @@ if [ "$SITE" = "200" ]; then
   FA=$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "$BASE/fa/docs.html")
   [ "${FA#* }" = "$BASE/docs.html" ] || { echo "FAIL: /fa/docs.html went to '$FA', wanted a 301 to $BASE/docs.html"; exit 1; }
 
+  step "the privacy policy is where the stores were told it is"
+  # Not a nicety: Health Connect refuses to work for an app whose declared policy URL does not
+  # resolve, and Bazaar and Myket both take the address at submission. A 404 here is a build
+  # that cannot ship, discovered by a reviewer rather than by us.
+  for P in /privacy.html /en/privacy.html; do
+    GOT=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE$P")
+    [ "$GOT" = "200" ] || { echo "FAIL: $P returned $GOT — the declared privacy policy is not there"; exit 1; }
+  done
+
   step "the typeface and the mark shipped with it"
   # Both are copied in at build time from outside apps/site — the font from the client and the
   # mark from logo/ — so a Dockerfile edit can drop either without any page failing to serve.
