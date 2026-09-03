@@ -22,6 +22,10 @@ call() { # jar method path [body]
     ${body:+-d "$body"} "$BASE$path"
 }
 field() { node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));const v=$2;if(v==null){console.error('missing: $2');process.exit(1)}console.log(v)" <<<"$1"; }
+# The same read, for a value whose absence is an answer rather than a fault — prints nothing
+# and succeeds. `field` exits on null, which is right for everything that must be there and
+# wrong for a media set that legitimately covers part of the library.
+field_opt() { node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));const v=$2;console.log(v==null?'':v)" <<<"$1"; }
 step() { printf '  %s\n' "$1"; }
 
 echo "smoke: $BASE"
@@ -214,13 +218,31 @@ if [ "$SITE" = "200" ]; then
   # every string inserts, and the picture is just missing. All 1,324 of them pointed at
   # `/img/<id>.jpg` for a while, and the dataset's files are named `<id>-<hash>.jpg`. Nothing
   # caught it because nothing had ever followed one. This does.
-  EX=$(call "$CLIENT_JAR" GET '/api/exercises?limit=1')
-  EX_IMG=$(field "$EX" "d.exercises[0].image_url")
-  EX_GIF=$(field "$EX" "d.exercises[0].animation_url")
+  #
+  # Not `exercises[0]` any more. Null is a legitimate value in those columns now — a media set
+  # need not cover every exercise (packages/domain/src/media-set.js) — so the first row by name
+  # may honestly have no artwork, and asking it would fail a deploy over a set doing exactly
+  # what it says. The first *covered* row is what this is about: whether a URL this instance
+  # stored is a file this instance serves.
+  EX=$(call "$CLIENT_JAR" GET '/api/exercises?limit=200')
+  # A library where nothing at all is covered is still a failure, and a different one — a media
+  # set that resolved to nothing, or a seeder that ran against the wrong one. Said separately,
+  # because "no artwork anywhere" and "this URL 404s" have different causes and different fixes.
+  COVERED=$(field "$EX" "d.exercises.filter(e=>e.image_url||e.animation_url).length")
+  [ "$COVERED" != "0" ] || {
+    echo "FAIL: no exercise in the first 200 carries any artwork — check the active media set"
+    exit 1; }
+  step "  $COVERED of the first 200 carry artwork"
+  # Optional, both of them: a set of still photographs and no animations is a real thing to
+  # ship — the openly-licensed candidates are exactly that — so an empty `animation_url` here
+  # is a set being honest rather than a fault. Whichever are present get followed.
+  EX_IMG=$(field_opt "$EX" "(d.exercises.find(e=>e.image_url)||{}).image_url")
+  EX_GIF=$(field_opt "$EX" "(d.exercises.find(e=>e.animation_url)||{}).animation_url")
   for U in "$EX_IMG" "$EX_GIF"; do
     # Only a path served by this origin is ours to check — a deployment pointed at a CDN is
     # not something a smoke test of this instance should be reaching out to.
     case "$U" in
+      '') ;;   # this set carries no file of that kind; the covered count above already spoke
       /*) ART=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE$U")
           [ "$ART" = "200" ] || { echo "FAIL: exercise media $U returned $ART"; exit 1; } ;;
       *)  step "  $U is off-origin - not this instance's to serve" ;;
