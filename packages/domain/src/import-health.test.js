@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseAppleHealth, parseImport, mergeImport, appleDate, healthActivity } from './import-csv.js'
+import { parseAppleHealth, parseImport, mergeImport, appleDate, healthActivity, healthConnectImport } from './import-csv.js'
 
 // Apple's export, written the way Apple writes it: local time with the offset spelled out,
 // `<Record>` elements first and `<Workout>` elements last. Tehran is +0330, which is where
@@ -270,5 +270,95 @@ describe('what a HealthKit activity type means', () => {
   it('has an answer for a type it has never seen', () => {
     expect(healthActivity(undefined)).toEqual({ name: 'workout', title: 'Workout', exerciseId: null })
     expect(healthActivity('Cricket').name).toBe('cricket')
+  })
+})
+
+describe('reading Health Connect', () => {
+  // The plugin's own shape: seconds, metres, a type in upper snake, and every heart-rate
+  // sample inside the session.
+  const hcRun = {
+    id: 'hc-run-1', workoutType: 'RUNNING', sourceName: 'Zepp',
+    startDate: '2026-02-10T06:00:00.000Z', endDate: '2026-02-10T06:35:00.000Z',
+    duration: 2100, distance: 7000, calories: 480,
+    heartRate: [
+      { timestamp: '2026-02-10T06:05:00.000Z', bpm: 140 },
+      { timestamp: '2026-02-10T06:15:00.000Z', bpm: 165 },
+      { timestamp: '2026-02-10T06:25:00.000Z', bpm: 0 },      // a strap losing contact
+      { timestamp: '2026-02-10T06:30:00.000Z', bpm: 151 }
+    ]
+  }
+
+  it('turns a session into the same shape a file import produces', () => {
+    const p = healthConnectImport([hcRun])
+    expect(p.kind).toBe('health')
+    expect(p.source).toBe('Health Connect')
+    const w = p.workouts[0]
+    expect(w.entries[0].id).toBe('0685')                    // the library's run, not an invention
+    expect(w.entries[0].sets[0]).toMatchObject({ min: 35, speed: 12, done: true })
+    expect(w.ext).toBe('hc-run-1')
+    expect(w.hr).toEqual({ n: 3, avg: 152, min: 140, max: 165 })
+  })
+
+  it('reads upper snake as well as Apple s camel case', () => {
+    // The two hubs spell the same activity differently and both have to reach one exercise.
+    expect(healthActivity('STAIR_CLIMBING_MACHINE').exerciseId).toBe('2311')
+    expect(healthActivity('ELLIPTICAL').exerciseId).toBe('2141')
+    expect(healthActivity('RUNNING').exerciseId)
+      .toBe(healthActivity('HKWorkoutActivityTypeRunning').exerciseId)
+    expect(healthActivity('STRENGTH_TRAINING'))
+      .toMatchObject({ name: 'strength training', exerciseId: null })
+  })
+
+  it('prefers the session s own duration to the wall clock', () => {
+    // `duration` sums the segments, so a session paused for ten minutes is not ten minutes of
+    // running — and a speed computed against the wall clock would be wrong by that much.
+    const paused = { ...hcRun, duration: 1800, endDate: '2026-02-10T07:00:00.000Z' }
+    expect(healthConnectImport([paused]).workouts[0].entries[0].sets[0].min).toBe(30)
+  })
+
+  it('skips a session with no start rather than filing it at the epoch', () => {
+    expect(healthConnectImport([{ ...hcRun, startDate: undefined }]).workouts).toHaveLength(0)
+    expect(healthConnectImport(null).workouts).toEqual([])
+  })
+
+  it('invents an exercise only where the library has no honest match', () => {
+    const p = healthConnectImport([hcRun, { ...hcRun, id: 'hc-2', workoutType: 'STRENGTH_TRAINING' }])
+    expect(p.created).toBe(1)
+    expect(p.unmatchedNames).toEqual(['strength training'])
+    expect(p.matched).toBe(1)
+  })
+})
+
+describe('merging a hub that gives its sessions ids', () => {
+  const state = () => ({ workouts: [], bodyweight: [], customEx: [], exWeights: {} })
+  const hc = (id, day, type = 'RUNNING') => ({
+    id, workoutType: type, sourceName: 'Zepp',
+    startDate: `${day}T06:00:00.000Z`, endDate: `${day}T06:30:00.000Z`,
+    duration: 1800, distance: 5000, calories: 300
+  })
+
+  it('takes the same session once, however often the hub is read', () => {
+    const S = state()
+    mergeImport(S, healthConnectImport([hc('a', '2026-02-10')]))
+    const again = mergeImport(S, healthConnectImport([hc('a', '2026-02-10')]))
+    expect(S.workouts).toHaveLength(1)
+    expect(again.added).toBe(0)
+  })
+
+  it('lets a second session land on a day that already has one', () => {
+    // The day rule would refuse this for ever, and a morning run plus an evening session is
+    // the ordinary case rather than the odd one.
+    const S = state()
+    mergeImport(S, healthConnectImport([hc('morning', '2026-02-10')]))
+    mergeImport(S, healthConnectImport([hc('evening', '2026-02-10', 'ELLIPTICAL')]))
+    expect(S.workouts).toHaveLength(2)
+    expect(S.workouts.map(w => w.ext)).toEqual(['morning', 'evening'])
+  })
+
+  it('leaves a file import deduping by day, because that is all a file offers', () => {
+    const S = state()
+    S.workouts.push({ id: 'w1', d: '2026-01-10', start: 0, entries: [] })
+    const p = parseAppleHealth(`<HealthData><Workout workoutActivityType="HKWorkoutActivityTypeRunning" startDate="2026-01-10 18:00:00 +0330" endDate="2026-01-10 18:30:00 +0330" duration="30" durationUnit="min"/></HealthData>`)
+    expect(mergeImport(S, p).added).toBe(0)
   })
 })

@@ -266,6 +266,46 @@ the offline promise holds.
 `@capgo` line is 8.x. Confirm the peer range or pin an older major; do not discover this in
 week two.
 
+#### What the spike found
+
+The version warning was right and was the smaller of the two problems.
+
+**Both plugins are on 8.x needing Capacitor >= 8**, and both keep a 7 line that peers
+`>=7.0.0`: `@capgo/capacitor-health@7.2.15` and `capacitor-health@7.1.0`. Pinning works, exactly
+as it did for the Bluetooth plugin in M2.
+
+**But `@capgo` cannot read workouts at all.** Its 7.x data types are `steps | distance |
+calories | heartRate | weight` — samples, with no notion of a session. This document names it
+first and lists "workouts" as the thing to read, and those two cannot both be satisfied.
+`capacitor-health` (mley) has `queryWorkouts`, and returns every heart-rate sample inside each
+session with it, which is precisely what 012 stores.
+
+**So: mley, and body weight is the price.** Its permission set has no weight read and its
+aggregate query covers only steps, calories and mindfulness. capgo has weight and no workouts;
+mley has workouts and no weight. Workouts are the point of this milestone — the sentence above
+about turning Zepp-on-Android from a manual export into a sync is about sessions — so weight
+stays with the file import, where it already works.
+
+#### Where M4 actually stands
+
+**Built.** `healthConnectImport` in the domain turns the plugin's sessions into the same shape
+`parseAppleHealth` produces, so a run reaches the same exercise and the same four heart-rate
+columns whether it came from a file, a shortcut or the hub. `apps/client/src/lib/health-connect.js`
+is availability, the two permissions, and the read; the sheet in Settings covers the four states
+that actually happen — hub missing, unasked, refused, working.
+
+`mergeImport` now dedupes on the source's own id where there is one, instead of on the day. The
+day rule is right for a file handed over once and wrong for a hub read every time the app opens:
+a run at seven in the morning and a session logged here at seven in the evening are both real,
+and the day rule would keep whichever arrived first and refuse the other for ever.
+
+**Not built.** Reading on app start. Everything is in place for it — the read is incremental
+from `hcSince` — but a sync that fires without being asked wants a decision about what happens
+when it fails silently, and this milestone is already the largest of the four.
+
+**Not testable here.** No Android device, so nothing below `healthConnectImport` has been run
+against a real Health Connect. The mapping is tested; the plugin call is not.
+
 ## What this touches
 
 | Slice | Files |
@@ -303,12 +343,19 @@ contracts drift. The hubs already give us those devices for nothing.
 ## Done means
 
 - [x] An Apple Watch user can import a year of workouts and heart rate from `export.zip`
-- [ ] A Zepp user can do the same on iPhone, and on Android via Health Connect after M4
+- [ ] A Zepp user can do the same on iPhone, and on Android via Health Connect after M4 —
+      both paths are built; neither has been run against a real watch
 - [ ] A live BPM is visible during a set with an Amazfit in Heart Rate Push mode, and with a
       generic chest strap — built and driven by a fake device end to end; unticked because no
       real strap has been held against it yet, which is the only thing that can tick it
-- [ ] Both native builds still make no network calls — assert it, do not assume it
-- [ ] `privacy.md` and the Bazaar permission justification land in the same release
+- [x] Both native builds still make no network calls — Bluetooth and Health Connect are both
+      local reads, and the two native plugins are now kept out of the web bundle by a constant
+      the bundler can fold, which was measured rather than assumed
+- [ ] Body weight from Health Connect — no plugin on the Capacitor 7 line offers both that and
+      workouts, so this stays with the file import
+- [x] The Bazaar permission justification — `docs/store/listing.fa.md` now has a table of every
+      permission, what it is for, and what leaves the device, which is nothing
+- [ ] `privacy.md` has to cover biometric data before any of this ships
 - [ ] An Apple Watch user's sessions arrive on their own, with no file and no tapping — the
       endpoint and the pairing are built and tested; unticked until somebody has run the
       shortcut on a real phone, which is the same thing the strap is waiting for

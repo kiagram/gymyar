@@ -22,6 +22,26 @@ That is why coaching is absent rather than hidden: there is no server to hold a 
 account to attach it to, and nobody to bill. [RELEASING.md](RELEASING.md) covers what follows
 from that for distribution.
 
+## The two things this build reads that the web one cannot
+
+Both arrived with [WEARABLES.md](WEARABLES.md), and both are worth stating here because they
+are the only permissions this flavour asks for beyond the reminder's alarm — and because a
+permission dialog is a bad place to learn what an app is doing.
+
+**A heart-rate strap, over Bluetooth.** A chest strap or a watch in broadcast mode, read
+directly while a session is running. `BLUETOOTH_SCAN` is declared `neverForLocation`, which is
+the app formally saying it will not use a scan to work out where somebody is — and is why no
+location permission is requested at all on Android 12 and later.
+
+**Sessions, from Health Connect.** The hub the OS ships from Android 14, holding whatever a
+Zepp, a Samsung, a Garmin, a Polar or a Fitbit has already written. Two permissions,
+`READ_EXERCISE` and `READ_HEART_RATE`, and deliberately not `READ_EXERCISE_ROUTE` — somebody's
+route is a map of where they run and this app has nowhere to put one.
+
+Neither is a network call. Both are the phone handing this app data the phone already holds,
+which is what lets the promise above stay exactly as strong as it was: nothing leaves the
+device, because there is nowhere for it to go.
+
 ## Prerequisites
 
 - Node 20+

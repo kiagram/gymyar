@@ -10,10 +10,11 @@ import { api, webauthnOK, passkeyLogin, passkeyRegister, IS_ANDROID,
 import { pushSupported, enablePush, disablePush, sendTestPush, wantsPush, withPush } from '../lib/push.js'
 import { wakeLockSupported } from '../lib/wakelock.js'
 import { strapAvailable } from '../lib/heart-strap.js'
+import { healthConnectPossible } from '../lib/health-connect.js'
 import { t, LANGS } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, shareExport, syncReminder } from '../lib/mobile.js'
-import { loadStarterPlan, confirmSheet, importFromApp, shortcutSheet } from '../sheets.jsx'
+import { loadStarterPlan, confirmSheet, importFromApp, shortcutSheet, healthConnectSheet } from '../sheets.jsx'
 import CodeFlow from '../components/CodeFlow.jsx'
 import { phoneFirst, phoneComplaint } from './Login.jsx'
 import Icon from '../components/Icon.jsx'
@@ -256,6 +257,14 @@ export default function Settings() {
       <Row icon="shuffle" iconTint="var(--teal)" title={t('Import from another app')}
         subtitle={t('FitNotes, Strong, Hevy — or body weight from Apple Health')}
         accessory="chevron" onClick={() => importRef.current.click()} />
+      {/* The mirror image of the row below it: this one is native-only, because Health Connect
+          is an Android system service and a browser cannot see it at all. Between the two,
+          both platforms have a way in that is not a file. */}
+      {healthConnectPossible() && (
+        <Row icon="heart" iconTint="var(--red)" title={t('Health Connect')}
+          subtitle={t('Sessions from your watch, read off the phone — Zepp, Samsung, Garmin, Polar, Fitbit')}
+          accessory="chevron" onClick={healthConnectSheet} />
+      )}
       {/* Only where there is a server to push to. The native builds have no backend and must
           not grow one — MOBILE.md's promise that nothing leaves the device is the product —
           and a guest has no account for a key to belong to. */}

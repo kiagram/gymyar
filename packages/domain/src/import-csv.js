@@ -718,9 +718,18 @@ const HK_EXERCISE = {
   stairclimbingmachine: '2311',
 }
 
-// "HKWorkoutActivityTypeTraditionalStrengthTraining" -> "traditional strength training"
+/* An activity name out of either dialect.
+ *
+ *   "HKWorkoutActivityTypeTraditionalStrengthTraining" -> "traditional strength training"
+ *   "STAIR_CLIMBING_MACHINE"                           -> "stair climbing machine"
+ *
+ * Apple writes camel case with a prefix; Health Connect writes upper snake. Both are read here
+ * rather than in two places, because the whole reason `healthActivity` is exported is that a
+ * run must land on the same exercise whichever hub it came through — and it would not if one
+ * of the two spellings were normalised somewhere else and slightly differently. */
 const hkActivity = type => String(type || '')
   .replace(/^HKWorkoutActivityType/, '')
+  .replace(/_+/g, ' ')
   .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
   .trim().toLowerCase()
 
@@ -795,6 +804,97 @@ const convertWeight = (w, from, to) =>
   !from || from === to ? Math.round(w * 10) / 10
     : from === 'lb' ? Math.round(w * LB_TO_KG * 10) / 10 : Math.round(w / LB_TO_KG * 10) / 10
 
+/* ------------------------------------------------------ Health Connect ---- */
+
+/**
+ * Sessions read off Health Connect, in the shape `mergeImport` already takes.
+ *
+ * docs/WEARABLES.md M4. On Android the hub is part of the OS from 14 onwards, so this reaches
+ * Zepp, Samsung Health, Mi Fitness, Garmin Connect, Polar Flow and Fitbit without a line of
+ * vendor code, an account, or a network call — it is a local system read, which is the only
+ * kind the native build is allowed to make.
+ *
+ * The plugin hands back what Health Connect stores: seconds and metres, a type in upper snake,
+ * and — the part that matters — every heart-rate sample taken inside the session. Those become
+ * the same four numbers `parseAppleHealth` produces and migration 012 stores, so a run that
+ * arrived through a hub, a file, or a shortcut is one row of one shape by the time anything
+ * downstream sees it.
+ *
+ * Pure, and here rather than in the client, so it can be tested without an Android device
+ * anywhere near it — which is just as well, because there is not one.
+ */
+export function healthConnectImport(workouts, { unit = 'kg' } = {}) {
+  const created = new Map()
+  const unmatched = new Set()
+  const out = []
+
+  for (const w of workouts || []) {
+    const start = Date.parse(w?.startDate)
+    if (!isFinite(start)) continue
+    const end = Date.parse(w?.endDate)
+    const act = healthActivity(w.workoutType)
+
+    let id = act.exerciseId
+    if (!id) {
+      let c = created.get(act.name)
+      if (!c) {
+        c = { id: 'im' + uid(), n: act.name, custom: true, eq: 'custom', tg: '', desc: '', bp: 'cardio' }
+        created.set(act.name, c)
+        unmatched.add(act.name)
+      }
+      id = c.id
+    }
+
+    // Seconds and metres in, minutes and km/h out — the units the rest of the app logs cardio
+    // in. `duration` is the session's own, which excludes any gap between its segments, so it
+    // is preferred to the wall clock for the same reason Apple's is.
+    const secs = Number(w.duration)
+    const min = isFinite(secs) && secs > 0
+      ? Math.round(secs / 60 * 10) / 10
+      : isFinite(end) ? Math.round((end - start) / 60000 * 10) / 10 : 0
+    const km = isFinite(Number(w.distance)) ? Number(w.distance) / 1000 : 0
+
+    const set = { min, speed: min > 0 && km > 0 ? Math.round(km / (min / 60) * 10) / 10 : 0, done: true }
+    const hr = hrStats((w.heartRate || []).map(h => ({ t: Date.parse(h?.timestamp), bpm: h?.bpm })))
+    const d = isoLocal(start)
+
+    const row = {
+      id: 'iw' + uid(), d, start, end: isFinite(end) && end > start ? end : start,
+      routineId: null, name: act.title, entries: [{ id, sets: [set], topW: null }], prs: [], vol: 0,
+      // Health Connect's own id for the session. `mergeImport` dedupes on it, which is what
+      // makes this safe to run every time the app opens: a session already taken is skipped by
+      // its id rather than by its day, so a run in the morning and a session logged here in the
+      // evening can both exist on one date.
+      ext: typeof w.id === 'string' && w.id ? w.id : null
+    }
+    if (hr) row.hr = hr
+    out.push(row)
+  }
+
+  out.sort((a, b) => a.start - b.start)
+  return {
+    kind: 'health', source: 'Health Connect',
+    workouts: out, bodyweight: [], customEx: [...created.values()],
+    matched: new Set(out.map(w => w.entries[0].id).filter(id => EXIDX[id])).size,
+    created: created.size, unmatchedNames: [...unmatched].sort(),
+    sets: out.length, fileUnit: '', converted: false, mixedUnits: false,
+    hrSamples: (workouts || []).reduce((n, w) => n + (w.heartRate?.length || 0), 0),
+    hrWorkouts: out.filter(w => w.hr).length,
+    // Health Connect exposes no body-mass read through this plugin and no resting figure at
+    // all, so neither is invented here — see docs/WEARABLES.md for what that costs.
+    resting: [],
+    from: out.length ? out[0].d : null, to: out.length ? out[out.length - 1].d : null,
+  }
+}
+
+/* The local calendar day of an instant, which is the key every dated thing in the state uses.
+ * A UTC day would slide the whole history by one for anyone east of London, and Tehran is
+ * +03:30 — the same trap `appleDate` avoids by reading the offset out of the timestamp. */
+const isoLocal = ms => {
+  const dt = new Date(ms)
+  return `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())}`
+}
+
 /** Sniff the file and parse it as whatever it is. */
 export function parseImport(text, opts) {
   const s = String(text)
@@ -833,7 +933,15 @@ export function mergeImport(S, parsed) {
   const weighIns = health && parsed.bodyweight ? mergeBodyweight(S, parsed.bodyweight).added : null
   const resting = health && parsed.resting ? mergeResting(S, parsed.resting).added : null
   const have = new Set(S.workouts.map(w => w.d))
-  const fresh = parsed.workouts.filter(w => !have.has(w.d))
+  /* A source that gives its sessions stable ids is deduped on those instead of on the day.
+   *
+   * "Existing days win" is the right rule for a file somebody hands over once: it is the only
+   * thing a CSV of a year's training offers, and it makes a second import of the same file
+   * harmless. It is the wrong rule for a hub read every time the app opens — a run at seven and
+   * a session logged here at seven in the evening are both real, and the day rule would keep
+   * whichever arrived first and silently refuse the other for ever after. */
+  const haveExt = new Set(S.workouts.map(w => w.ext).filter(Boolean))
+  const fresh = parsed.workouts.filter(w => (w.ext ? !haveExt.has(w.ext) : !have.has(w.d)))
   const used = new Set(fresh.flatMap(w => w.entries.map(e => e.id)))
   const customs = parsed.customEx.filter(c => used.has(c.id) && !EXIDX[c.id])
   S.customEx = [...(S.customEx || []), ...customs]

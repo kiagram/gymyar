@@ -203,6 +203,10 @@ export function workoutToRows(w, { userId, unit, modeFor }) {
     bodyweight_kg: w.bw != null ? toKg(num(w.bw), unit) : null,
     notes: w.notes ?? null,
     prs: w.prs || [],
+    /* The id the source gave this session — Health Connect's, or the one an iOS shortcut
+     * posted. Null for everything logged here, which is nearly everything; the index over it
+     * is partial for exactly that reason (015). */
+    external_id: w.ext ?? null,
     ...hrRow(w.hr)
   }
   const sets = []
@@ -232,6 +236,7 @@ export function rowsToWorkout(row, setRows, { unit, modeFor }) {
     entries: []
   }
   if (row.notes) w.notes = row.notes
+  if (row.external_id) w.ext = row.external_id
   // Absent rather than null when there was no heart rate, so `w.hr &&` is the whole test a
   // view needs and a session from before 012 reads exactly like one recorded without a watch.
   if (row.hr_avg_bpm != null) {

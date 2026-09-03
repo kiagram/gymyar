@@ -28,6 +28,10 @@ export const DEF = {
    * silently standing in for a measurement is how a zone ends up one bucket wrong for
    * everybody under forty. Nothing is shown at all until this is set. */
   hrMax: null,
+  /* When Health Connect was last read, on this device. Deliberately NOT in SETTING_KEYS: it is
+   * a fact about one phone's hub, like `active` is a fact about one phone's session, and a
+   * second device syncing it would skip everything the first had already taken. */
+  hcSince: null,
   // effort: which per-set effort scale is logged — 'none' | 'rir' | 'rpe'. null, not 'none', so
   // that a profile which never chose (loaded state is overlaid on DEF, on every path: local,
   // server pull, backup import) still falls back to the `showRir` boolean this replaced and

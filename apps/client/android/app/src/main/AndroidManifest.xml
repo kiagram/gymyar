@@ -20,6 +20,29 @@
             </intent-filter>
         </activity>
 
+        <!-- Health Connect asks an app to explain itself: tapping the privacy-policy link in
+             the permission sheet opens this. Both forms are needed because Android changed the
+             mechanism at 14 — an activity for 13 and below, an alias for 14 and later — and a
+             phone that finds neither shows the person a dead link at the exact moment they are
+             deciding whether to trust us with their heart rate. -->
+        <activity
+            android:name="com.fit_up.health.capacitor.PermissionsRationaleActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity="com.fit_up.health.capacitor.PermissionsRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -59,4 +82,19 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+
+    <!-- Health Connect: the sessions somebody's watch already wrote, read locally.
+         `queries` is what lets this app see that the Health Connect package exists at all —
+         Android 11 hides other packages by default, and without this the availability check
+         answers "not installed" on a phone where it plainly is.
+
+         Two permissions and no more. Sessions, and the heart rate inside them. Not steps, not
+         calories, and deliberately not READ_EXERCISE_ROUTE, which is a map of where somebody
+         runs and which this app has nowhere to put. Nothing read here leaves the device — see
+         docs/MOBILE.md, and the justification in docs/store/listing.fa.md. -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
 </manifest>
