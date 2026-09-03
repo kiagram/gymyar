@@ -168,6 +168,39 @@ no cloud, no vendor, no store review, nothing to pay anyone, ever.
 Not Apple Watch. Apple has no native broadcast mode, and asking users to install a
 third-party watch app to fake one is not an MVP.
 
+#### Where M2 actually stands
+
+**Built.** `readHeartRateMeasurement()` in
+[`heartrate.js`](../packages/domain/src/heartrate.js) decodes the packet — both value widths,
+the fields that may trail it, and sensor contact as three states rather than two, because a
+strap that has slipped keeps transmitting and what it sends is whatever it can pick up off a
+sleeve. [`heart-strap.js`](../apps/client/src/lib/heart-strap.js) puts one on the wire over
+Web Bluetooth in the PWA and `@capacitor-community/bluetooth-le` in the native build, behind
+one `connectStrap`. The number appears as a badge on the session header and full size in a
+connect sheet, with the zone it sits in where the profile has set a maximum.
+
+At the end of the session the readings become the same four numbers a workout already stores
+— migration 012, written for the Apple Health import. A session logged with a strap and a
+session imported from a watch are the same row, and nothing downstream knows which it was.
+Below `MIN_HR_SAMPLES` readings nothing is stored: a strap connected for ninety seconds
+produces an average that looks exactly like an hour of one.
+
+The plugin is pinned to the 7 line. The current one is 8.x and peers `@capacitor/core >=8`,
+where this project is on Capacitor 7.6.8 — which is the trap this document tells us to spike
+for before M4, arriving a milestone early. Expect the same check to be the first thing M4
+does.
+
+**Not built.** Per-set aggregates, which is the other half of what this file's own table
+promises for `heartrate.js`. The maths is there — `hrForSpan` takes any window — but a set
+has no start and end recorded, only the session does, so there is nothing to window against
+yet. That is a change to how a set is logged rather than to anything here, and it is what
+would let heart rate feed [`effort.js`](../packages/domain/src/effort.js) as this section
+says it should.
+
+**Not testable here.** Everything above is verified against a fake device driving the real
+transport. Nobody has yet held a real strap against this build — no Polar, no Amazfit in
+Heart Rate Push mode — and the first one will find something, because they always do.
+
 ## After the MVP
 
 Both worth doing. Neither is needed to answer the question users are actually asking, which
@@ -238,11 +271,10 @@ contracts drift. The hubs already give us those devices for nothing.
 
 ## Done means
 
-- [ ] An Apple Watch user can import a year of workouts and heart rate from `export.zip`
-      — the workouts are read and kept, the heart rate is read and reported, and neither the
-      zip nor a home for the heart rate exists yet (see *Where M1 actually stands*)
+- [x] An Apple Watch user can import a year of workouts and heart rate from `export.zip`
 - [ ] A Zepp user can do the same on iPhone, and on Android via Health Connect after M4
 - [ ] A live BPM is visible during a set with an Amazfit in Heart Rate Push mode, and with a
-      generic chest strap
+      generic chest strap — built and driven by a fake device end to end; unticked because no
+      real strap has been held against it yet, which is the only thing that can tick it
 - [ ] Both native builds still make no network calls — assert it, do not assume it
 - [ ] `privacy.md` and the Bazaar permission justification land in the same release

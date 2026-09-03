@@ -9,7 +9,8 @@ import { beep, vibrate } from '../lib/sound.js'
 import { t } from '../lib/i18n.js'
 import { api } from '../lib/api.js'
 import Media from '../components/Media.jsx'
-import { startFlow, exercisePicker, exConfigSheet, exerciseDetailSheet, topWeightSheet, finishWorkout, workoutCompleteSheet, confirmSheet } from '../sheets.jsx'
+import { startFlow, exercisePicker, exConfigSheet, exerciseDetailSheet, topWeightSheet, finishWorkout, workoutCompleteSheet, confirmSheet, strapSheet } from '../sheets.jsx'
+import { strapAvailable } from '../lib/heart-strap.js'
 import Icon from '../components/Icon.jsx'
 import { Button, Check, NumberField } from '../components/ui.jsx'
 import { nextPrescription, applyPrescription } from '@gymyar/domain'
@@ -152,6 +153,24 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
 }
 
 /* ---------- active workout ---------- */
+/* The live heart rate, in the header of the session it belongs to.
+ *
+ * In the header rather than beside the set being logged, which was the first instinct and is
+ * wrong: the number is about the person and not about the set, it has to stay visible while
+ * the list scrolls, and a per-set position would put it in a different place on every screen.
+ *
+ * Hidden entirely where there is no radio — on an iPhone this cannot work at all, and an icon
+ * that always fails is worse than no icon. */
+function StrapButton() {
+  const strap = useUI(s => s.strap)
+  if (!strapAvailable()) return null
+  return <button className={'iconbtn' + (strap ? ' hr-on' : '')} onClick={strapSheet}
+    aria-label={strap ? t('Heart rate') : t('Connect a heart-rate strap')}>
+    <Icon name="heart" />
+    {strap && strap.bpm != null && <span className="hr-badge">{strap.bpm}</span>}
+  </button>
+}
+
 function ActiveWorkout() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
@@ -255,7 +274,10 @@ function ActiveWorkout() {
     <div className="hdr">
       <button className="iconbtn" aria-label={t('Discard')} onClick={() => confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); nav('/home') } })}><Icon name="xmark" /></button>
       <div style={{ textAlign: 'center' }}><div style={{ fontWeight: 600 }}>{A.name}</div><div className="sub"><Elapsed start={A.start} /> · {t('{0} sets', done + '/' + total)}</div></div>
-      <button className="iconbtn" style={{ color: 'var(--acc)' }} aria-label={t('Finish')} onClick={finishWorkout}><Icon name="check" /></button>
+      <div className="row" style={{ gap: 2 }}>
+        <StrapButton />
+        <button className="iconbtn" style={{ color: 'var(--acc)' }} aria-label={t('Finish')} onClick={finishWorkout}><Icon name="check" /></button>
+      </div>
     </div>
     <div className="wprog"><i style={{ width: (total ? done / total * 100 : 0) + '%' }} /></div>
 

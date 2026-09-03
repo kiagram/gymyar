@@ -4,6 +4,7 @@ import { beep, vibrate } from '../lib/sound.js'
 import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
 import { useStore } from './useStore.js'
+import { connectStrap as openStrap } from '../lib/heart-strap.js'
 
 /* Fire-and-forget: lets the server push a "rest over" alert if this tab gets suspended
  * before the local timer completes. No-ops for guests / offline.
@@ -25,10 +26,22 @@ let workInt = null
 let workTick = null
 let workDone = null
 
+/* The strap, and everything it has said.
+ *
+ * Both of these are module state rather than store state, for opposite reasons. The connection
+ * is an object with methods and no rendered form — nothing subscribes to it and putting it in
+ * a store would only invite somebody to. The samples are a growing array written roughly once
+ * a second, and an hour of training is a few thousand of them; as store state every reading
+ * would re-render every subscriber to hand them a list nothing draws. What screens actually
+ * want is the latest number, and that is what `strap` below carries. */
+let strapConn = null
+let strapSamples = []
+
 export const useUI = create((set, get) => ({
   sheets: [],          // { id, render:(close)=>JSX, kind:'sheet'|'center', locked }
   toastMsg: '',
   timer: null,         // rest countdown between sets — { left, total, endsAt }
+  strap: null,         // a connected heart-rate strap — { name, bpm, at }
   work: null,          // work countdown DURING a timed set (issue #16) — { left, total, endsAt, label }
 
   openSheet(render, { kind = 'sheet', locked = false } = {}) {
@@ -135,5 +148,48 @@ export const useUI = create((set, get) => ({
     if (workTick) document.removeEventListener('visibilitychange', workTick); workTick = null
     workDone = null
     set({ work: null })
+  },
+
+  /* ---------------------------------------------------------- heart rate ---- */
+
+  /* Ask for a strap and start listening. Must be called from a tap: both transports put a
+   * chooser on screen and neither platform will open one that was not asked for. Throws what
+   * the platform threw — including the user simply cancelling the chooser, which is not an
+   * error worth a toast and is why the caller decides. */
+  async connectStrap() {
+    if (strapConn) return
+    const conn = await openStrap(
+      bpm => {
+        strapSamples.push({ t: Date.now(), bpm })
+        set(s => (s.strap ? { strap: { ...s.strap, bpm, at: Date.now() } } : {}))
+      },
+      () => {
+        // Out of range, or the battery went. Distinct from a disconnect we asked for, which
+        // never reaches here — see the transport.
+        strapConn = null
+        set({ strap: null })
+        vibrate(30)
+        get().toast(t('Heart-rate strap disconnected'))
+      })
+    strapConn = conn
+    set({ strap: { name: conn.name, bpm: null, at: 0 } })
+  },
+
+  async disconnectStrap() {
+    const conn = strapConn
+    strapConn = null
+    set({ strap: null })
+    if (conn) await conn.disconnect()
+  },
+
+  /* Every reading since the strap was connected, and forget them.
+   *
+   * Drained rather than read, because the caller is the end of a workout: leaving them here
+   * would put the last session's heart rate on the next one, and the samples are of no use to
+   * anything once they have been summarised into the four numbers a workout stores. */
+  takeStrapSamples() {
+    const all = strapSamples
+    strapSamples = []
+    return all
   }
 }))

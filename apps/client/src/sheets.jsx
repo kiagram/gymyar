@@ -19,7 +19,8 @@ import { Button, Slider, Switch, Segmented, SelectRow, Row, TextField, TextArea,
 import { glyphOf, GLYPH_GROUPS, DEFAULT_GLYPH } from './lib/glyphs.js'
 import BodyMap from './components/BodyMap.jsx'
 import { loadOfWorkouts } from '@gymyar/domain'
-import { mergeImport, MIN_HR_SAMPLES } from '@gymyar/domain'
+import { mergeImport, MIN_HR_SAMPLES, hrStats, samplesIn, hrMax, zoneOf } from '@gymyar/domain'
+import { strapAvailable } from './lib/heart-strap.js'
 import { runImport } from './lib/import-runner.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from '@gymyar/domain'
@@ -1072,6 +1073,63 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     <Button variant="primary" onClick={() => { close(); nav('/home') }}>{t('Nice!')}</Button>
   </div>
 }
+/* ============================ heart-rate strap ============================ */
+/* The one source in docs/WEARABLES.md that an export file cannot replace: a number during the
+ * set rather than a summary of a session that ended an hour ago.
+ *
+ * The chooser the platform puts up is the device picker, so this sheet is not one — it is the
+ * state of the connection, the live number, and the two things somebody needs to be told:
+ * that an Amazfit has to be put into Heart Rate Push mode first, and that an iPhone cannot do
+ * this at all. Both of those are questions people would otherwise ask by giving up. */
+function StrapSheet({ close }) {
+  const st = useStore(s => s.S)
+  const strap = useUI(s => s.strap)
+  const [busy, setBusy] = useState(false)
+  const max = hrMax(st)
+  const zone = strap && strap.bpm != null ? zoneOf(strap.bpm, max) : null
+
+  const connect = async () => {
+    setBusy(true)
+    try { await useUI.getState().connectStrap() }
+    catch (e) {
+      // Cancelling the chooser lands here, and it is not a failure — the user changed their
+      // mind. Only say something when the platform actually refused.
+      if (e && !/cancell?ed|User cancelled/i.test(String(e.message || e))) toast(t('Could not connect to that strap'))
+    }
+    finally { setBusy(false) }
+  }
+
+  return <>
+    <h3>{t('Heart-rate strap')}</h3>
+    {!strapAvailable()
+      ? <div className="muted small">{t('This device cannot connect to a strap. Bluetooth is available in the Android app and in Chrome on Android; Safari does not support it, so on iPhone the app can only read heart rate from a Health export.')}</div>
+      : strap
+        ? <>
+          <div className="muted small" style={{ marginBottom: 12 }}>{strap.name || t('Connected')}</div>
+          <div className="hr-live">
+            <Icon name="heart" />
+            <span className="hr-bpm">{strap.bpm == null ? '—' : strap.bpm}</span>
+            <span className="hr-unit">{t('bpm')}</span>
+          </div>
+          {zone != null && <div className="small dim" style={{ textAlign: 'center', marginBottom: 12 }}>
+            {zone === 0 ? t('Below zone 1') : t('Zone {0}', zone)}
+            {' · '}{t('of a maximum of {0}', max)}
+          </div>}
+          {strap.bpm == null && <div className="small dim" style={{ marginBottom: 12 }}>{t('Waiting for the first reading…')}</div>}
+          <Button variant="danger" onClick={async () => { await useUI.getState().disconnectStrap(); close() }}>{t('Disconnect')}</Button>
+        </>
+        : <>
+          <div className="muted small" style={{ marginBottom: 12 }}>
+            {t('Any chest strap, and any watch that broadcasts — Polar, Garmin, Suunto, Wahoo. On an Amazfit, switch on Heart Rate Push in the watch first. Nothing is sent anywhere: the reading goes into this session on this phone.')}
+          </div>
+          <Button variant="primary" icon="heart" disabled={busy} onClick={connect}>
+            {busy ? t('Looking…') : t('Look for a strap')}
+          </Button>
+        </>}
+  </>
+}
+export const strapSheet = () => ui().openSheet(close => <StrapSheet close={close} />)
+
 export function finishWorkout() {
   const A = S().active
   if (!A) return
@@ -1104,6 +1162,18 @@ function doFinishWorkout() {
     prs
   }
   w.vol = workoutVolume(w)
+  /* What the strap said, while this session was running.
+   *
+   * Filtered to the session rather than taken whole: somebody who connects a strap in the
+   * changing room is wearing it before the first set, and those readings belong to standing
+   * around rather than to training. `samplesIn` wants them sorted, which they are — they were
+   * appended as they arrived.
+   *
+   * Four numbers, which is exactly the shape migration 012 gave a workout for the Apple Health
+   * import. A session logged with a strap and a session imported from a watch store the same
+   * thing in the same columns, and nothing downstream has to know which it was. */
+  const hr = hrStats(samplesIn(useUI.getState().takeStrapSamples(), A.start, w.end))
+  if (hr && hr.n >= MIN_HR_SAMPLES) w.hr = hr
   update(s => {
     w.entries.forEach(e => {
       const mx = Math.max(0, ...e.sets.filter(x => x.done).map(x => x.w || 0), e.topW || 0)
