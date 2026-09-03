@@ -190,12 +190,21 @@ where this project is on Capacitor 7.6.8 — which is the trap this document tel
 for before M4, arriving a milestone early. Expect the same check to be the first thing M4
 does.
 
-**Not built.** Per-set aggregates, which is the other half of what this file's own table
-promises for `heartrate.js`. The maths is there — `hrForSpan` takes any window — but a set
-has no start and end recorded, only the session does, so there is nothing to window against
-yet. That is a change to how a set is logged rather than to anything here, and it is what
-would let heart rate feed [`effort.js`](../packages/domain/src/effort.js) as this section
-says it should.
+**Built since.** Per-set aggregates, the other half of what this file's table promises for
+`heartrate.js`. A set now records the moment it was checked off — the only time it has, since
+nothing knows when one *began* — and `heartRateForSets` windows from the previous set's mark
+to this one's plus `PEAK_LAG_MS`. The lag is the load-bearing part: a working set's peak
+arrives ten to twenty seconds after the bar is racked, so windows that close on the mark file
+every set's peak under the set after it. The peak is stored, not the average, because the
+window necessarily contains the rest before the set and the mean over that is mostly somebody
+standing still. `014_set_heart_rate.sql` is the column, and it also makes `done_at` true —
+since 001 every set of a session had carried the workout's end.
+
+**Not built.** Feeding [`effort.js`](../packages/domain/src/effort.js), which this section says
+it should. The number is now per set and next to the effort rating in the same row, and what to
+do with the pair is a question about training rather than about plumbing: a set at RIR 2 with a
+peak of 178 and the same set at 150 are not the same set, and nothing here yet says what to
+conclude from that.
 
 **Not testable here.** Everything above is verified against a fake device driving the real
 transport. Nobody has yet held a real strap against this build — no Polar, no Amazfit in

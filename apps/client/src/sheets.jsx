@@ -19,7 +19,7 @@ import { Button, Slider, Switch, Segmented, SelectRow, Row, TextField, TextArea,
 import { glyphOf, GLYPH_GROUPS, DEFAULT_GLYPH } from './lib/glyphs.js'
 import BodyMap from './components/BodyMap.jsx'
 import { loadOfWorkouts } from '@gymyar/domain'
-import { mergeImport, MIN_HR_SAMPLES, hrStats, samplesIn, hrMax, zoneOf } from '@gymyar/domain'
+import { mergeImport, MIN_HR_SAMPLES, hrStats, samplesIn, hrMax, zoneOf, heartRateForSets } from '@gymyar/domain'
 import { strapAvailable } from './lib/heart-strap.js'
 import { runImport } from './lib/import-runner.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
@@ -903,7 +903,15 @@ function WorkoutDetail({ w, close }) {
       return <div key={i} className="row" style={{ marginBottom: 12, alignItems: 'flex-start' }}>
         {ex && <Thumb ex={ex} />}
         <div className="grow"><div className="tt capitalize" style={{ fontWeight: 600 }}>{ex ? exName(ex) : (e.n || e.id)} {w.prs && w.prs.includes(e.id) && <span className="pr"><Icon name="trophy" />PR</span>}</div>
-          <div className="ss">{e.sets.filter(s => s.done).map(s => setLabel(e.id, s, e.target)).join('  ·  ') || t('no sets')}</div></div>
+          <div className="ss">{e.sets.some(s => s.done)
+            ? e.sets.filter(s => s.done).map((s, si) => <span key={si}>
+              {si ? '  ·  ' : ''}{setLabel(e.id, s, e.target)}
+              {/* The peak this set cost, where a strap was on. Beside the set rather than in a
+                  line of its own: it is a property of the set, and a row of numbers underneath
+                  would have to be read back against the sets above it. */}
+              {s.hr ? <span className="ss-hr"><Icon name="heart" />{s.hr}</span> : null}
+            </span>)
+            : t('no sets')}</div></div>
       </div>
     })}
     <FormChecks w={w} />
@@ -1172,8 +1180,16 @@ function doFinishWorkout() {
    * Four numbers, which is exactly the shape migration 012 gave a workout for the Apple Health
    * import. A session logged with a strap and a session imported from a watch store the same
    * thing in the same columns, and nothing downstream has to know which it was. */
-  const hr = hrStats(samplesIn(useUI.getState().takeStrapSamples(), A.start, w.end))
+  const samples = useUI.getState().takeStrapSamples()
+  const hr = hrStats(samplesIn(samples, A.start, w.end))
   if (hr && hr.n >= MIN_HR_SAMPLES) w.hr = hr
+  /* And then the same readings again, cut up by set.
+   *
+   * Not gated on MIN_HR_SAMPLES: that constant is about an *average* being unweighable off a
+   * handful of readings, and a peak off three is still the highest thing the strap saw. A set
+   * with nothing near it gets nothing at all, which is the honest answer for a strap that was
+   * connected halfway through. */
+  if (samples.length) w.entries = withSetPeaks(w.entries, samples, A.start)
   update(s => {
     w.entries.forEach(e => {
       const mx = Math.max(0, ...e.sets.filter(x => x.done).map(x => x.w || 0), e.topW || 0)
@@ -1185,6 +1201,29 @@ function doFinishWorkout() {
   useUI.getState().stopRest()
   beep(snd(), 880, 0.15); beep(snd(), 1100, 0.15, 0.18); beep(snd(), 1320, 0.3, 0.36)
   ui().openSheet(close => <FinishSummary w={w} prs={prs} e1prs={e1prs} close={close} />, { kind: 'center', locked: true })
+}
+
+/* The peak around each set, attached to the sets it belongs to.
+ *
+ * Flattened and sorted by when each set was checked off, because a superset interleaves two
+ * exercises and the order sets sit in `entries` is not the order they happened in — taking
+ * them entry by entry would window a set against the previous set of the *same* exercise, two
+ * minutes and another lift away.
+ *
+ * Copies rather than mutations: these set objects are still the live session's until the state
+ * update a few lines on clears it. */
+function withSetPeaks(entries, samples, from) {
+  const marks = []
+  entries.forEach((e, ei) => e.sets.forEach((s, si) => { if (s.done && s.t) marks.push({ ei, si, t: s.t }) }))
+  if (!marks.length) return entries
+  marks.sort((a, b) => a.t - b.t)
+  const stats = heartRateForSets(marks.map(m => m.t), samples, { from })
+  const peak = new Map()
+  marks.forEach((m, i) => { if (stats[i]) peak.set(m.ei + ':' + m.si, stats[i].max) })
+  return entries.map((e, ei) => ({
+    ...e,
+    sets: e.sets.map((s, si) => (peak.has(ei + ':' + si) ? { ...s, hr: peak.get(ei + ':' + si) } : s))
+  }))
 }
 
 /* ============================ log by typing ============================ */

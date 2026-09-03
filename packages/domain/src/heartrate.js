@@ -248,3 +248,46 @@ export function readHeartRateMeasurement(view) {
     contact: (flags & 0x04) !== 0 ? (flags & 0x02) !== 0 : null
   }
 }
+
+/* ------------------------------------------------------- set by set ------- */
+
+/* How long after a set the heart rate it caused actually arrives.
+ *
+ * The peak of a working set is not during it. Blood pressure and rate keep climbing for
+ * something like ten to twenty seconds after the bar is racked, which is why a window that
+ * closes when the set is checked off reports a number from the middle of the set and calls it
+ * the peak. Twenty seconds is the short end of the published range, chosen because the cost of
+ * being too long here is worse than being too short: the next set's window starts where this
+ * one's did, so a generous lag steals a reading that belongs to the set after.
+ */
+export const PEAK_LAG_MS = 20000
+
+/**
+ * What the heart rate did around each finished set.
+ *
+ * `times` is when each set was checked off, ascending — the only timestamp the app actually
+ * has, since nothing records when a set *began*. So a set's window runs from the previous
+ * set's mark to its own mark plus the lag above: the work, the rest before it, and the
+ * overshoot after it.
+ *
+ * That window deliberately overlaps the next one by `lag`, and it has to. The alternative is
+ * windows that abut exactly, and then every set's peak is filed under the set after it — which
+ * is not a rounding error, it is every number on the screen being attributed to the wrong set.
+ *
+ * Because the window contains the rest before the set, the *average* over it means very little
+ * — it is mostly recovery. The maximum is the number worth keeping, and it is what the caller
+ * stores. The rest of the stats are returned anyway rather than thrown away here, so a screen
+ * that wants to say how many readings are behind a peak can.
+ *
+ * @param times    ascending epoch ms, one per finished set
+ * @param samples  ascending `{ t, bpm }`
+ * @param from     where the first set's window opens — the session's start. Defaults to a
+ *                 minute before the first mark, which is what it means with nothing better.
+ * @returns one stats object or null per entry in `times`
+ */
+export function heartRateForSets(times, samples, { from = null, lag = PEAK_LAG_MS } = {}) {
+  const ts = times || []
+  if (!ts.length) return []
+  const open = from == null ? ts[0] - 60000 : from
+  return ts.map((t, i) => hrForSpan(samples, i === 0 ? open : ts[i - 1], t + lag))
+}
