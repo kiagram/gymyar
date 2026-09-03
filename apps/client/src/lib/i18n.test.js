@@ -12,6 +12,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { setLang, getLang, dateLocale, weekStartsOn, isRTL, t, exName, exSearchText, detectLang, LANGS, RTL_LANGS, NAME_LANGS } from './i18n.js'
 import { fmtDate, startOfWeek, isoOf, EXIDX } from '@gymyar/domain'
+import fs from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 const realDocument = globalThis.document
 
@@ -317,5 +319,32 @@ describe('the language list', () => {
     expect(isLocale(null)).toBe(false)
     // Region subtags are not locales here: the packs are keyed by the base language.
     expect(isLocale('fa-IR')).toBe(false)
+  })
+})
+
+/* The pack is one object literal, which is the thing this guards.
+ *
+ * A repeated key is not an error in JavaScript and not a warning either: the later one wins,
+ * quietly, and a screen starts showing a word somebody wrote for a different screen. That is
+ * how `Looking…` came to say "looking at" on the button that searches for a heart-rate strap,
+ * and how `Done` — a completion status the rest timer uses — ended up dismissing two sheets.
+ * Both were found by a script written for something else, months after the fact.
+ *
+ * Read as text rather than imported, because importing it is exactly what hides the problem:
+ * the duplicates are gone by the time there is an object to inspect.
+ */
+describe('the Persian pack', () => {
+  const src = fs.readFileSync(
+    fileURLToPath(new URL('../locales/fa.js', import.meta.url)), 'utf8')
+  const keys = [...src.matchAll(/^ {2}"((?:[^"\\]|\\.)*)":/gm)].map(m => m[1])
+
+  it('has something in it, so a broken read fails loudly rather than passing', () => {
+    expect(keys.length).toBeGreaterThan(1000)
+  })
+
+  it('says each thing once', () => {
+    const seen = new Set()
+    const dup = keys.filter(k => (seen.has(k) ? true : (seen.add(k), false)))
+    expect(dup).toEqual([])
   })
 })
