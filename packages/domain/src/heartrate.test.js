@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   maxHrForAge, hrMax, zoneOf, hrStats, samplesIn, hrForSpan,
   zoneMinutes, restingHr, restingSeries, SAMPLE_SPAN_CAP_MS,
+  readHeartRateMeasurement, believableBpm,
 } from './heartrate.js'
 
 const at = (min, bpm) => ({ t: Date.UTC(2026, 0, 10, 0, min, 0), bpm })
@@ -137,5 +138,57 @@ describe('resting heart rate', () => {
       { d: '2026-01-10', bpm: 61 },
       { d: '2026-01-11', bpm: 51 },
     ])
+  })
+})
+
+describe('a packet off a strap', () => {
+  // Bytes as a device actually sends them: flags, then the value, then whatever the flags
+  // said would follow.
+  const packet = (...bytes) => new DataView(new Uint8Array(bytes).buffer)
+
+  it('reads the short form, which is what most straps send', () => {
+    // flags 0x00 — one-byte value, no contact reporting, nothing after it
+    expect(readHeartRateMeasurement(packet(0x00, 72))).toEqual({ bpm: 72, contact: null })
+  })
+
+  it('reads the wide form, little-endian', () => {
+    // flags 0x01 — two-byte value. 0x00B4 arrives low byte first.
+    expect(readHeartRateMeasurement(packet(0x01, 0xb4, 0x00)).bpm).toBe(180)
+    // A byte-order mistake here reads 180 as 46080, which is not a heart rate and would be
+    // refused by believableBpm — so this is checked as a number, not as "something plausible".
+    expect(readHeartRateMeasurement(packet(0x01, 0x2c, 0x01)).bpm).toBe(300)
+  })
+
+  it('tells a strap that has slipped from one that cannot say', () => {
+    // bit 2 set = the device reports contact; bit 1 = it currently has it
+    expect(readHeartRateMeasurement(packet(0x06, 60)).contact).toBe(true)
+    expect(readHeartRateMeasurement(packet(0x04, 60)).contact).toBe(false)
+    // bit 1 set without bit 2 is a device that does not report contact at all — the bit means
+    // nothing, and reading it as `true` would claim contact the strap never claimed.
+    expect(readHeartRateMeasurement(packet(0x02, 60)).contact).toBeNull()
+  })
+
+  it('reads the rate whatever follows it', () => {
+    // energy expended and RR intervals present: both sit after the value and neither is read,
+    // but their presence must not move where the value is.
+    expect(readHeartRateMeasurement(packet(0x18, 65, 0x10, 0x00, 0x00, 0x04)).bpm).toBe(65)
+    expect(readHeartRateMeasurement(packet(0x19, 0x41, 0x00, 0x10, 0x00)).bpm).toBe(65)
+  })
+
+  it('refuses a packet too short to hold what its flags promise', () => {
+    expect(readHeartRateMeasurement(packet(0x01, 0xb4))).toBeNull()   // wide, one byte given
+    expect(readHeartRateMeasurement(packet(0x00))).toBeNull()
+    expect(readHeartRateMeasurement(null)).toBeNull()
+    expect(readHeartRateMeasurement({})).toBeNull()
+  })
+})
+
+describe('what counts as a heart rate', () => {
+  it('is the same window everywhere', () => {
+    expect(believableBpm(25)).toBe(true)
+    expect(believableBpm(240)).toBe(true)
+    expect(believableBpm(24)).toBe(false)
+    expect(believableBpm(0)).toBe(false)
+    expect(believableBpm(NaN)).toBe(false)
   })
 })

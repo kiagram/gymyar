@@ -85,7 +85,12 @@ export const MIN_HR_SAMPLES = 10
 // sleeve, a strap making contact for the first time — and one 0 or one 255 moves an average
 // and owns a maximum outright. The window is wide enough to keep a genuine resting 33 from a
 // trained heart and a genuine 210 from a sprint.
-const ok = b => isFinite(b) && b >= 25 && b <= 240
+//
+// Exported because a strap needs the same window live, one reading at a time, and a second
+// opinion about what counts as a heart rate is how a number that is refused in a chart ends
+// up on a screen. It is also the window migration 012 writes as a check constraint.
+export const believableBpm = b => isFinite(b) && b >= 25 && b <= 240
+const ok = believableBpm
 
 /** Count, mean, floor and ceiling of a set of samples. Null when nothing is believable. */
 export function hrStats(samples) {
@@ -195,4 +200,51 @@ export function restingSeries(samples, isoOf) {
   }
   return [...byDay.keys()].sort().map(d => ({ d, bpm: restingHr(byDay.get(d)) }))
     .filter(x => x.bpm != null)
+}
+
+/* ------------------------------------------------------- off a strap ------ */
+
+/**
+ * One Heart Rate Measurement packet — GATT characteristic `0x2A37` — into a reading.
+ *
+ * This is the whole of what a chest strap or a watch in broadcast mode speaks, and it is a
+ * standard rather than a vendor's protocol: a Polar, a Garmin, a Suunto, a Wahoo and an
+ * Amazfit with Heart Rate Push turned on all send exactly these bytes. That is the argument
+ * docs/WEARABLES.md makes for doing this at all — one decoder reaches every device that
+ * speaks it, and there is no vendor SDK, no account and no cloud anywhere in the path.
+ *
+ * The layout, which is the only reason this needs a comment:
+ *
+ *   byte 0   flags
+ *            bit 0  value is uint16 rather than uint8   — a resting 60 fits in a byte, and
+ *                                                         most straps use the short form
+ *            bit 1  sensor contact detected
+ *            bit 2  sensor contact is something this device can report at all
+ *            bit 3  energy expended field present
+ *            bit 4  RR intervals present
+ *   byte 1…  the heart rate, little-endian, one or two bytes per bit 0
+ *   then     energy expended (uint16) if bit 3
+ *   then     RR intervals (uint16 each) if bit 4
+ *
+ * Contact is three-valued and is returned that way. A strap that has slipped keeps sending
+ * packets and the number in them is whatever it can pick up, so `false` is the difference
+ * between "your heart rate is 47" and "this thing is not touching you" — and `null`, from a
+ * device that cannot tell, must not be shown as either.
+ *
+ * RR intervals are deliberately not read. They are the input to heart-rate variability, this
+ * app does nothing with variability, and returning a field nobody consumes is how a feature
+ * comes to look implemented. They sit after the energy field, which is why the flags for both
+ * are documented above rather than only the two that are used.
+ */
+export function readHeartRateMeasurement(view) {
+  if (!view || typeof view.getUint8 !== 'function' || view.byteLength < 2) return null
+  const flags = view.getUint8(0)
+  const wide = (flags & 0x01) !== 0
+  if (view.byteLength < (wide ? 3 : 2)) return null
+  return {
+    bpm: wide ? view.getUint16(1, true) : view.getUint8(1),
+    // Reported only where the device says it can report it, so "no contact" always means the
+    // device said so rather than that a bit happened to be zero.
+    contact: (flags & 0x04) !== 0 ? (flags & 0x02) !== 0 : null
+  }
 }
