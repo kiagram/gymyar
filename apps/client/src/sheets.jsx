@@ -408,7 +408,7 @@ function ShortcutSheet({ close }) {
       {busy ? t('Making…') : t('Make a key')}
     </Button>
     <div style={{ height: 8 }} />
-    <Button variant="ghost" className="dim" onClick={close}>{t('Done')}</Button>
+    <Button variant="ghost" className="dim" onClick={close}>{t('Close')}</Button>
   </>
 }
 export const shortcutSheet = () => ui().openSheet(close => <ShortcutSheet close={close} />)
@@ -496,7 +496,7 @@ function HealthConnectSheet({ close }) {
     </>}
 
     <div style={{ height: 8 }} />
-    <Button variant="ghost" className="dim" onClick={close}>{t('Done')}</Button>
+    <Button variant="ghost" className="dim" onClick={close}>{t('Close')}</Button>
   </>
 }
 export const healthConnectSheet = () => ui().openSheet(close => <HealthConnectSheet close={close} />)
@@ -1329,7 +1329,7 @@ function StrapSheet({ close }) {
             {t('Any chest strap, and any watch that broadcasts — Polar, Garmin, Suunto, Wahoo. On an Amazfit, switch on Heart Rate Push in the watch first. Nothing is sent anywhere: the reading goes into this session on this phone.')}
           </div>
           <Button variant="primary" icon="heart" disabled={busy} onClick={connect}>
-            {busy ? t('Looking…') : t('Look for a strap')}
+            {busy ? t('Searching…') : t('Look for a strap')}
           </Button>
         </>}
   </>
