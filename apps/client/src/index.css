@@ -1052,6 +1052,23 @@ h4.sec{
 .hr-bpm{font-size:46px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 .hr-unit{font-size:14px;color:var(--label-2)}
 
+/* A key, a URL, a list of field names — things meant to be copied rather than read. Always
+   left-to-right and always monospace, including on the Persian side: a token with a hyphen in
+   it reorders under RTL and what you then copy by eye is not what is on the screen. */
+.keybox{direction:ltr;text-align:left;unicode-bidi:isolate;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12px;line-height:1.5;word-break:break-all;background:var(--surface-2);border:1px solid var(--sep);
+  border-radius:8px;padding:8px 10px;margin:6px 0;cursor:pointer}
+
+/* Numbered setup steps. `ol` for the semantics — these are done in order and a screen reader
+   should say so — with the counter drawn rather than left to the browser's own margin, which
+   sits outside the sheet's padding under RTL. */
+.steps{list-style:none;margin:0 0 12px;padding:0;counter-reset:step}
+.steps li{counter-increment:step;position:relative;padding-inline-start:26px;margin-bottom:10px;
+  font-size:13.5px;line-height:1.6;color:var(--label)}
+.steps li::before{content:counter(step);position:absolute;inset-inline-start:0;top:1px;width:18px;height:18px;
+  border-radius:99px;background:var(--surface-2);color:var(--label-2);font-size:11px;font-weight:700;
+  line-height:18px;text-align:center}
+
 /* ============================ right to left ============================
  *
  * Everything above is written in logical properties, so the layout mirrors on its own when
