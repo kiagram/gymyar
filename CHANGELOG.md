@@ -1148,7 +1148,11 @@ Each of these exists because something was already being read and had nowhere to
   has been sleeping badly, whether or not they trained. Not a column on `bodyweight_entries`,
   though that would have cost no table — a day can have a resting figure and no weigh-in, and
   inventing a weigh-in row to hold it means "how many days did they weigh themselves" stops being
-  answerable.
+  answerable. It is plotted in Stats beside the weight curve and shares that card's range
+  control, because the two are read together and two range pickers a few pixels apart would be
+  two controls for one question. The card is absent for a profile with no readings, which is
+  most of them: it arrives with a health import or from a watch, and a card that is always
+  present and always empty teaches people to ignore it.
 - 📈 **`014_set_heart_rate.sql` — the peak around one set.** A set's window closes twenty seconds
   *after* it is checked off, because a working set's heart rate peaks after the bar is racked — a
   window that ends on the checkmark reports a number from the middle of the set and files the
@@ -1223,9 +1227,6 @@ believed.
   both weight and workouts; the one that reads sessions has no weight permission at all. Weight
   arrives through the file import, which already works. A plugin limitation rather than a
   decision.
-- 📉 **The daily resting heart rate is stored and not drawn.** `013` gives it a table and the
-  importer fills it; no screen plots it yet. It is the number in a health export that most repays
-  being plotted, so this is a gap rather than a design.
 - 📄 **The privacy policy has not been reviewed by a lawyer.** It is an accurate description of
   what the software does, written from the code. That is not the same thing, and the legal review
   this release already lists as a launch blocker still covers it.
