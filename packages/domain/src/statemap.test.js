@@ -230,6 +230,19 @@ describe('workouts', () => {
     expect(sets[0].hr_peak_bpm).toBeNull()
   })
 
+  it('carries the id the source gave a session', () => {
+    const fromHub = { ...w, ext: 'hc-run-1' }
+    const { workout, sets } = workoutToRows(fromHub, { userId: 'u1', unit: 'kg', modeFor: modeReps })
+    expect(workout.external_id).toBe('hc-run-1')
+    expect(rowsToWorkout(workout, sets, { unit: 'kg', modeFor: modeReps }).ext).toBe('hc-run-1')
+  })
+
+  it('leaves a session logged here without one, on both sides', () => {
+    const { workout, sets } = workoutToRows(w, { userId: 'u1', unit: 'kg', modeFor: modeReps })
+    expect(workout.external_id).toBeNull()
+    expect('ext' in rowsToWorkout(workout, sets, { unit: 'kg', modeFor: modeReps })).toBe(false)
+  })
+
   it('survives a pound profile intact', () => {
     const lb = { ...w, entries: [{ id: '0025', sets: [{ w: 225, r: 5 }] }], bw: 180 }
     const { workout, sets } = workoutToRows(lb, { userId: 'u1', unit: 'lb', modeFor: modeReps })

@@ -23,6 +23,10 @@ import { mergeImport, MIN_HR_SAMPLES, hrStats, samplesIn, hrMax, zoneOf, heartRa
 import { strapAvailable } from './lib/heart-strap.js'
 import { runImport } from './lib/import-runner.js'
 import { api } from './lib/api.js'
+import {
+  healthConnectAvailable, healthConnectGranted, requestHealthConnect,
+  readHealthConnect, openSettings as openHcSettings, showStore as showHcStore
+} from './lib/health-connect.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from '@gymyar/domain'
 import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS } from '@gymyar/domain'
@@ -408,6 +412,94 @@ function ShortcutSheet({ close }) {
   </>
 }
 export const shortcutSheet = () => ui().openSheet(close => <ShortcutSheet close={close} />)
+
+/* ============================ Health Connect ============================ */
+/* docs/WEARABLES.md M4, from the side the person sees.
+ *
+ * Four states and each needs a different thing offered, which is why this is a sheet rather
+ * than a switch: the hub may be missing entirely (Android 13 and below, where it is a Play
+ * Store app somebody here may not be able to reach), present but unasked, asked and refused —
+ * after which Android stops showing the prompt and only its own settings will do — or working,
+ * in which case the only useful thing on screen is when it last ran.
+ */
+function HealthConnectSheet({ close }) {
+  const st = useStore(s => s.S)
+  const [state, setState] = useState('checking')   // checking | missing | denied | ready
+  const [busy, setBusy] = useState(false)
+
+  const check = async () => {
+    if (!await healthConnectAvailable()) return setState('missing')
+    setState(await healthConnectGranted() ? 'ready' : 'denied')
+  }
+  useEffect(() => { check() }, [])
+
+  const allow = async () => {
+    setBusy(true)
+    try { setState(await requestHealthConnect() ? 'ready' : 'denied') }
+    catch { setState('denied') }
+    finally { setBusy(false) }
+  }
+
+  const sync = async () => {
+    setBusy(true)
+    try {
+      const parsed = await readHealthConnect(st.hcSince)
+      let res
+      update(s => { res = mergeImport(s, parsed); s.hcSince = Date.now() })
+      toast(res.added
+        ? t('{0} workouts imported', res.added)
+        : t('Nothing new since the last check'))
+    } catch (e) {
+      toast(e?.message || t('Could not read Health Connect'))
+    } finally { setBusy(false) }
+  }
+
+  return <>
+    <h3>{t('Health Connect')}</h3>
+    <div className="muted small" style={{ marginBottom: 12 }}>
+      {t('Your watch already writes every session into Health Connect — Zepp, Samsung, Mi, Garmin, Polar, Fitbit. GymYar reads them from there. Nothing is sent anywhere: it is your phone handing your own data to an app on the same phone.')}
+    </div>
+
+    {state === 'checking' && <div className="small dim">{t('Loading…')}</div>}
+
+    {state === 'missing' && <>
+      <div className="small" style={{ color: 'var(--yellow)', marginBottom: 12 }}>
+        {t('Health Connect is not on this phone. On Android 14 and later it is built in; before that it is a separate app.')}
+      </div>
+      <Button variant="primary" onClick={showHcStore}>{t('Get Health Connect')}</Button>
+      <div style={{ height: 8 }} />
+      <Button variant="ghost" className="dim" onClick={check}>{t('Check again')}</Button>
+    </>}
+
+    {state === 'denied' && <>
+      <div className="small dim" style={{ marginBottom: 12 }}>
+        {t('GymYar asks for two things and nothing else: your workout sessions, and the heart rate recorded during them.')}
+      </div>
+      <Button variant="primary" icon="heart" disabled={busy} onClick={allow}>
+        {busy ? t('Asking…') : t('Allow')}
+      </Button>
+      <div style={{ height: 8 }} />
+      {/* Android stops showing the prompt after a couple of refusals and only its own settings
+          will do from then on — so this is offered rather than left to be discovered. */}
+      <Button variant="ghost" className="dim" onClick={openHcSettings}>{t('Open Health Connect settings')}</Button>
+    </>}
+
+    {state === 'ready' && <>
+      <div className="small dim" style={{ marginBottom: 12 }}>
+        {st.hcSince
+          ? t('Last checked {0}', fmtDate(isoOf(new Date(st.hcSince)), true))
+          : t('Not checked yet — the first read covers the past year.')}
+      </div>
+      <Button variant="primary" icon="reset" disabled={busy} onClick={sync}>
+        {busy ? t('Reading…') : t('Check for new sessions')}
+      </Button>
+    </>}
+
+    <div style={{ height: 8 }} />
+    <Button variant="ghost" className="dim" onClick={close}>{t('Done')}</Button>
+  </>
+}
+export const healthConnectSheet = () => ui().openSheet(close => <HealthConnectSheet close={close} />)
 
 /* ============================ target weight ============================ */
 export function bwDeltaColor(delta, currentW) {

@@ -74,8 +74,15 @@ async function connectWeb(onReading, onLost) {
 
 /* --------------------------------------------------------------- native ---- */
 
+/* Gated on the raw env expression rather than on `MOBILE`, which is what actually keeps this
+ * plugin out of the web bundle — see the note on the same pattern in health-connect.js for why
+ * the constant does not do it and a guard in the caller does not either. */
+const blePlugin = () => (import.meta.env.VITE_MOBILE === '1'
+  ? import('@capacitor-community/bluetooth-le')
+  : Promise.reject(new Error('no native bluetooth in this build')))
+
 async function connectNative(onReading, onLost) {
-  const { BleClient, numberToUUID } = await import('@capacitor-community/bluetooth-le')
+  const { BleClient, numberToUUID } = await blePlugin()
   const svc = numberToUUID(HR_SERVICE)
   const chr = numberToUUID(HR_MEASUREMENT)
 
