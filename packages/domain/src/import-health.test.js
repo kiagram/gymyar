@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseAppleHealth, parseImport, mergeImport, appleDate } from './import-csv.js'
+import { parseAppleHealth, parseImport, mergeImport, appleDate, healthActivity } from './import-csv.js'
 
 // Apple's export, written the way Apple writes it: local time with the offset spelled out,
 // `<Record>` elements first and `<Workout>` elements last. Tehran is +0330, which is where
@@ -244,5 +244,31 @@ describe('merging one into a profile', () => {
     const S = state()
     mergeImport(S, p())
     expect(S.exWeights).toEqual({})
+  })
+})
+
+describe('what a HealthKit activity type means', () => {
+  // Shared with the endpoint the iOS shortcut posts to, so a run that arrives as a file and
+  // the same run that arrives over HTTP land on one exercise rather than two.
+  it('resolves the types the library honestly has', () => {
+    expect(healthActivity('HKWorkoutActivityTypeRunning')).toEqual({
+      name: 'running', title: 'Running', exerciseId: '0685'
+    })
+    // Two words in the type, no space in the key — the lookup strips them, and a regex written
+    // as a literal backslash instead of a space class would silently miss every one of these.
+    expect(healthActivity('HKWorkoutActivityTypeStairClimbing').exerciseId).toBe('2311')
+    expect(healthActivity('HKWorkoutActivityTypeJumpRope').exerciseId).toBe('2612')
+  })
+
+  it('refuses the ones it would have to guess at, and names them instead', () => {
+    expect(healthActivity('HKWorkoutActivityTypeTraditionalStrengthTraining')).toEqual({
+      name: 'traditional strength training', title: 'Traditional strength training', exerciseId: null
+    })
+    expect(healthActivity('HKWorkoutActivityTypeWalking').exerciseId).toBeNull()
+  })
+
+  it('has an answer for a type it has never seen', () => {
+    expect(healthActivity(undefined)).toEqual({ name: 'workout', title: 'Workout', exerciseId: null })
+    expect(healthActivity('Cricket').name).toBe('cricket')
   })
 })
