@@ -1014,12 +1014,221 @@ explaining what they were signing in to existed only as files in the repository.
   a seeder that rebuilds `<id>.jpg` finds nothing at that name either — and it is honest
   about the one thing it cannot show, which is that upstream still ships those bytes.
 
+### The language that front door is in
+
+The site went up with English on the root and Persian under a prefix, which is backwards for a
+project whose market is Iran. The page somebody gets before they have chosen anything should be
+the one the site is actually for.
+
+- 🇮🇷 **Persian is the root now, English is `/en/`.** A mirror one level down rather than an
+  afterthought — the two are the same site — but only one of them can be the address people are
+  handed. nginx forwards `/fa/…` to `/…` permanently, so every old link, bookmark and search
+  result still resolves; the optional group in the rewrite is what makes a bare `/fa` work
+  instead of 404ing on a directory that no longer exists. The English move cannot be redirected
+  the same way, because `/docs.html` is a live Persian address now — an old English link lands
+  on the Persian page of the same name, where the language switch is the way back.
+- 🔤 **Vazirmatn is shipped, not merely named.** The old stylesheet asked for it and shipped
+  nothing, which on a Persian-first site means the primary language falls through to whatever
+  Arabic face the visitor's machine happens to carry: a different typeface per visitor, and no
+  type scale that can be set against any of them. One variable file covers 100–900 for both
+  scripts, which is also why there is no second Latin face — the site mixes scripts inside single
+  lines (AGPL, `docker compose`, ۱٬۳۲۴) and a Latin-first stack sets each half of such a line in
+  a different typeface. Self-hosted rather than Google Fonts, which is not reachable from Iran.
+- ✏️ **One stylesheet for both.** Every rule with a side to it is written with logical properties,
+  so `dir="rtl"` mirrors the page on its own; what is left as genuinely language-specific is a
+  handful of rules at the foot of the file — the Persian line heights, and a tracking reset,
+  because letter-spacing tuned for a Latin scale is wrong for a script that joins.
+- 📐 **Editorial rather than a landing page.** Hairlines instead of rounded cards; a ruled index
+  instead of fifteen boxes with a pictograph apiece, since an emoji is drawn by the reader's
+  machine and so is a different shape and colour on every platform and none of those colours is
+  ours; one typeface at four sizes. Brand emerald is 2.7:1 on ivory, so it draws lines and never
+  carries a word — there is a second, deeper green for anything that has to be read. Nothing on
+  the page is below AA.
+
+### Two scripts that failed without saying so
+
+`backup.sh` and `restore.sh` are the only things standing between an instance and a bad day.
+Four faults, each of which made the script lie rather than stop.
+
+- 🔤 **`.env` was executed, not read.** `. ./.env` runs the file, and on one saved by a Windows
+  editor it assigns values with a trailing carriage return — which is what reported `FATAL: role
+  "gymyar" does not exist` on an instance whose role is plainly `gymyar`. The name actually sent
+  ended in a CR, and a CR is invisible in the very error message you would use to debug it. Both
+  scripts read the file now, with the shell environment winning, which is the precedence compose
+  itself uses.
+- 🧭 **The compose project name was asked of `node`.** It is what the media volume is named
+  after, so getting it wrong means archiving nothing — and `node` is not on the PATH of a
+  non-interactive ssh session, which is exactly how anything automatic runs a backup. When it was
+  missing the fallback answered `gymyar` without comment: correct on most instances and silently
+  wrong on any that had been renamed. Asked of compose now, then of `.env`, then of the directory
+  name.
+- 🗑️ **A failed backup left a plausible one behind.** The redirection creates the `.sql.gz` before
+  `pg_dump` writes a byte into it, so every failure left twenty bytes decompressing to nothing,
+  filed by date beside the real ones and indistinguishable from them until the day you reached
+  for it. The script's own header says the failure it exists to prevent is somebody taking half
+  of a backup. A failed run now removes what it wrote, checks the media archive arrived at all —
+  a Docker daemon inside a VM mounts a directory it cannot see as an empty one, takes the tar
+  happily and leaves it in the VM — and writes its timestamp in a spelling BSD `date` accepts,
+  since `date -Is` is GNU and left every manifest written on a Mac blank.
+- 🛡️ **The restore guard could not stop anything.** Every way the question "how many users are
+  in here" can fail to be asked — the stack down, the wrong database, the wrong role, a role name
+  ending in the carriage return above — came back `0` through a swallowed error, which reads as
+  "empty, nothing to protect", and the next thing the script does is drop the schema. It refuses
+  to restore into a database it cannot query now, and tells a missing `users` table (a fresh
+  database, the ordinary case) apart from one that exists and cannot be counted. It also verifies
+  the media archive is readable *by the daemon* before the `rm -rf` that would otherwise destroy
+  the volume with nothing in reach to replace it.
+
+### The watch people already own
+
+Phase 9. Four ways into the same place, because no single one reaches everybody: a file, a strap,
+a shortcut and a hub. What none of them is, is a vendor integration — Garmin, Polar, Fitbit and
+Whoop all write into Apple Health and Health Connect, so integrating the two hubs buys the whole
+market, while integrating twelve companies buys the same thing plus twelve OAuth registrations
+against signup flows that sanctions break. The reasoning is in
+[docs/WEARABLES.md](docs/WEARABLES.md).
+
+- 📥 **An Apple Health export reads in whole.** `parseAppleHealth()` takes `export.zip`, finds the
+  `export.xml` inside it, and reads sessions, heart rate and weigh-ins out of a file that
+  routinely runs to hundreds of megabytes. Two passes rather than one, because Apple writes every
+  `<Record>` before the first `<Workout>` — so the spans a heart-rate sample might belong to are
+  not known until the file has been read once, and holding every sample until the sessions show
+  up is a hundred thousand objects on a phone. Pass one takes the rare elements; pass two streams
+  the heart rate past those spans and keeps only what lands inside one, plus ten numbers per day
+  for a resting figure.
+- 🗜️ **The zip is opened in a worker, with a bar that moves.** Reading, inflating and scanning are
+  seconds of work and all of it is synchronous once it starts; on the main thread that is a
+  frozen app and a progress bar that cannot repaint. In a worker the half-gigabyte string never
+  enters the window's heap at all. `fflate` rather than the platform's `DecompressionStream`,
+  which a 2021 Android WebView does not have — and this project ships to phones that may never
+  have seen the Play Store.
+- 📡 **A heart-rate strap, live, during the set.** The one thing an export file can never give: a
+  number *now* rather than a summary of a session that ended an hour ago. GATT characteristic
+  `0x2A37` is a standard, so one decoder reaches a Polar, a Garmin, a Suunto, a Wahoo, every
+  chest strap ever made, and an Amazfit with Heart Rate Push switched on. Two transports behind
+  one call — Web Bluetooth in the PWA, `@capacitor-community/bluetooth-le` in the Android build,
+  which cannot use Web Bluetooth because an Android WebView has never shipped it. Sensor contact
+  is read as three states rather than two: a strap that has slipped keeps transmitting, and what
+  it sends is whatever it can pick up off a sleeve.
+- 📲 **An iPhone sends its own sessions.** There is no native iOS build to read HealthKit from and
+  there is not going to be one, so the phone pushes instead: a Shortcuts automation on *when a
+  workout ends*, a bearer token minted in Settings and revocable per device, and an endpoint that
+  is idempotent on the HealthKit UUID — because automations re-fire, and people re-run a shortcut
+  by hand when they think nothing happened. No Developer Program, no Mac, no store review,
+  nothing anybody can revoke. There is no `.shortcut` file to download, for the same reason there
+  is no iOS app; [docs/HEALTH_SHORTCUT.md](docs/HEALTH_SHORTCUT.md) is the twelve minutes of
+  tapping that replaces it.
+- 🤖 **Health Connect, on the Android build.** From Android 14 the hub is part of the OS — package
+  `com.google.android.apps.healthdata`, in Settings, not uninstallable, no Play Store involved,
+  which is the whole reason it is viable for a project that ships through Cafe Bazaar and Myket.
+  Zepp, Samsung Health, Mi Fitness, Garmin Connect, Polar Flow and Fitbit all write there. It is
+  a local system read, so [MOBILE.md](docs/MOBILE.md)'s promise that nothing leaves the device
+  holds exactly — and that is worth saying in the listing rather than leaving somebody to infer
+  it from a permission dialog.
+- 🧩 **One shape, whichever way it arrived.** A run imported from a file, pushed by a shortcut or
+  read off a hub lands on the same library exercise, in the same columns, and nothing downstream
+  knows which it was. `healthActivity` reads both dialects — Apple's camel case and Health
+  Connect's upper snake — because a second copy of that mapping is how one person's history comes
+  to hold two kinds of running that never merge. Where the library has no honest match, and
+  *traditional strength training is one of those*, the session is recorded under its own name
+  rather than filed under a guess.
+
+#### Four migrations, because the reader was written first
+
+Each of these exists because something was already being read and had nowhere to be put.
+
+- ❤️ **`012_heart_rate.sql` — four numbers on a session.** Average, low, high, and the count
+  behind them. Not a samples table: a reading every few seconds is ~175,000 rows per person per
+  year, by a wide margin the largest table in this database, for a curve nothing draws yet — and
+  a samples table can be added the day something needs the shape of the curve, where adding it
+  now costs every row of every import forever. All four or none is a check constraint rather than
+  a convention, because three different writers will eventually have to obey it.
+- 😴 **`013_resting_hr.sql` — one figure per day.** The number in a health export that most
+  repays being plotted: it falls over months of training and rises before somebody gets ill or
+  has been sleeping badly, whether or not they trained. Not a column on `bodyweight_entries`,
+  though that would have cost no table — a day can have a resting figure and no weigh-in, and
+  inventing a weigh-in row to hold it means "how many days did they weigh themselves" stops being
+  answerable.
+- 📈 **`014_set_heart_rate.sql` — the peak around one set.** A set's window closes twenty seconds
+  *after* it is checked off, because a working set's heart rate peaks after the bar is racked — a
+  window that ends on the checkmark reports a number from the middle of the set and files the
+  real peak under the set after it. That is not a rounding error; it is every number on screen
+  belonging to the wrong set, and there is a test that runs the same session with no lag and
+  asserts both come out wrong. The same migration makes `done_at` true: it has existed since
+  `001` and had been carrying the workout's *end* for every set in a session, so twelve sets an
+  hour apart all claimed one instant.
+- 🔑 **`015_health_shortcut.sql` — a token, and an id from outside.** The token is stored as an
+  HMAC under `SESSION_SECRET`, never in the clear, and shown to its owner exactly once.
+  `external_id` is unique per user rather than globally, because two accounts on one family phone
+  can legitimately hold the same HealthKit UUID and a global constraint would let the first of
+  them lock the second out of their own session.
+
+### What that work found on the way
+
+Three things only findable by doing it, and two of them corrected something this project already
+believed.
+
+- 🔌 **The plugin the plan named cannot read a workout.** [docs/WEARABLES.md](docs/WEARABLES.md)
+  said to spike the Health Connect plugin for its Capacitor peer range before committing, and
+  that warning was right and was the smaller problem: `@capgo/capacitor-health`'s data types are
+  `steps | distance | calories | heartRate | weight` — samples, with no notion of a session, and
+  the milestone is about sessions. `capacitor-health` (mley) has `queryWorkouts` and returns every
+  heart-rate sample inside each session with it. The price is body weight, which it cannot read
+  and which no plugin on the Capacitor 7 line offers alongside workouts.
+- 📦 **Two native plugins were shipping to browsers.** An earlier commit in this release claimed
+  `BleClient` appeared nowhere in the web bundle; that check had run against a stale `dist/`, and
+  a later one grepped a string this project's own code contains. On a clean build both plugins
+  were in there. Guarding the callers does not help — Rollup will not reason across a call
+  boundary — and nor does `MOBILE ? import(…) : …`, because that constant is computed in another
+  module. Testing `import.meta.env.VITE_MOBILE` at the import itself does: Vite substitutes a
+  literal and the branch folds away.
+- 📅 **`Date.parse` is not a validator.** It takes `03/09/2026` and reads it the American way, so
+  a September session pushed from a phone that writes dates the way most of the world does would
+  have landed in March, with no error and nothing to notice. The endpoint matches ISO 8601 before
+  parsing now — and requires the offset, because an ISO date-time without one is *the server's*
+  local time by the spec, which puts a 21:00 session in Tehran on the following day.
+
+### Nothing to send anywhere, said on a page
+
+- 🔒 **A privacy policy, in both languages.** [`apps/site/privacy.html`](apps/site/privacy.html)
+  and `/en/`. It opens by separating the two products, which is not a stylistic choice: the
+  Android build has no account and no server, and a single policy describing account data and
+  sync would read as a flat contradiction of the "collects nothing" declaration the store
+  listings make about it. Health Connect additionally refuses to work at all for an app whose
+  declared policy URL does not resolve, so `smoke.sh` asserts both addresses serve — a 404 there
+  is a submission blocked by a reviewer rather than by us.
+- 📋 **The store disclosures caught up.** `docs/store/privacy.md` still said no location
+  permission was declared; the strap added four Bluetooth permissions and two location ones, and
+  Health Connect two more. All are listed, with the three that look worse than they are given a
+  line for the reviewer field — `neverForLocation` is the app formally declining to derive
+  location from a scan, the location permissions are capped so they cannot apply on Android 12 or
+  later, and `READ_EXERCISE_ROUTE` is deliberately not requested at all.
+- 🧾 **Seven hosts, still.** The host list in that document is re-derived from a clean mobile
+  build rather than assumed, and two milestones of native plugins added no outbound request to
+  it. The only one actually fetched is still the exercise CDN. That fact is what the whole
+  "collects nothing" claim rests on, so it is checked rather than remembered.
+
 ### Known limitations
 
 - 💾 **Uploaded media is not in the database dump.** Form-check video and progress photos live
   on a volume and only the rows describing them are in Postgres, so a backup is two things
   rather than one. `infra/scripts/backup.sh` takes both and `restore.sh` puts them back;
   restoring the dump alone gives you an instance where every attachment is a broken link.
+- ⌚ **None of the wearables work has touched real hardware.** No chest strap, no iPhone running
+  the shortcut, no Android phone with Health Connect. Every path is verified against a fake device
+  driving the real code — the real transport, the real store, the real endpoint — which catches
+  logic and cannot catch a device that answers differently from its own specification. The first
+  real one will find something.
+- ⚖️ **Body weight does not come from Health Connect.** No plugin on the Capacitor 7 line reads
+  both weight and workouts; the one that reads sessions has no weight permission at all. Weight
+  arrives through the file import, which already works. A plugin limitation rather than a
+  decision.
+- 📉 **The daily resting heart rate is stored and not drawn.** `013` gives it a table and the
+  importer fills it; no screen plots it yet. It is the number in a health export that most repays
+  being plotted, so this is a gap rather than a design.
+- 📄 **The privacy policy has not been reviewed by a lawyer.** It is an accurate description of
+  what the software does, written from the code. That is not the same thing, and the legal review
+  this release already lists as a launch blocker still covers it.
 - 🖼️ **The exercise media is not licensed for a commercial deployment.** The 1,324 animations
   are © [Gym visual](https://gymvisual.com/) and the dataset grants us nothing; they are
   fetched from upstream on first run rather than redistributed here. Exercise rows carry
