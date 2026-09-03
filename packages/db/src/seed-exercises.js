@@ -14,7 +14,7 @@
  * longer where the decision is made.
  */
 import { EXDB, mediaUrls, mediaSet } from '@gymyar/domain'
-import { db, logChange } from './index.js'
+import { db } from './index.js'
 
 const IMG_BASE = process.env.EXERCISE_IMG_BASE || '/img/'
 const GIF_BASE = process.env.EXERCISE_GIF_BASE || '/gif/'
