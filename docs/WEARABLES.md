@@ -320,12 +320,15 @@ against a real Health Connect. The mapping is tested; the plugin call is not.
 
 Not optional, and not an afterthought at the end:
 
-- [`docs/store/privacy.md`](store/privacy.md) has to cover biometric data before any of this
-  ships. Health Connect additionally requires a declared privacy policy to function at all.
-- Cafe Bazaar will want the new permissions justified in the listing.
-- [MOBILE.md](MOBILE.md) should say plainly that Health Connect and Bluetooth are local
-  reads and that nothing leaves the device — it is the true answer, and it is also the
-  better pitch.
+- [`docs/store/privacy.md`](store/privacy.md) covers biometric data, and
+  [`apps/site/privacy.html`](../apps/site/privacy.html) is the declared policy Health Connect
+  requires to function at all. Both landed with M4.
+- Cafe Bazaar wanted the new permissions justified in the listing, and
+  [`docs/store/listing.fa.md`](store/listing.fa.md) now has a table of every one of them, what
+  it is for, and what leaves the device — which is nothing, in every row.
+- [MOBILE.md](MOBILE.md) says plainly that Health Connect and Bluetooth are local reads and
+  that nothing leaves the device. It was the true answer and it turned out to be the better
+  pitch, so it is on the privacy page in both languages as well.
 
 ## Deliberately not built
 
@@ -355,7 +358,10 @@ contracts drift. The hubs already give us those devices for nothing.
       workouts, so this stays with the file import
 - [x] The Bazaar permission justification — `docs/store/listing.fa.md` now has a table of every
       permission, what it is for, and what leaves the device, which is nothing
-- [ ] `privacy.md` has to cover biometric data before any of this ships
+- [x] Biometric data is covered — `apps/site/privacy.html` (and `/en/`) is the policy Health
+      Connect requires and the stores ask for a URL to, and `docs/store/privacy.md` has the
+      permissions the last three milestones added. What is left is not writing but review: the
+      README's legal blocker still stands
 - [ ] An Apple Watch user's sessions arrive on their own, with no file and no tapping — the
       endpoint and the pairing are built and tested; unticked until somebody has run the
       shortcut on a real phone, which is the same thing the strap is waiting for

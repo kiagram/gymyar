@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy — GymYar</title>
+<meta name="description" content="What GymYar stores, where it stores it, and what leaves your phone. The Android app collects nothing; the web service holds what you put in it and nothing more.">
+<meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0d0e" media="(prefers-color-scheme: dark)">
+<meta property="og:locale" content="en_US">
+<link rel="alternate" hreflang="fa" href="/privacy.html">
+<link rel="alternate" hreflang="en" href="/en/privacy.html">
+<link rel="alternate" hreflang="x-default" href="/en/privacy.html">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+<link rel="icon" type="image/png" sizes="180x180" href="/icon-180.png">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="preload" href="/fonts/vazirmatn-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<nav><div class="wrap nav-in">
+  <a class="brand" href="/en/">
+    <img src="/brand/gymyar-mark.svg" alt="" width="23" height="32">
+    <span class="name">GymYar</span>
+  </a>
+  <div class="nav-links">
+    <a href="/en/#coaching" class="hide-s">Coaching</a>
+    <a href="/en/#features" class="hide-s">Features</a>
+    <a href="/en/#pricing" class="hide-s">Pricing</a>
+    <a href="docs.html">Docs</a>
+    <a href="about.html" class="hide-s">About</a>
+    <a href="#" data-repo="" class="hide-s" hidden>Source</a>
+    <a class="lang" href="/privacy.html" hreflang="fa">فارسی</a>
+    <a class="cta" href="/app/">Open the app</a>
+  </div>
+</div></nav>
+
+<main class="wrap prose">
+  <h1>Privacy</h1>
+  <p class="lead">There are two GymYars and they are not alike. The Android app has no account
+     and no server: it collects nothing and sends nothing. The web service has accounts,
+     because coaching needs two people to see the same training — and it holds what you put
+     into it and nothing else.</p>
+
+  <p>This page describes both. Where they differ it says so, because a single policy that
+     blurred them would be wrong about one of them.</p>
+
+  <h2>The Android app</h2>
+  <p><strong>It collects nothing and transmits nothing.</strong> There is no sign-in, no sync,
+     no analytics, no advertising, no crash reporting, no tracking of any kind. Your training
+     lives in a file in the app's private storage on your phone and is never sent anywhere.</p>
+  <p>This is a property of the build rather than a promise: the code that talks to a server
+     throws immediately in the app build, so a future screen that forgot would fail loudly in
+     development instead of quietly calling somewhere. The app makes exactly one kind of
+     outbound request — fetching exercise illustrations from a public CDN — and that request
+     carries no identifier of any kind.</p>
+  <p>Uninstalling the app removes everything. You can export it all first, through the phone's
+     own share sheet.</p>
+
+  <h3>The two things the app reads from your phone</h3>
+  <p>Both are local reads. Neither sends anything anywhere, because in the app build there is
+     nowhere to send it.</p>
+  <ul>
+    <li><strong>A heart-rate strap, over Bluetooth.</strong> Only while you are training, only
+      if you connect one. The reading goes into that session on that phone. Permission to scan
+      is declared as never being used to determine location, which is why the app does not ask
+      for location at all on Android 12 and later.</li>
+    <li><strong>Sessions from Health Connect.</strong> If you allow it, the app reads workout
+      sessions and the heart rate recorded during them from Health Connect — the store your
+      watch already writes to. It asks for those two things and nothing else. It does not ask
+      for your route, which is a map of where you run.</li>
+  </ul>
+
+  <h2>The web service</h2>
+  <p>An account exists so that your training is on more than one device and so that a coach
+     you choose can see it. What it holds:</p>
+  <ul>
+    <li><strong>Who you are:</strong> your name, and an email address or phone number to sign
+      in with. A password is stored only as a hash. Nothing else is asked for — no date of
+      birth, no address, no identity document.</li>
+    <li><strong>Your training:</strong> routines, sessions, every set, body weight, weekly
+      check-ins and habits.</li>
+    <li><strong>Health data:</strong> heart rate — the average, low and high of a session, the
+      peak around a set, and a daily resting figure. Body weight is health data too. Where
+      this comes from is described below.</li>
+    <li><strong>What you upload:</strong> form-check video, progress photos and voice notes,
+      if you record any.</li>
+    <li><strong>Coaching:</strong> who is coaching whom, what you have chosen to share with
+      them, the programmes they propose and the messages between you.</li>
+    <li><strong>Payment, if you pay:</strong> the amount, the date and the reference the
+      payment provider returns. Card details never reach this service — they are entered on
+      the provider's own page.</li>
+  </ul>
+
+  <h3>Health data, specifically</h3>
+  <p>Heart rate and body weight are treated as more sensitive than the rest, and it is worth
+     being exact about how they arrive:</p>
+  <ul>
+    <li><strong>From a file you choose to import</strong> — an Apple Health export, or an
+      export from another training app. Nothing is read from that file except training,
+      weight and heart rate, and the file itself is never uploaded: it is read in your
+      browser.</li>
+    <li><strong>From a strap you connect</strong>, during a session.</li>
+    <li><strong>From Health Connect</strong>, on Android, if you allow it.</li>
+    <li><strong>From an iPhone shortcut you set up yourself</strong>, which sends a session to
+      your account as it ends. You create the key it uses, you can see when it was last used,
+      and you can revoke it at any time — from Settings, immediately, without our involvement.</li>
+  </ul>
+  <p>None of it is used for anything but showing it back to you and to a coach you have shared
+     it with. It is not analysed for any other purpose, not aggregated with anyone else's, not
+     sold, and not shared with anybody — no advertiser, no data broker, no insurer, no
+     analytics provider. There is no such relationship to disclose because there is no such
+     relationship.</p>
+
+  <h3>What a coach can see</h3>
+  <p>Only what you grant, and each kind separately: programmes, sessions, body weight,
+     check-ins, habits, form-check video and progress photos are individual permissions.
+     Heart rate travels with the sessions it belongs to. You can withdraw any of them at any
+     time, and a coach who has lost a permission stops being able to see that data
+     immediately.</p>
+  <p>A coach cannot edit your training. What they send is a proposal, and it changes nothing
+     until you accept it.</p>
+
+  <h2>Getting it out, and getting rid of it</h2>
+  <ul>
+    <li><strong>Export.</strong> Everything you have, as a file, at any time, from Settings.</li>
+    <li><strong>Delete.</strong> Deleting your account removes your training, your uploads and
+      your account rows. Uninstalling the app does the same for the app build, where there was
+      never a copy anywhere else.</li>
+  </ul>
+
+  <h2>If somebody else is running this</h2>
+  <p>GymYar is open source and anybody may run their own instance. If you signed up on
+     somebody else's server, <strong>they hold your data, not us</strong> — this page describes
+     what the software does, and the operator of that instance is who to ask about how they
+     run it, where it is hosted and how long they keep backups.</p>
+  <p>If you are that operator: the software stores what is listed above and makes no outbound
+     request to us or to anyone else on your users' behalf. What you do with the database is
+     your responsibility, and so is the policy you show your users.</p>
+
+  <h2>Changes</h2>
+  <p>The source of this page is in the repository with the rest of the project, so what changed
+     and when is a matter of public record rather than a line at the bottom of a page.</p>
+</main>
+
+<footer><div class="wrap foot">
+  <span>GymYar · AGPL-3.0 · built on <a href="https://gitea.com/DuarteSantos/openGym" rel="noopener">openGym</a> by Duarte Santos</span>
+  <div class="links">
+    <a href="docs.html">Docs</a>
+    <a href="about.html">About</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="/privacy.html" hreflang="fa">فارسی</a>
+    <a href="#" data-repo="" hidden>Source</a>
+  </div>
+</div></footer>
+
+<script src="/site.js" defer></script>
+</body>
+</html>

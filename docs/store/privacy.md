@@ -71,9 +71,14 @@ contains no such framework.
 
 ## Cafe Bazaar / Myket
 
-Both ask for a privacy policy URL. Point it at the marketing site's privacy page, and make sure
-that page distinguishes the app from the web service — a single policy that describes account
-data and sync will read as a contradiction of the "collects nothing" declaration above.
+Both ask for a privacy policy URL, and so does Health Connect. It is
+`https://<your-domain>/privacy.html`, which is `apps/site/privacy.html` in this repository —
+Persian on the root, English at `/en/privacy.html`.
+
+That page opens by separating the two products before it says anything else, which is not a
+stylistic choice: a single policy describing account data and sync would read as a flat
+contradiction of the "collects nothing" declaration above, and a reviewer comparing the two
+would be right to reject it.
 
 ## Permissions the app declares, and why
 
@@ -82,11 +87,57 @@ data and sync will read as a contradiction of the "collects nothing" declaration
 | `POST_NOTIFICATIONS` (Android 13+) | Only when the user switches the workout reminder on | The reminder is a local notification |
 | `SCHEDULE_EXACT_ALARM` | Declared; used if granted | So the reminder fires at the chosen minute |
 | Notifications (iOS) | Only when the user switches the reminder on | Same |
+| `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT` | Only when the user taps to look for a heart-rate strap | Reading bpm off a chest strap during a session |
+| `BLUETOOTH`, `BLUETOOTH_ADMIN` (`maxSdkVersion="30"`) | Same, on Android 11 and below | The old permission names, capped so they never apply on newer phones |
+| `ACCESS_COARSE_LOCATION` (`maxSdkVersion="28"`), `ACCESS_FINE_LOCATION` (`maxSdkVersion="30"`) | Same, on Android 11 and below | **Not for location.** The OS required it for any BLE scan before Android 12 |
+| `health.READ_EXERCISE`, `health.READ_HEART_RATE` | Only when the user opens the Health Connect sheet and allows it | Reading sessions and their heart rate out of Health Connect |
 
-Nothing else. No location, contacts, camera, microphone, storage or phone-state permission is
-requested or declared. The reminder prompt deliberately does not appear at launch — a
-permission dialog shown before anybody knows what the app is gets denied permanently, and the
-reminder is the one feature that needs it.
+Nothing else. No contacts, camera, microphone, storage or phone-state permission is requested
+or declared, and no location permission applies on any phone running Android 12 or later. The
+reminder prompt deliberately does not appear at launch — a permission dialog shown before
+anybody knows what the app is gets denied permanently, and the reminder is the one feature that
+needs it.
+
+Three of these deserve a sentence in the reviewer field, because each looks worse than it is:
+
+- **`BLUETOOTH_SCAN` is declared `neverForLocation`.** That attribute is the app formally
+  telling Android it will not derive location from a scan, and it is why no location permission
+  is requested on Android 12 and later. `BleClient.initialize({ androidNeverForLocation: true })`
+  makes the same claim from the code side.
+- **The two location permissions are for Android 11 and below only**, where the OS itself
+  refused a BLE scan without one. Both are capped with `maxSdkVersion`, so on a current phone
+  they are not merely unused — they do not apply.
+- **`READ_EXERCISE_ROUTE` is deliberately not requested**, though the Health Connect plugin
+  offers it. A route is a map of where somebody runs and this app has nowhere to show one.
+
+## Health data, which is the part that changed
+
+The app now reads two kinds of health data — heart rate from a Bluetooth strap, and sessions
+plus their heart rate from Health Connect. **Neither changes any answer above**, and it is
+worth being precise about why, because "reads health data" and "collects health data" are
+different questions and only the second one is being asked.
+
+Play's Data safety asks what is *collected* — meaning transmitted off the device — and what is
+*shared*. Both remain none. The strap talks to the phone; Health Connect is the phone handing
+this app rows it already holds. Nothing goes out, because in this build there is nowhere for it
+to go: the host list above is still the same seven, and the only one fetched is the exercise CDN.
+
+Where a form asks whether the app *accesses* health data, the answer is yes, and the follow-up
+is that it is used solely to show the person their own training back to them, is stored only on
+the device, and is not used for advertising, analytics or any secondary purpose.
+
+### Health Connect's own requirements
+
+Google requires an app reading from Health Connect to declare a privacy policy, and the
+permission sheet links to it. Two things follow:
+
+1. **The policy URL must be live before a build with these permissions is submitted.** It is
+   `https://<your-domain>/privacy.html` — `apps/site/privacy.html`, Persian on the root and
+   English at `/en/privacy.html`.
+2. **The rationale screen has to open.** `AndroidManifest.xml` declares both entry points, an
+   activity for Android 13 and below and an alias for 14 and later, because Android changed the
+   mechanism between them and a phone that finds neither shows a dead link at the exact moment
+   somebody is deciding whether to trust the app with their heart rate.
 
 ## Content rating
 
