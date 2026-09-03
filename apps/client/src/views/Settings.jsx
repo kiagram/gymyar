@@ -9,6 +9,7 @@ import { api, webauthnOK, passkeyLogin, passkeyRegister, IS_ANDROID,
   meEmailStart, meEmailVerify, meEmailRemove } from '../lib/api.js'
 import { pushSupported, enablePush, disablePush, sendTestPush, wantsPush, withPush } from '../lib/push.js'
 import { wakeLockSupported } from '../lib/wakelock.js'
+import { strapAvailable } from '../lib/heart-strap.js'
 import { t, LANGS } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, shareExport, syncReminder } from '../lib/mobile.js'
@@ -16,7 +17,7 @@ import { loadStarterPlan, confirmSheet, importFromApp } from '../sheets.jsx'
 import CodeFlow from '../components/CodeFlow.jsx'
 import { phoneFirst, phoneComplaint } from './Login.jsx'
 import Icon from '../components/Icon.jsx'
-import { Section, Row, SelectRow, Switch, Segmented, Button, TextField } from '../components/ui.jsx'
+import { Section, Row, SelectRow, Switch, Segmented, Button, TextField, NumberField } from '../components/ui.jsx'
 
 export default function Settings() {
   const nav = useNavigate()
@@ -191,6 +192,17 @@ export default function Settings() {
           subtitle={wakeOK ? null : t('Not supported in this browser.')}>
           <Switch checked={wakeOK && S.keepAwake !== false} disabled={!wakeOK}
             onChange={v => update(s => { s.keepAwake = v })} />
+        </Row>
+      )}
+      {/* Only where a strap can actually be connected: the one thing that reads this today is
+          the live reading's zone, and a setting whose effect cannot be reached on this device
+          is a setting that teaches somebody the app is broken. */}
+      {strapAvailable() && (
+        <Row icon="heart" iconTint="var(--red)" title={t('Maximum heart rate')}
+          subtitle={t('Zones are drawn against this. Leave it empty unless you have actually measured yours — a guess puts every zone in the wrong place.')}>
+          <NumberField value={S.hrMax ?? ''} decimal={false} nullable inputMode="numeric"
+            style={{ width: 74, textAlign: 'center' }} placeholder="—"
+            onChange={v => update(s => { s.hrMax = v || null })} />
         </Row>
       )}
       <Row icon="bell" iconTint="var(--pink)" title={t('Sounds')}>

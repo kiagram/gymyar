@@ -23,6 +23,11 @@ export const DEF = {
   // existed gets the empty arrays instead of a screen guarding against `undefined` everywhere.
   checkins: [], habits: [], habitTicks: [],
   exWeights: {}, workouts: [], active: null, customEx: [], gifSize: 'full',
+  /* Measured maximum heart rate, if this person has ever seen their own. Null rather than an
+   * estimate: `hrMax` in the domain will estimate from age when there is one, and an estimate
+   * silently standing in for a measurement is how a zone ends up one bucket wrong for
+   * everybody under forty. Nothing is shown at all until this is set. */
+  hrMax: null,
   // effort: which per-set effort scale is logged — 'none' | 'rir' | 'rpe'. null, not 'none', so
   // that a profile which never chose (loaded state is overlaid on DEF, on every path: local,
   // server pull, backup import) still falls back to the `showRir` boolean this replaced and

@@ -56,7 +56,7 @@ const stamp = v => (v == null ? null : new Date(v).toISOString())
  * finished on the phone it was started on. */
 export const SETTING_KEYS = [
   'unit', 'restSec', 'sound', 'keepAwake', 'lang', 'theme', 'accent', 'body', 'targetW',
-  'gifSize', 'reminder', 'effort', 'showRir', 'exWeights',
+  'gifSize', 'reminder', 'effort', 'showRir', 'exWeights', 'hrMax',
   /* Which server-sent notifications this person wants. Here rather than in a table of its own
    * because it is a preference like every other one in this list, and putting it in the blob the
    * client already syncs means the switch somebody flips and the row the API reads before
