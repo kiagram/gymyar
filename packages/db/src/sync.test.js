@@ -191,6 +191,28 @@ describe('delta sync', () => {
     await expect(push(u.id, { resting: [{ on_date: '2026-06-01', bpm: 3 }] })).rejects.toThrow()
   })
 
+  it('carries a set peak there and back', async () => {
+    const u = await createUser({ name: 'A' })
+    const at = '2026-08-01T18:00:00Z'
+    const w = workout('w1', at)
+    w.sets[0].hr_peak_bpm = 167
+    await push(u.id, { workouts: [w] })
+    expect((await pullAll(u.id)).changes.workouts[0].sets[0].hr_peak_bpm).toBe(167)
+  })
+
+  it('leaves a set logged without a strap null', async () => {
+    const u = await createUser({ name: 'A' })
+    await push(u.id, { workouts: [workout('w1', '2026-08-01T18:00:00Z')] })
+    expect((await pullAll(u.id)).changes.workouts[0].sets[0].hr_peak_bpm).toBeNull()
+  })
+
+  it('refuses a set peak no heart produced', async () => {
+    const u = await createUser({ name: 'A' })
+    const w = workout('w1', '2026-08-01T18:00:00Z')
+    w.sets[0].hr_peak_bpm = 400
+    await expect(push(u.id, { workouts: [w] })).rejects.toThrow()
+  })
+
   it('rolls the whole push back when one row fails', async () => {
     const u = await createUser({ name: 'A' })
     const before = await pull(u.id, 0)

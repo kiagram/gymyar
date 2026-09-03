@@ -101,7 +101,15 @@ export function setToRow(s, { workoutId, userId, exerciseId, position, unit, mod
     effort_value: null, effort_scale: null,
     is_warmup: !!s.warm,
     done: s.done !== false,
-    done_at: stamp(doneAt) || new Date().toISOString()
+    /* When this set was checked off, and only failing that the session's end.
+     *
+     * `s.t` is what the client records at the moment of the tap. Every set of a session used
+     * to carry `ms(w.end)` — twelve sets an hour apart claiming one instant — which nothing
+     * caught because the only index over this column sorts sessions and not the sets inside
+     * one. A per-set heart rate is the first thing that needs it to be true. Sessions logged
+     * before 014, and any imported from a file that never had per-set times, still fall back. */
+    done_at: stamp(num(s.t)) || stamp(doneAt) || new Date().toISOString(),
+    hr_peak_bpm: peakBpm(s.hr)
   }
   if (mode === 'cardio') {
     const min = num(s.min) ?? 0
@@ -143,8 +151,21 @@ export function rowToSet(row, { unit, mode }) {
   }
   if (row.per_side) s.side = true
   if (row.is_warmup) s.warm = true
+  // Absent rather than null on both, so `s.hr &&` is the whole test a view needs and a set
+  // logged without a strap reads exactly like one from before 014.
+  if (row.hr_peak_bpm != null) s.hr = num(row.hr_peak_bpm)
+  const at = ms(row.done_at)
+  if (at != null) s.t = at
   s.done = row.done !== false
   return s
+}
+
+/* A set's peak, or nothing. Out-of-range is dropped rather than sent and bounced: 014 makes
+ * the window a check constraint, and one impossible reading must not cost the session it is
+ * attached to — the same rule `hrRow` follows for the four columns on a workout. */
+const peakBpm = v => {
+  const n = num(v)
+  return n != null && isFinite(n) && n >= 25 && n <= 240 ? Math.round(n) : null
 }
 
 /* ------------------------------------------------------------ workouts ---- */

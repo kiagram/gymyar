@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   maxHrForAge, hrMax, zoneOf, hrStats, samplesIn, hrForSpan,
   zoneMinutes, restingHr, restingSeries, SAMPLE_SPAN_CAP_MS,
-  readHeartRateMeasurement, believableBpm,
+  readHeartRateMeasurement, believableBpm, heartRateForSets,
 } from './heartrate.js'
 
 const at = (min, bpm) => ({ t: Date.UTC(2026, 0, 10, 0, min, 0), bpm })
@@ -190,5 +190,50 @@ describe('what counts as a heart rate', () => {
     expect(believableBpm(24)).toBe(false)
     expect(believableBpm(0)).toBe(false)
     expect(believableBpm(NaN)).toBe(false)
+  })
+})
+
+describe('heart rate around a set', () => {
+  // A session at a steady 70, with a spike after each of two sets. The spikes land after the
+  // mark, which is the whole point of the lag.
+  const t0 = Date.UTC(2026, 0, 10, 18, 0, 0)
+  const s = (secs, bpm) => ({ t: t0 + secs * 1000, bpm })
+  const samples = [
+    s(0, 70), s(30, 72), s(58, 120),          // first set, under way
+    s(62, 150), s(70, 155),                   // its peak, after the bar went down
+    s(90, 100), s(120, 80),                   // recovering
+    s(175, 130), s(178, 145),                 // second set
+    s(185, 168), s(195, 160),                 // its peak
+    s(240, 85)
+  ]
+  const marks = [t0 + 60000, t0 + 180000]     // checked off at 1:00 and 3:00
+
+  it('files a peak under the set that caused it, not the set after', () => {
+    const [a, b] = heartRateForSets(marks, samples, { from: t0 })
+    expect(a.max).toBe(155)
+    expect(b.max).toBe(168)
+  })
+
+  it('would file both wrong with no lag, which is why there is one', () => {
+    // Windows that close on the mark: the first set's real peak at 1:10 falls into the second
+    // set's window, and the second set's peak at 3:05 is lost past the end of the session.
+    const [a, b] = heartRateForSets(marks, samples, { from: t0, lag: 0 })
+    expect(a.max).toBe(120)
+    expect(b.max).toBe(155)
+  })
+
+  it('opens the first window at the session rather than at the first sample', () => {
+    const [a] = heartRateForSets(marks, samples, { from: t0 })
+    expect(a.n).toBe(5)                        // 0s through 70s
+  })
+
+  it('has nothing to say about a set with no readings near it', () => {
+    const late = [t0 + 600000]
+    expect(heartRateForSets(late, samples, { from: t0 + 590000 })).toEqual([null])
+  })
+
+  it('is empty for a session with no finished sets', () => {
+    expect(heartRateForSets([], samples, { from: t0 })).toEqual([])
+    expect(heartRateForSets(null, samples)).toEqual([])
   })
 })

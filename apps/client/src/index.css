@@ -1040,6 +1040,12 @@ h4.sec{
   font-variant-numeric:tabular-nums;text-align:center}
 .iconbtn:has(.hr-badge){position:relative;overflow:visible}
 
+/* A set's own peak, in the session sheet's list of sets. Small, red, and carrying the heart so
+   the number cannot be read as another rep count. */
+.ss-hr{display:inline-flex;align-items:center;gap:2px;margin-inline-start:4px;color:var(--red);
+  font-variant-numeric:tabular-nums}
+.ss-hr svg{width:9px;height:9px}
+
 /* The same number, given the room to be read, in the strap sheet. */
 .hr-live{display:flex;align-items:baseline;justify-content:center;gap:8px;margin-bottom:6px;color:var(--red)}
 .hr-live svg{width:22px;height:22px;align-self:center}

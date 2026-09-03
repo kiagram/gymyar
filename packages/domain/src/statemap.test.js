@@ -201,6 +201,35 @@ describe('workouts', () => {
     }
   })
 
+  it('carries the peak of one set and the moment it was checked off', () => {
+    const t1 = Date.parse('2026-08-01T18:12:00Z'), t2 = Date.parse('2026-08-01T18:15:00Z')
+    const marked = { ...w, entries: [{ id: '0025', sets: [
+      { w: 100, r: 5, done: true, t: t1, hr: 148 },
+      { w: 100, r: 4, done: true, t: t2 }
+    ] }] }
+    const { workout, sets } = workoutToRows(marked, { userId: 'u1', unit: 'kg', modeFor: modeReps })
+    expect(sets.map(r => r.done_at)).toEqual([new Date(t1).toISOString(), new Date(t2).toISOString()])
+    expect(sets.map(r => r.hr_peak_bpm)).toEqual([148, null])
+    const back = rowsToWorkout(workout, sets, { unit: 'kg', modeFor: modeReps }).entries[0].sets
+    expect(back[0]).toMatchObject({ t: t1, hr: 148 })
+    expect(back[1].t).toBe(t2)
+    expect('hr' in back[1]).toBe(false)
+  })
+
+  it('falls back to the session end for a set logged before there were set times', () => {
+    // Every row written before 014 carries the workout's end, and an import from a file with
+    // no per-set times still does. Neither should start claiming a time it does not have.
+    const { sets } = workoutToRows(w, { userId: 'u1', unit: 'kg', modeFor: modeReps })
+    expect(new Set(sets.map(r => r.done_at)).size).toBe(1)
+    expect(sets[0].done_at).toBe(new Date(w.end).toISOString())
+  })
+
+  it('refuses a peak no heart produced rather than failing the whole session', () => {
+    const bad = { ...w, entries: [{ id: '0025', sets: [{ w: 100, r: 5, done: true, hr: 400 }] }] }
+    const { sets } = workoutToRows(bad, { userId: 'u1', unit: 'kg', modeFor: modeReps })
+    expect(sets[0].hr_peak_bpm).toBeNull()
+  })
+
   it('survives a pound profile intact', () => {
     const lb = { ...w, entries: [{ id: '0025', sets: [{ w: 225, r: 5 }] }], bw: 180 }
     const { workout, sets } = workoutToRows(lb, { userId: 'u1', unit: 'lb', modeFor: modeReps })

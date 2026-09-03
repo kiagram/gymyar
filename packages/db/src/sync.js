@@ -238,7 +238,7 @@ export async function push(userId, payload = {}, s = db()) {
         await tx`insert into workout_sets ${tx(w.sets.map(st => ({ ...st, user_id: userId })),
           'id', 'workout_id', 'user_id', 'exercise_id', 'position', 'weight_kg', 'reps',
           'seconds', 'distance_m', 'per_side', 'effort_value', 'effort_scale', 'is_warmup',
-          'done', 'done_at')}`
+          'done', 'done_at', 'hr_peak_bpm')}`
       }
       await logChange(tx, userId, 'workouts', w.id)
       touched++

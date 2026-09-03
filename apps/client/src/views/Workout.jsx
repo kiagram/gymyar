@@ -221,6 +221,11 @@ function ActiveWorkout() {
     let askTop = false, exJustDone = false, workoutDone = false
     mutEntry(idx, e => {
       e.sets[i].done = !e.sets[i].done
+      // The moment of the tap. It is the only time a set has — nothing records when one
+      // *began* — and it is what a per-set heart rate is windowed against, as well as what
+      // `done_at` in the database has claimed to be since 001 without it being true.
+      if (e.sets[i].done) e.sets[i].t = Date.now()
+      else delete e.sets[i].t
       if (e.sets[i].done) {
         beep(S.sound, 1040, 0.12); vibrate(30)
         const isLastExInUnit = idx === unit[unit.length - 1]
