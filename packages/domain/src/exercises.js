@@ -1,5 +1,6 @@
 import { EXDB } from './exercises-data.js'
 import { t } from './i18n-adapter.js'
+import { MEDIA_SET } from './media-set.js'
 
 export { EXDB }
 export const EXIDX = {}
@@ -40,8 +41,36 @@ export function setMediaBases({ img, gif } = {}) {
   if (gif != null) GIF_BASE = gif
 }
 export const mediaBases = () => ({ img: IMG_BASE, gif: GIF_BASE })
-export const imgSrc = ex => IMG_BASE + ex.img
-export const gifSrc = ex => GIF_BASE + ex.gif
+
+// *Which* artwork, as opposed to where it is served from. The base is deployment; the set is
+// the licence. See media-set.js for why the two are separate and why the second one had to
+// exist before "replacing the media" could mean anything.
+let SET = MEDIA_SET
+export function setMediaSet(set) { SET = set || MEDIA_SET }
+export const mediaSet = () => SET
+
+// A set may name a file, which rides on the base, or a whole URL, which does not. Both are
+// needed: artwork mounted next to the app is a filename, and a set hosted by whoever licensed
+// it to us is a URL that has nothing to do with our own img/ directory.
+const at = (base, name) => (/^(https?:)?\/\//.test(name) ? name : base + name)
+
+// The dataset's own names when no set overrides them, and otherwise the set's — including its
+// silences. `?? null` rather than a fallback to `ex.img`: a replacement set that does not
+// cover an exercise means we have no artwork for it, and drawing the old one there would keep
+// shipping the pictures the swap was performed to stop shipping.
+//
+// Custom exercises are somebody's own row and are never in a set, so they are answered from
+// their own fields — which are empty, which is why a custom exercise has never had a picture.
+const fileOf = (ex, field) =>
+  (SET.media && !ex.custom ? SET.media[ex.id]?.[field] ?? null : ex[field] || null)
+
+/** Both URLs for an exercise, against explicit bases — either may be null. */
+export function mediaUrls(ex, bases = { img: IMG_BASE, gif: GIF_BASE }) {
+  const img = fileOf(ex, 'img'), gif = fileOf(ex, 'gif')
+  return { img: img && at(bases.img, img), gif: gif && at(bases.gif, gif) }
+}
+export const imgSrc = ex => mediaUrls(ex).img
+export const gifSrc = ex => mediaUrls(ex).gif
 
 // Cardio exercises log time + speed instead of weight × reps.
 export const isCardio = idOrEx => (typeof idOrEx === 'string' ? EXIDX[idOrEx] : idOrEx)?.bp === 'cardio'

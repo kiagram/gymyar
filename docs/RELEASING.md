@@ -121,8 +121,17 @@ Then, in order:
 Neither of these is code, and both still block taking money:
 
 1. **Exercise media.** The 1,324 animations are © [Gym visual](https://gymvisual.com/) and the
-   dataset grants us nothing. License them or replace them. `exercises.image_url` and
-   `animation_url` mean swapping the source is an `UPDATE`.
+   dataset grants us nothing. License them or replace them. The set that ships is
+   `packages/domain/src/media-set.js`, and the gate is:
+
+   ```bash
+   npm run media:check
+   ```
+
+   which exits 1 for as long as the active artwork is not licensed for sale. It is not in CI,
+   because it would fail every run today; it belongs in the release checklist, where failing is
+   the point. This line used to say the swap was an `UPDATE` over `exercises.image_url` — it
+   was not, and `media-set.js` explains what it is instead.
 2. **Legal review** of the AGPL position, since we charge for hosting — and the repository has
    to be public before that happens. See [PUBLISHING.md](PUBLISHING.md).
 

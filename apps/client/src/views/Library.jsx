@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore.js'
-import { EXDB, BODYPARTS, allExercises, equipmentOf } from '@gymyar/domain'
+import { EXDB, BODYPARTS, allExercises, equipmentOf, gifSrc } from '@gymyar/domain'
 import { bestWeightFor } from '@gymyar/domain'
 import { fmtNum } from '@gymyar/domain'
 import { t, exName, exSearchText } from '../lib/i18n.js'
@@ -16,6 +16,11 @@ export default function Library() {
   const [eq, setEq] = useState('')
   const [shown, setShown] = useState(40)
   const ql = q.toLowerCase().trim()
+  /* Counted, not `EXDB.length`. It is the same number today, because the set that ships
+   * animates all 1,324 — but the active media set decides this now, and one that covers part
+   * of the library would have this line claiming animations for exercises showing a
+   * placeholder. The subtitle is a fact about the artwork, so it is asked of the artwork. */
+  const animated = useMemo(() => EXDB.filter(e => gifSrc(e)).length, [])
   const base = allExercises(S).filter(e => (!bp || e.bp === bp) && (!ql || exSearchText(e).includes(ql) || e.tg.includes(ql) || e.eq.includes(ql) || (e.desc || '').toLowerCase().includes(ql)))
   const eqOpts = equipmentOf(base)
   // Drop the equipment filter if the search narrowed it away, so you never hit a dead end.
@@ -23,7 +28,7 @@ export default function Library() {
   const f = eqOn ? base.filter(e => e.eq === eqOn) : base
 
   return <>
-    <div className="hdr"><div><h1>{t('Exercises')}</h1><div className="sub">{t('{0} exercises with animations', EXDB.length)}</div></div></div>
+    <div className="hdr"><div><h1>{t('Exercises')}</h1><div className="sub">{t('{0} exercises with animations', animated)}</div></div></div>
     <div className="search" style={{ marginBottom: 10 }}><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
       <input className="input" placeholder={t('Search…')} value={q} onChange={e => { setQ(e.target.value); setShown(40) }} /></div>
     <div className="chips" style={{ marginBottom: eqOpts.length > 1 ? 8 : 12 }}>

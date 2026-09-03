@@ -1212,6 +1212,59 @@ believed.
   it. The only one actually fetched is still the exercise CDN. That fact is what the whole
   "collects nothing" claim rests on, so it is checked rather than remembered.
 
+### The exercise media, and the escape hatch that was not one
+
+The launch blocker says the artwork is © Gym visual and has to be licensed or replaced, and
+four places — `001_init.sql`, `seed-exercises.js`, its test and README.md — all reassured the
+reader that replacing it was cheap: `exercises.image_url` and `animation_url` are stored rather
+than derived, so a swap is "an `UPDATE`, not a migration". Going to build that swap found that
+it had never been true.
+
+- 🖼️ **Nothing that draws a picture read those columns.** `Media.jsx` renders through
+  `imgSrc`/`gifSrc`, which were `IMG_BASE + ex.img` — and `ex.img` is a Gym visual filename
+  compiled into `exercises-data.js` and shipped in the bundle. The client does not call
+  `/api/exercises` at all; the endpoint exists for the server side. An `UPDATE` over that table
+  would have changed 1,324 strings in Postgres and not one pixel on anybody's screen. The
+  columns were not wrong, and the seeder filled them correctly — they were simply not the
+  mechanism, and had been described as one since the first migration.
+- 🎛️ **So there is now a media set**, [`packages/domain/src/media-set.js`](packages/domain/src/media-set.js):
+  one object naming the artwork, its licence, its attribution and whether it may be sold,
+  imported by the client and by the seeder so the column and the screen cannot disagree about
+  which set is active. Replacing the media is replacing that file. `media: null` means the
+  dataset names its own files, which is the behaviour that has always shipped.
+- 🚫 **A set is authoritative about what it omits.** An exercise a replacement set does not
+  cover renders no artwork rather than falling back to `ex.img` — because a fallback would make
+  a swap look finished while every uncovered exercise carried on serving the pictures the swap
+  was performed to stop serving. That is the licence exposure surviving its own remedy, and
+  invisibly. The dumbbell placeholder written for custom exercises is what shows instead.
+- 🧪 **`node infra/scripts/media-set.mjs check`** exits non-zero for as long as the active
+  artwork may not be sold — the README paragraph as an exit code, in the release checklist
+  rather than in CI, where it would fail every run.
+
+#### What replacing it would actually cost
+
+`media-set.mjs coverage` measures a candidate against our library, and the answer is worse than
+"find a free dataset" suggests.
+
+- 📉 **The best open candidate covers 201 of 1,324 movements** — 15.2%, and **no animations at
+  all**. [Free Exercise DB](https://github.com/yuhonas/free-exercise-db) has 873 illustrated
+  exercises, but they are keyed by name against our ExerciseDB ids, and the honest matchers are
+  the strict ones: 132 identical names, 69 more that are the same words in a different order.
+  The holes are not evenly spread — 258 bodyweight and 255 dumbbell movements, 260 of the upper
+  arm work — so it is not a set you could ship with a shrug about the tail.
+- ⚠️ **A generous matcher is worse than no matcher**, which is why the script refuses to be one.
+  Token-subset matching on this data pairs `archer push up` with `push up` and `curl-up` with
+  `palms up barbell wrist curl over a bench` — 545 "matches" of which most are a confidently
+  wrong picture of a different exercise. A missing picture is forgiven; a wrong one is followed.
+- ⚖️ **And that candidate's licence is not what it says.** The repository is published under the
+  Unlicense, but its artwork descends from Everkinetic under CC-BY-SA, and share-alike with
+  attribution cannot be relicensed into the public domain by a downstream repackager. The
+  adapter records CC-BY-SA and credits Everkinetic rather than repeating the README's claim.
+  Adopting it means taking on share-alike, which is a question for the legal review that is
+  already a launch blocker. [wger](https://wger.de)'s images are cleanly licensed and properly
+  attributed per record, and there are 374 of them across 273 exercises — 21% of our library
+  before any name matching, and static PNGs rather than animations.
+
 ### Known limitations
 
 - 💾 **Uploaded media is not in the database dump.** Form-check video and progress photos live
