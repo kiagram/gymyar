@@ -93,21 +93,34 @@ const go = async (hash, settle = 1600) => {
 
 console.log(`capturing ${FA ? 'fa' : 'en'} from ${BASE} → ${OUT}`)
 
+/* Through `T` like everything below it, because the sign-in screen is already translated by
+ * the time it is drawn. `detectLang` reads `navigator.languages`, and the fa run sets the
+ * context locale to fa-IR — so on this pass the button says «استفاده از ایمیل و رمز عبور» and
+ * an English selector waits thirty seconds for a control that is on the screen in front of it.
+ * That is not hypothetical: it is what this block did from the day that landed until now.
+ *
+ * `exact` on the submit, in both languages: the passkey button on the sheet behind this one is
+ * `Sign in with passkey`, and a substring match reaches it instead. */
 await page.goto(BASE, { waitUntil: 'networkidle' })
 await page.waitForTimeout(1200)
-await page.getByRole('button', { name: /email and password/i }).click()
-await page.getByPlaceholder('Email').fill('sam@gymyar.test')
-await page.getByPlaceholder('Password').fill('gymyar-demo-1')
-await page.getByRole('button', { name: /^Sign in$/ }).click()
+await page.getByRole('button', { name: T('Use email and password') }).click()
+await page.getByPlaceholder(T('Email'), { exact: true }).fill('sam@gymyar.test')
+await page.getByPlaceholder(T('Password'), { exact: true }).fill('gymyar-demo-1')
+await page.getByRole('button', { name: T('Sign in'), exact: true }).click()
 await page.waitForTimeout(3500)
 console.log('  signed in as sam@gymyar.test')
 
 if (FA) {
   /* The UI language is a per-account setting, so the browser's locale alone does not touch it.
    * It is not a <select> either — long option lists open the app's own sheet, so this is two
-   * taps: the Language row, then فارسی in the sheet it opens. */
+   * taps: the Language row, then فارسی in the sheet it opens.
+   *
+   * The row is found through `T` for the same reason the sign-in block above is: an fa-IR
+   * context is already showing «زبان» here, so the English literal simply never matched and
+   * both taps fell through to their `catch`. The `dir` assertion below still passed — the
+   * detected language had already mirrored the layout — which is what let it stay wrong. */
   await go('/settings', 1600)
-  await page.getByText('Language', { exact: true }).first().click({ timeout: 5000 }).catch(() => {})
+  await page.getByText(T('Language'), { exact: true }).first().click({ timeout: 5000 }).catch(() => {})
   await page.waitForTimeout(900)
   await page.getByRole('button', { name: 'فارسی' }).first().click({ timeout: 5000 }).catch(() => {})
   await page.waitForTimeout(2600)

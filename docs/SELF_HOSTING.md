@@ -196,11 +196,30 @@ admin of an instance you have not registered on. Register first, then:
 docker compose exec db psql -U gymyar -d gymyar -c "update users set is_admin = true where email = 'you@example.com'"
 ```
 
+**That is the only time you need psql.** It appoints the *first* admin, and being able to reach
+the database is what proves the instance is yours; every admin after them is appointed from the
+dashboard itself.
+
 Sign out and back in, and Settings grows an **Admin dashboard**: everyone on the instance with
-their session count and when they last trained, the ability to disable an account — signed out
-and locked out until you re-enable it — and generating and revoking invite codes. It is gated
-server-side on `is_admin`, so it needs no separate login. Existing accounts keep working when you
-switch invite-only on.
+their session count and when they last trained, and generating and revoking invite codes. It is
+gated server-side on `is_admin`, so it needs no separate login. Existing accounts keep working
+when you switch invite-only on.
+
+Tapping somebody on that list opens what can be done to their account:
+
+- **Coach** and **Admin**, as two independent switches. They are unrelated — an admin runs the
+  instance, a coach has clients on it — and neither is a prerequisite for the other.
+- **Disable**, which signs them out everywhere immediately and keeps them out until you
+  re-enable it. Nothing is deleted.
+- **A comped subscription**, in the same one/three/twelve month terms that are on sale, plus
+  clearing the date for a refund. Comped time stacks onto whatever is left rather than
+  replacing it, exactly as a payment does. Only coaching is ever charged for, so this is only
+  ever about a coach.
+
+The instance always keeps at least one admin who can sign in: the last one cannot be demoted or
+disabled, and the refusal comes from the server rather than from a greyed-out switch, so it
+holds for a second browser tab and for `curl` alike. Hand over by promoting the new admin first
+and stepping down second.
 
 Prefer to keep the whole thing off the open internet? A VPN or an auth proxy (Authelia,
 Cloudflare Access…) in front still works, and composes with the above.
