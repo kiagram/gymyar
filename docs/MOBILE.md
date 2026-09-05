@@ -93,6 +93,13 @@ It renders through headless Chromium — the rasteriser the browser tests alread
 rather than `@capacitor/assets`, which needs a working `sharp` native build and does not touch
 `public/` at all.
 
+`@capacitor/assets` is **not installed**, and reaching for it is not a shortcut back. It was a
+dependency here for a while after the script replaced it, doing nothing and pulling a tree that
+carried every npm advisory this repository had — `sharp`, `tar`, `xcode`, a nested
+`@capacitor/cli` five majors behind the real one — none of them with a fix available, because
+the fix was to stop installing the thing. If an icon is wrong, edit `logo/` and re-run the
+script above.
+
 The launch screen is not a drawing: it is the app-icon tile centred on the brand's off black,
 sized to a share of the shorter side so it survives being centre-cropped to whatever shape the
 device is. Android gets one per density and orientation, night variants included — the app is
