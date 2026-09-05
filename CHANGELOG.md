@@ -1365,6 +1365,15 @@ as not testing it.
 
 ### Security
 
+- 📦 **Every npm advisory in this repository came from one unused dependency, and it is gone.**
+  `@capacitor/assets` was still declared after `render-logo.mjs` replaced it — `docs/MOBILE.md`
+  had said for some time that the icons are rendered through headless Chromium *rather than*
+  that package, and nothing invoked it. Its tree was the sole root of all seven advisories,
+  including a critical one in `tar` and a nested `@capacitor/cli` five majors behind the real
+  dependency, and `npm audit` reported "no fix available" for every one of them: the fix was not
+  a version, it was not installing it. `npm audit` now reports zero, and 1,599 lines left the
+  lockfile. The icon check still passes, which is the only thing that package could ever have
+  been for.
 - 🚨 **`data/` and `media/` were dropped from the tree and gitignored.** The GitHub re-upload
   this code was read from had committed a live instance's **session signing secret, VAPID
   private key and user records**, along with 2,649 Gym visual media files that upstream
