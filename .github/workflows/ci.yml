@@ -117,7 +117,14 @@ jobs:
           STORAGE_PATH: ${{ runner.temp }}/media-e2e
         run: |
           source infra/scripts/ci-server.sh
-          npx playwright install --with-deps chromium
+          # `playwright-core`'s own CLI, not `npx playwright`. Only `playwright-core` is a
+          # dependency here, so `npx playwright` is not a local binary — npm fetches whatever
+          # `playwright` is latest on the registry and installs *its* browser revisions, which
+          # stop matching the pinned `playwright-core` the moment upstream publishes. That is
+          # what broke this step with nothing in this repository having changed: it downloaded
+          # one Chromium and `e2e.mjs` went looking for another. This CLI ships inside the
+          # version the lockfile pins, so the two cannot disagree.
+          node node_modules/playwright-core/cli.js install --with-deps chromium
           node packages/db/src/cli.js reset
           SEED_DEMO=1 node packages/db/src/cli.js demo
           ci_start 3000 npm start -w @gymyar/api
