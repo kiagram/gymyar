@@ -28,6 +28,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
  */
 export const ALLOWED = {
   'cdn.jsdelivr.net': 'exercise images and animations — the one real outbound request',
+  'gymvisual.com': "the artwork's licence metadata in packages/domain/src/media-set.js — the "
+    + 'name, the terms and who to ask. Compiled in because the set is a static import; a string '
+    + 'the app never fetches, and the address of the licence it cannot currently satisfy',
   'gitea.com': 'the openGym attribution link in Settings; an <a href>, followed only if tapped',
   'github.com': 'a polyfill suggestion inside a library warning message',
   'react.dev': 'a URL in a React error message',
