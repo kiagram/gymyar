@@ -10,11 +10,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
-import { Section, Row, Button } from '../components/ui.jsx'
+import { Section, Row, Button, Switch } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
-import { fmtDate, fmtNum } from '@gymyar/domain'
+import { fmtDate, fmtNum, entitlement, TERMS } from '@gymyar/domain'
+import { fmtUntil, extendedTo, termLabel } from '../lib/billing.js'
 import { daysSince } from '../lib/coaching.js'
 
 const lastSeen = at => {
@@ -25,10 +26,29 @@ const lastSeen = at => {
   return t('{0} days ago', d)
 }
 
+/* The user list carries the subscription columns, so the same rules the coach's own billing
+ * screen runs are what this screen reads — `entitlement` rather than a `paid_through > now`
+ * comparison written a second time here, which is how a grace period ends up existing on one
+ * screen and not the other. */
+const entOf = u => entitlement({ trial_ends_at: u.trial_ends_at, paid_through: u.paid_through })
+
+/* One word for the list, where the row already carries a name, an address and a session count.
+ * The sheet is where the dates are. `none` is left blank on purpose: most accounts on any
+ * instance are clients, who are never charged for anything, and a column of "No subscription"
+ * against them would read as a problem to fix rather than as the normal case. */
+const ENT_WORD = {
+  active: () => t('Subscribed'),
+  trial: () => t('Trial'),
+  grace: () => t('Lapsed'),
+  expired: () => t('Expired'),
+  none: () => null
+}
+
 export default function Admin() {
   const nav = useNavigate()
   const user = useStore(s => s.user)
   const toast = useUI(s => s.toast)
+  const openSheet = useUI(s => s.openSheet)
   const [users, setUsers] = useState(null)
   const [invites, setInvites] = useState([])
   const [revenue, setRevenue] = useState(null)
@@ -52,16 +72,12 @@ export default function Admin() {
 
   if (!user?.isAdmin) return null
 
-  const toggleDisabled = async u => {
-    const disabling = !u.disabled_at
-    if (disabling && !confirm(t('Disable {0}? They are signed out everywhere immediately.', u.name))) return
-    try {
-      await api(`/api/admin/users/${u.id}/disable`, {
-        method: 'POST', body: JSON.stringify({ disabled: disabling })
-      })
-      loadUsers()
-    } catch (e) { toast(e.message) }
-  }
+  /* Everything that can be done *to* an account is in one sheet rather than spread across the
+   * row, because there are now four of those things and a row of four buttons is unreadable on
+   * a phone. It also settles the markup: `Row` renders as a `<button>` once it has an
+   * `onClick`, and the disable button used to sit inside it — a button inside a button. */
+  const manage = u => openSheet(close =>
+    <PersonSheet user={u} close={close} reload={loadUsers} />)
 
   const newInvite = async () => {
     try {
@@ -101,12 +117,10 @@ export default function Admin() {
             iconTint={u.disabled_at ? 'var(--red)' : undefined}
             title={u.name + (u.is_admin ? ' · ' + t('admin') : '') + (u.is_coach ? ' · ' + t('coach') : '')}
             subtitle={`${u.email || t('passkey only')} · ${t('{0} sessions', u.sessions)} · ${lastSeen(u.last_trained_at)}`}
-          >
-            <Button size="xs" variant={u.disabled_at ? 'tinted' : 'danger'}
-                    onClick={() => toggleDisabled(u)}>
-              {u.disabled_at ? t('Enable') : t('Disable')}
-            </Button>
-          </Row>
+            value={ENT_WORD[entOf(u).state]?.()}
+            accessory="chevron"
+            onClick={() => manage(u)}
+          />
         ))}
       </Section>
 
@@ -186,4 +200,107 @@ function RevenueSection({ revenue }) {
       )}
     </Section>
   )
+}
+
+/**
+ * Everything that can be done to one account.
+ *
+ * The roles half is what this screen is for. `is_admin` shipped in the first migration and
+ * nothing has ever written it: SELF_HOSTING.md tells a new operator to run
+ * `update users set is_admin = true` in psql, which is a fine way to appoint the *first*
+ * admin — being able to reach the database is the proof that you own the box — and a bad way
+ * to appoint the second, the tenth, or to take one back off again.
+ *
+ * None of the rules are enforced here. The switch does not know whether this is the last
+ * admin on the instance, and deliberately does not: a second browser tab, or `curl`, would
+ * both walk past a disabled control, so the check has to live at the route and the refusal
+ * that comes back is shown as the server's own sentence rather than paraphrased.
+ */
+function PersonSheet({ user: initial, close, reload }) {
+  const toast = useUI(s => s.toast)
+  const [u, setU] = useState(initial)
+  const [busy, setBusy] = useState(false)
+  const ent = entOf(u)
+
+  /* Local state is updated from the response and the list is reloaded behind it. The sheet
+   * stays open through all of this: an admin promoting somebody is usually about to give them
+   * a subscription too, and closing after each tap would make that three trips. */
+  const send = async (path, body, apply) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const res = await api(`/api/admin/users/${u.id}${path}`, {
+        method: 'POST', body: JSON.stringify(body)
+      })
+      apply(res)
+      reload()
+    } catch (e) { toast(e.message) } finally { setBusy(false) }
+  }
+
+  const setRole = patch => send('/roles', patch, ({ user }) =>
+    setU(p => ({ ...p, is_coach: user.is_coach, is_admin: user.is_admin })))
+
+  const setSub = paidThrough => send('/subscription', { paidThrough }, ({ subscription }) =>
+    setU(p => ({ ...p, paid_through: subscription.paid_through })))
+
+  const toggleDisabled = () => {
+    const disabling = !u.disabled_at
+    if (disabling && !confirm(t('Disable {0}? They are signed out everywhere immediately.', u.name))) return
+    send('/disable', { disabled: disabling }, () =>
+      setU(p => ({ ...p, disabled_at: disabling ? new Date().toISOString() : null })))
+  }
+
+  return <>
+    <h3>{u.name}</h3>
+    <div className="small dim" style={{ marginBottom: 14 }}>
+      {[u.email || t('passkey only'), t('{0} sessions', u.sessions), lastSeen(u.last_trained_at)]
+        .join(' · ')}
+    </div>
+
+    <h4 className="sec">{t('Roles')}</h4>
+    <div className="sect-b" style={{ marginBottom: 8 }}>
+      <Row icon="clipboard" title={t('Coach')}
+           subtitle={t('Can take on clients and propose programmes to them.')}>
+        <Switch checked={u.is_coach} disabled={busy} onChange={v => setRole({ isCoach: v })} />
+      </Row>
+      <Row icon="wrench" title={t('Admin')} subtitle={t('Can open this screen.')}>
+        <Switch checked={u.is_admin} disabled={busy} onChange={v => setRole({ isAdmin: v })} />
+      </Row>
+    </div>
+    <div className="small dim" style={{ marginBottom: 18 }}>
+      {t('The two are unrelated — an admin runs the instance, a coach has clients on it. An instance always keeps at least one admin who can sign in.')}
+    </div>
+
+    <h4 className="sec">{t('Subscription')}</h4>
+    <div className="sect-b" style={{ marginBottom: 8 }}>
+      <Row
+        icon="chartLine"
+        title={ENT_WORD[ent.state]?.() || t('No subscription')}
+        subtitle={ent.until ? t('Runs until {0}.', fmtUntil(ent.until)) : t('Nothing has been paid or comped.')}
+      />
+      {TERMS.map(months => (
+        <Row
+          key={months}
+          icon="plus"
+          title={t('Comp {0}', termLabel(months))}
+          subtitle={t('Through {0}', fmtUntil(extendedTo(u.paid_through, months)))}
+          accessory="chevron"
+          onClick={() => setSub(extendedTo(u.paid_through, months).toISOString())}
+        />
+      ))}
+      {u.paid_through && (
+        <Row icon="xmark" iconTint="var(--red)" title={t('Clear the paid-through date')} danger
+             accessory="chevron" onClick={() => setSub(null)} />
+      )}
+    </div>
+    <div className="small dim" style={{ marginBottom: 18 }}>
+      {t('Comped time stacks onto whatever is left rather than replacing it, the same way a payment does. Only coaching is ever charged for — a client is never gated by any of this.')}
+    </div>
+
+    <Button variant={u.disabled_at ? 'tinted' : 'danger'} disabled={busy} onClick={toggleDisabled}>
+      {u.disabled_at ? t('Enable this account') : t('Disable this account')}
+    </Button>
+    <div style={{ height: 8 }} />
+    <Button onClick={close}>{t('Done')}</Button>
+  </>
 }

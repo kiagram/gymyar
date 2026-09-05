@@ -354,6 +354,147 @@ describe('admin', () => {
   })
 })
 
+/* Promotion, demotion and comped subscriptions — the things that used to need a psql prompt.
+ *
+ * The lockout tests are the ones worth keeping honest: every other route here fails safe by
+ * refusing, and these two fail by removing the only account that could ever refuse again.
+ */
+describe('admin: roles and subscriptions', () => {
+  const asAdmin = async (name, email) => {
+    const r = await signUp(name, email)
+    await db()`update users set is_admin = true where id = ${r.user.id}`
+    return r
+  }
+  const roleOf = id =>
+    db()`select is_coach, is_admin from users where id = ${id}`.then(r => r[0])
+
+  it('is closed to everyone who is not an admin', async () => {
+    const { c, user } = await signUp('Ada', 'ada@x.test')
+    expect((await c.post(`/api/admin/users/${user.id}/roles`, { isCoach: true })).status).toBe(403)
+    expect((await c.post(`/api/admin/users/${user.id}/subscription`,
+      { paidThrough: '2027-01-01' })).status).toBe(403)
+  })
+
+  it('makes somebody a coach without touching whether they are an admin', async () => {
+    const { c } = await asAdmin('Root', 'root@x.test')
+    const { user } = await signUp('Ada', 'ada@x.test')
+
+    const r = await c.post(`/api/admin/users/${user.id}/roles`, { isCoach: true })
+    expect(r.status).toBe(200)
+    expect(await roleOf(user.id)).toEqual({ is_coach: true, is_admin: false })
+  })
+
+  it('promotes a second admin, who can then use the panel', async () => {
+    const { c } = await asAdmin('Root', 'root@x.test')
+    const { c: ada, user } = await signUp('Ada', 'ada@x.test')
+    expect((await ada.get('/api/admin/users')).status).toBe(403)
+
+    expect((await c.post(`/api/admin/users/${user.id}/roles`, { isAdmin: true })).status).toBe(200)
+    // No re-login: the flag is read off the row on every request, not carried in the cookie.
+    expect((await ada.get('/api/admin/users')).status).toBe(200)
+  })
+
+  it('leaves the other flag alone when only one is sent', async () => {
+    const { c } = await asAdmin('Root', 'root@x.test')
+    const { user } = await signUp('Ada', 'ada@x.test')
+
+    await c.post(`/api/admin/users/${user.id}/roles`, { isCoach: true, isAdmin: true })
+    await c.post(`/api/admin/users/${user.id}/roles`, { isCoach: false })
+    expect(await roleOf(user.id)).toEqual({ is_coach: false, is_admin: true })
+  })
+
+  it('refuses to demote the last admin', async () => {
+    const { c, user } = await asAdmin('Root', 'root@x.test')
+    const r = await c.post(`/api/admin/users/${user.id}/roles`, { isAdmin: false })
+    expect(r.status).toBe(409)
+    expect((await roleOf(user.id)).is_admin).toBe(true)
+  })
+
+  it('refuses to disable the last admin', async () => {
+    const { c, user } = await asAdmin('Root', 'root@x.test')
+    const r = await c.post(`/api/admin/users/${user.id}/disable`, { disabled: true })
+    expect(r.status).toBe(409)
+    const [row] = await db()`select disabled_at from users where id = ${user.id}`
+    expect(row.disabled_at).toBe(null)
+  })
+
+  /* A handover, which the "you cannot demote yourself" version of this rule would have
+   * blocked — and which is the ordinary reason anybody demotes an admin at all. */
+  it('allows an admin to step down once somebody else can take over', async () => {
+    const { c, user } = await asAdmin('Root', 'root@x.test')
+    const { user: ada } = await signUp('Ada', 'ada@x.test')
+
+    await c.post(`/api/admin/users/${ada.id}/roles`, { isAdmin: true })
+    expect((await c.post(`/api/admin/users/${user.id}/roles`, { isAdmin: false })).status).toBe(200)
+    expect((await roleOf(user.id)).is_admin).toBe(false)
+  })
+
+  it('does not count a disabled admin as cover for demoting the live one', async () => {
+    const { c, user } = await asAdmin('Root', 'root@x.test')
+    const { user: ada } = await signUp('Ada', 'ada@x.test')
+    await db()`update users set is_admin = true, disabled_at = now() where id = ${ada.id}`
+
+    expect((await c.post(`/api/admin/users/${user.id}/roles`, { isAdmin: false })).status).toBe(409)
+  })
+
+  it('refuses a flag that is not a boolean rather than reading it as one', async () => {
+    const { c } = await asAdmin('Root', 'root@x.test')
+    const { user } = await signUp('Ada', 'ada@x.test')
+    expect((await c.post(`/api/admin/users/${user.id}/roles`, { isCoach: 'yes' })).status).toBe(400)
+    expect((await roleOf(user.id)).is_coach).toBe(false)
+  })
+
+  it('404s on an account that is not there', async () => {
+    const { c } = await asAdmin('Root', 'root@x.test')
+    const gone = '00000000-0000-0000-0000-000000000000'
+    expect((await c.post(`/api/admin/users/${gone}/roles`, { isCoach: true })).status).toBe(404)
+  })
+
+  it('comps a subscription by setting a paid-through date', async () => {
+    const { c } = await asAdmin('Root', 'root@x.test')
+    const { user } = await signUp('Ada', 'ada@x.test')
+
+    const r = await c.post(`/api/admin/users/${user.id}/subscription`, { paidThrough: '2027-03-01' })
+    expect(r.status).toBe(200)
+    const [row] = await db()`select paid_through from subscriptions where user_id = ${user.id}`
+    expect(row.paid_through.toISOString()).toBe(new Date('2027-03-01').toISOString())
+  })
+
+  it('clears one back off again, which is the refund', async () => {
+    const { c } = await asAdmin('Root', 'root@x.test')
+    const { user } = await signUp('Ada', 'ada@x.test')
+
+    await c.post(`/api/admin/users/${user.id}/subscription`, { paidThrough: '2027-03-01' })
+    expect((await c.post(`/api/admin/users/${user.id}/subscription`,
+      { paidThrough: null })).status).toBe(200)
+    const [row] = await db()`select paid_through from subscriptions where user_id = ${user.id}`
+    expect(row.paid_through).toBe(null)
+  })
+
+  /* The whole reason the date is matched before it is parsed: `Date.parse` takes this happily
+   * and reads it as the 9th of March, six months from where whoever typed it meant. */
+  it('refuses a date that is not ISO rather than guessing which half is the month', async () => {
+    const { c } = await asAdmin('Root', 'root@x.test')
+    const { user } = await signUp('Ada', 'ada@x.test')
+
+    expect((await c.post(`/api/admin/users/${user.id}/subscription`,
+      { paidThrough: '03/09/2027' })).status).toBe(400)
+    const [row] = await db()`select count(*)::int as n from subscriptions where user_id = ${user.id}`
+    expect(row.n).toBe(0)
+  })
+
+  it('carries the subscription into the user list', async () => {
+    const { c } = await asAdmin('Root', 'root@x.test')
+    const { user } = await signUp('Ada', 'ada@x.test')
+    await c.post(`/api/admin/users/${user.id}/subscription`, { paidThrough: '2027-03-01' })
+
+    const { users } = (await c.get('/api/admin/users')).body
+    expect(users.find(u => u.id === user.id).paid_through).toBeTruthy()
+    // A client who has never coached has no row, and that is a null rather than a missing key.
+    expect(users.find(u => u.name === 'Root').paid_through).toBe(null)
+  })
+})
+
 /* The language the server writes in.
  *
  * `users.locale` shipped in 001 and nothing ever wrote it, so every account sat at `'en'` and

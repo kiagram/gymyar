@@ -928,6 +928,27 @@ export default {
   "Revoke": "باطل کردن",
   "Generate a code": "ساختن کد",
 
+  // --- admin: what can be done to one account ---
+  // The four entitlement words are one column in a list, so they are nouns rather than
+  // sentences. «مهلت ارفاق» is the grace window specifically, not a synonym for expired —
+  // those are different states and the screen is the place they have to stay different.
+  "Subscribed": "اشتراک فعال",
+  "Trial": "آزمایشی",
+  "Lapsed": "مهلت ارفاق",
+  "Expired": "پایان‌یافته",
+  "Roles": "نقش‌ها",
+  "Coach": "مربی",
+  "Can take on clients and propose programmes to them.": "می‌تواند شاگرد بپذیرد و برایشان برنامه پیشنهاد دهد.",
+  "Can open this screen.": "می‌تواند همین صفحه را باز کند.",
+  "The two are unrelated — an admin runs the instance, a coach has clients on it. An instance always keeps at least one admin who can sign in.": "این دو ربطی به هم ندارند — مدیر سرور را می‌گرداند و مربی روی آن شاگرد دارد. هر سرور همیشه دست‌کم یک مدیر دارد که بتواند وارد شود.",
+  "Nothing has been paid or comped.": "نه پرداختی شده و نه اشتراکی هدیه داده شده.",
+  "Comp {0}": "هدیه دادن {0}",
+  "Through {0}": "تا {0}",
+  "Clear the paid-through date": "پاک کردن تاریخ اعتبار اشتراک",
+  "Comped time stacks onto whatever is left rather than replacing it, the same way a payment does. Only coaching is ever charged for — a client is never gated by any of this.": "زمان هدیه‌داده‌شده مثل یک پرداخت روی باقی‌ماندهٔ اشتراک اضافه می‌شود، نه جای آن. پول فقط بابت مربی‌گری گرفته می‌شود — هیچ‌کدام از این‌ها شاگرد را محدود نمی‌کند.",
+  "Enable this account": "فعال کردن این حساب",
+  "Disable this account": "غیرفعال کردن این حساب",
+
   // --- coaching: the coach's roster ---
   "no schedule": "بدون برنامهٔ هفتگی",
   "Invitation not accepted yet": "دعوت هنوز پذیرفته نشده",

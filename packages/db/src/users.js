@@ -148,6 +148,37 @@ export const bumpSessionVersion = (userId, s = db()) =>
 export const setDisabled = (userId, disabled, s = db()) =>
   s`update users set disabled_at = ${disabled ? s`now()` : null} where id = ${userId}`
 
+/**
+ * Promote or demote, so that becoming an admin is not a `psql` prompt.
+ *
+ * `is_admin` shipped in 001 and nothing has ever written it: SELF_HOSTING.md tells a new
+ * operator to run an `update users set is_admin = true` by hand, and there was no second way.
+ * That is defensible for the *first* admin — the check that you own the box is that you can
+ * reach its database — and indefensible for every one after them, which is what this is for.
+ *
+ * Omitting a flag leaves it alone rather than clearing it. `coalesce` rather than a composed
+ * `set` clause because there is no dynamic-SQL idiom anywhere else in this package, and the
+ * alternative — always writing both — turns "make them a coach" into a silent demotion the
+ * moment a caller forgets to send back a flag it never meant to touch.
+ */
+export const setRoles = (userId, { isCoach, isAdmin } = {}, s = db()) =>
+  s`update users
+       set is_coach = coalesce(${isCoach ?? null}, is_coach),
+           is_admin = coalesce(${isAdmin ?? null}, is_admin)
+     where id = ${userId}
+     returning id, name, is_coach, is_admin`.then(r => r[0] ?? null)
+
+/**
+ * How many admins could actually sign in right now.
+ *
+ * Disabled accounts are not counted, and that is the whole point of the function: an instance
+ * whose only admin is disabled has no administrator, which is the same lockout as having
+ * demoted them. Both routes that can produce it ask this first.
+ */
+export const activeAdminCount = (s = db()) =>
+  s`select count(*)::int as n from users where is_admin and disabled_at is null`
+    .then(r => r[0].n)
+
 export const publicUser = u => u && ({
   id: u.id, name: u.name, email: u.email, phone: u.phone, units: u.units, locale: u.locale,
   /* Whether the address has been proved, which the client needs and `email` alone cannot say.
