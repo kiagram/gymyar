@@ -15,19 +15,6 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U gymyar" --health-interval 5s
           --health-timeout 5s --health-retries 10
-      # The S3 driver, against something that speaks S3. The tests skip themselves when this is
-      # not reachable, so they run locally without it — but skipping in CI would mean the only
-      # place the driver is exercised is a laptop that happens to have MinIO up, which is the
-      # same as not testing it. `minio server` needs no setup beyond a bucket the tests create.
-      minio:
-        image: bitnami/minio:latest
-        env:
-          MINIO_ROOT_USER: gymyar
-          MINIO_ROOT_PASSWORD: gymyar-secret
-        ports: ['9000:9000']
-        options: >-
-          --health-cmd "mc ready local" --health-interval 5s
-          --health-timeout 5s --health-retries 20
     env:
       DATABASE_URL: postgres://gymyar:gymyar@localhost:5432/gymyar_test
       SESSION_SECRET: ci-secret-not-for-production
@@ -55,7 +42,30 @@ jobs:
         run: npm run test -w @gymyar/domain
       - name: AI layer tests
         run: npm run test -w @gymyar/ai
+      - name: MinIO, for the S3 storage driver
+        # `docker run` rather than a `services:` entry, for two reasons that both had to be
+        # found the hard way. A service container cannot pass a command, and `minio/minio`
+        # needs `server /data` — which is why the first attempt reached for `bitnami/minio`,
+        # whose image starts a server on its own. That image then failed to pull at all:
+        # Bitnami moved their free catalogue to `bitnamilegacy/` and put `bitnami/` behind a
+        # subscription, so the job died in "Initialize containers" before a step ran.
+        #
+        # The official image with an explicit command has neither problem, and the readiness
+        # loop uses the runner's curl rather than anything inside the container.
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=gymyar -e MINIO_ROOT_PASSWORD=gymyar-secret \
+            minio/minio:latest server /data
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:9000/minio/health/live && exit 0
+            sleep 1
+          done
+          echo "MinIO never became ready"; docker logs minio; exit 1
+
       - name: Storage tests
+        # The S3 driver's tests skip themselves without STORAGE_S3_TEST_ENDPOINT, so they run
+        # locally for anybody without a MinIO. Skipping here would mean the only place the
+        # driver is ever exercised is a laptop that happens to have one up.
         run: npm run test -w @gymyar/storage
       - name: Database tests
         run: npm run test -w @gymyar/db
