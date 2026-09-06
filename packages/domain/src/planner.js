@@ -240,6 +240,57 @@ export function scheduleFor(days) {
   return layout[clamp(days, 2, 6)] || layout[3]
 }
 
+/**
+ * Every exercise the planner can put in a programme, and the smaller set it actually reaches for.
+ *
+ * The library has 1,324 movements and the planner selects from thirteen patterns with a few
+ * dozen named preferences between them — so "how much of the library does a media set cover"
+ * and "how much of a *generated programme* does it cover" are different questions with very
+ * different answers, and until this existed only the first had been measured. A set that
+ * depicts 15% of the library can depict most of what the planner prescribes, or none of it,
+ * and the number that matters for the AI feature is the second one.
+ *
+ * Two tiers, because the exact reachable set is combinatorial (every `avoid` list changes it):
+ *
+ * - `candidates` — every library exercise a pattern's named preferences admit at all. This is
+ *   the ceiling: nothing outside it can appear in a programme, whatever the brief says.
+ * - `picks` — what `resolvePattern` returns for each pattern against each kit somebody
+ *   plausibly has (bodyweight only, bodyweight plus one kind of equipment, a full gym), and
+ *   the second choice after it, which is what the weekly variation on compounds and the
+ *   thin-session top-up in `buildProgramme` reach for. Not a proof of the floor — a long
+ *   `avoid` list can push past it — but it is the set an ordinary brief lands in.
+ *
+ * Deterministic, like everything else here, so a coverage number computed from it is stable
+ * between runs and between machines.
+ */
+export function plannerReach() {
+  const candidates = new Map()
+  for (const e of EXDB) {
+    const name = e.n.toLowerCase()
+    if (Object.values(PATTERNS).some(p => p.prefer.some(f => name.includes(f)))) candidates.set(e.id, e)
+  }
+
+  const kits = [EQUIPMENT, ['body weight'], ...EQUIPMENT.filter(eq => eq !== 'body weight').map(eq => ['body weight', eq])]
+  const picks = new Map()
+  for (const key of Object.keys(PATTERNS)) {
+    for (const kit of kits) {
+      const taken = []
+      for (let choice = 0; choice < 2; choice++) {
+        const e = resolvePattern(key, { equipment: kit, taken })
+        if (!e) break
+        picks.set(e.id, e)
+        taken.push(e.id)
+      }
+    }
+  }
+  return {
+    patterns: Object.keys(PATTERNS).length,
+    preferences: Object.values(PATTERNS).reduce((n, p) => n + p.prefer.length, 0),
+    candidates: [...candidates.values()],
+    picks: [...picks.values()]
+  }
+}
+
 /* ------------------------------------------------------------- generation ---- */
 
 /**

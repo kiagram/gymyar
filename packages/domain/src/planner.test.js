@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   normaliseBrief, resolvePattern, buildProgramme, scheduleFor,
-  reviewTraining, proposeAdaptation, GOALS, EQUIPMENT
+  reviewTraining, proposeAdaptation, plannerReach, GOALS, EQUIPMENT
 } from './planner.js'
 import { BUILT_IN_FIELDS } from './checkin.js'
-import { EXIDX } from './exercises.js'
+import { EXDB, EXIDX } from './exercises.js'
 import { say } from './messages.js'
 
 const GYM = ['barbell', 'dumbbell', 'cable', 'leverage machine', 'body weight']
@@ -48,6 +48,36 @@ describe('the brief is the validation boundary', () => {
     const b = normaliseBrief()
     expect(GOALS).toContain(b.goal)
     expect(b.daysPerWeek).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('what the planner can reach', () => {
+  // The media coverage report measures a candidate artwork set against this as well as
+  // against the whole library, so it has to be the set programmes are actually built from.
+  it('is a small set, and every generated programme lands inside it', () => {
+    const { patterns, preferences, candidates, picks } = plannerReach()
+    expect(patterns).toBe(13)
+    expect(preferences).toBeGreaterThan(50)
+    expect(picks.length).toBeLessThan(100)
+    expect(candidates.length).toBeLessThan(EXDB.length / 4)
+
+    const inPicks = new Set(picks.map(e => e.id))
+    const inCandidates = new Set(candidates.map(e => e.id))
+    for (const id of inPicks) expect(inCandidates.has(id)).toBe(true)
+
+    for (const goal of GOALS) {
+      for (const daysPerWeek of [2, 3, 4, 5, 6]) {
+        for (const equipment of [[], ['dumbbell'], ['band'], ['kettlebell'], GYM]) {
+          for (const id of idsIn(buildProgramme({ goal, daysPerWeek, equipment, sessionMinutes: 90 }))) {
+            expect(inPicks.has(id)).toBe(true)
+          }
+        }
+      }
+    }
+  })
+
+  it('is deterministic', () => {
+    expect(plannerReach().picks.map(e => e.id)).toEqual(plannerReach().picks.map(e => e.id))
   })
 })
 
