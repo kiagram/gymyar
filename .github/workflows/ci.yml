@@ -162,6 +162,16 @@ jobs:
           npx wait-on -t 300000 http://127.0.0.1:8080/api/health
           ./infra/scripts/smoke.sh http://127.0.0.1:8080
 
+      - name: A backup restores, attachments included
+        # `backup.sh --verify` proves the dump; nothing had ever proved the other half. This
+        # boots its own compose project beside the one above (same images, cached), uploads a
+        # form check and a progress photo, takes the two-part backup, destroys every volume,
+        # restores the dump alone and shows the broken link section 7 of SELF_HOSTING.md warns
+        # about, then restores both halves and reads the bytes back through a signed URL. It
+        # tears its own stack down. The script's header says why a row count could never have
+        # caught this.
+        run: ./infra/scripts/rehearse-backup.sh
+
       # `.env` is written by the step above and is gitignored, so on any run that failed before
       # that step it does not exist — and `docker compose` treats a missing env file as an error
       # rather than as nothing to do. Both of these then fail on top of the real failure, and the

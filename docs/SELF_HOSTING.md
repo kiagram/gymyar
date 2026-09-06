@@ -241,6 +241,16 @@ or a dump taken against the wrong database all look like success at the time. Pu
 is `./infra/scripts/restore.sh <dump> [media]`, which refuses a target that already has
 accounts in it unless you pass `--force`.
 
+`--verify` proves the dump. It cannot prove the half this section is most worried about — that
+the media archive restores and the attachments open — because a row count looks the same
+whether the bytes are there or not. `./infra/scripts/rehearse-backup.sh` proves that: it boots a
+throwaway stack on its own port, uploads two attachments, takes the backup, destroys every
+volume, restores the dump alone and shows the broken link, then restores both halves and reads
+the bytes back byte for byte. CI runs it on every push. Run it yourself after changing anything
+about storage, the compose file or the two scripts, and once on the machine that will actually
+hold the archives — a docker daemon inside a VM shares only the directories it has been told
+about, and that is the one thing a rehearsal on somebody else's machine cannot check.
+
 The rest of this section is what those two scripts do, because you should be able to do it by
 hand — on a machine that has the archive and not this repository, for one.
 
