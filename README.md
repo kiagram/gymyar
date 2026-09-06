@@ -211,10 +211,13 @@ Two things block a paid launch and neither is code:
    Earlier versions of this line said the swap was an `UPDATE` over `exercises.image_url`.
    That was wrong — nothing that draws a picture read those columns — and replacing it is
    not cheap either way: the openly-licensed sets are keyed by name, not by our ids, and the
-   best of them ([Free Exercise DB](https://github.com/yuhonas/free-exercise-db), whose
-   artwork traces to Everkinetic under CC-BY-SA rather than the Unlicense its README prints)
-   safely covers **201 of 1,324** movements, with no animations at all. A replacement is a
-   licence *and* a mapping exercise.
+   one that looked best ([Free Exercise DB](https://github.com/yuhonas/free-exercise-db))
+   turned out not to be licensed at all — its README says Unlicense, its pictures are
+   unattributed studio photographs, and its maintainer has said on the record that they do not
+   know where they came from. The one set whose licence survives being followed upstream,
+   [wger](https://wger.de), safely covers **20 of 1,324** movements and 5 of the 67 the planner
+   prescribes, with no animations. [docs/MEDIA_OPTIONS.md](docs/MEDIA_OPTIONS.md) is the
+   decision table. A replacement is a licence *and* a mapping exercise.
 2. **Legal review** of the AGPL position, since we charge for hosting — and of
    [the privacy policy](apps/site/privacy.html), which is now written and accurate about what
    the software does, and has been read by nobody qualified to say whether that is enough.
