@@ -16,6 +16,12 @@
 # have not arrived yet renders as unavailable rather than breaking the screen around it.
 set -euo pipefail
 
+# Git Bash on Windows rewrites any argument that looks like a POSIX path before docker sees it:
+# `gymyar_media:/data` arrives as a Windows path to nowhere, and `-v "$PWD/backups":/out` as
+# two paths joined by a semicolon. Off, the daemon receives `/c/Users/…`, which Docker Desktop
+# maps correctly. Harmless everywhere else, where the variable means nothing.
+export MSYS_NO_PATHCONV=1
+
 FORCE=0; DUMP=""; MEDIA=""
 while [ $# -gt 0 ]; do
   case "$1" in

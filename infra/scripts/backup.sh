@@ -18,6 +18,12 @@
 # by somebody who set POSTGRES_DB and forgot — none of which look like failures at the time.
 set -euo pipefail
 
+# Git Bash on Windows rewrites any argument that looks like a POSIX path before docker sees it:
+# `gymyar_media:/data` arrives as a Windows path to nowhere, and `-v "$PWD/backups":/out` as
+# two paths joined by a semicolon. Off, the daemon receives `/c/Users/…`, which Docker Desktop
+# maps correctly. Harmless everywhere else, where the variable means nothing.
+export MSYS_NO_PATHCONV=1
+
 OUT="./backups"; VERIFY=0
 while [ $# -gt 0 ]; do
   case "$1" in
