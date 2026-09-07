@@ -19,6 +19,7 @@ import { byId } from '@gymyar/db/attachments.js'
 import { db } from '@gymyar/db'
 import { requireUser } from '../session.js'
 import { requireCoach, entitlementFor } from '../entitlement.js'
+import { retriever, corpusStatus } from '../corpus.js'
 import { stateForUser } from '../state.js'
 import { limit } from '../rate-limit.js'
 import { config } from '../config.js'
@@ -36,7 +37,9 @@ export default async function aiRoutes(app, opts = {}) {
    */
   const tiers = opts.ai
     ? { premium: opts.ai, free: opts.aiFree || opts.ai }
-    : createTiers()
+    // `retrieve` goes only to the premium surface — see createTiers. Injectable so a test can
+    // drive citations without an embedding model or a pgvector.
+    : createTiers(process.env, { retrieve: opts.retrieve ?? retriever() })
 
   /* Which of the two this person's requests run on.
    *
@@ -90,6 +93,11 @@ export default async function aiRoutes(app, opts = {}) {
       // Which model answers which task, so "why does the wording keep changing" is answerable
       // without reading the deployment's environment.
       models: ai.models,
+      /* Whether this person's notes can carry citations, and — for an operator reading it —
+       * what is missing when they cannot. Both halves of retrieval fail for unrelated reasons,
+       * so one boolean would send somebody to the wrong place half the time. */
+      retrieval: ai.retrieval,
+      corpus: await corpusStatus(),
       note: ai.available
         ? 'Plans are built from your training data; the wording comes from a language model.'
         : 'No language model configured. Plans and reviews work exactly the same; the wording is written from a template.'
@@ -278,6 +286,11 @@ export default async function aiRoutes(app, opts = {}) {
       context,
       note: explained.note,
       source: explained.source,
+      /* The papers the note was informed by, straight from the store. Never parsed out of the
+       * model's text — the prompt is not even shown the URLs, so a citation that appears in the
+       * prose is an invention and these are the only links that resolve. Empty on an instance
+       * with no corpus, which is most of them. */
+      sources: explained.sources ?? [],
       ...(explained.modelError ? { modelError: explained.modelError } : {})
     }
   })

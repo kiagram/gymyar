@@ -379,3 +379,112 @@ describe('what the coach is shown beside the draft', () => {
     expect(r.body.context.map(f => f.kind)).not.toContain('stalled-in-deficit')
   })
 })
+
+/* Citations, and the rule that they never come out of the model.
+ *
+ * A separate app with a retrieving AI. `createAI` takes `retrieve` directly, so none of this
+ * needs a pgvector or an embedding model — what is being tested is the contract between the
+ * store and the note, not the store, which packages/db/src/corpus.test.js covers against a real
+ * one. See docs/AI_TIERS.md §A3.
+ */
+describe('a note with sources behind it', () => {
+  const PASSAGE = {
+    text: 'Across 14 studies, weekly set volume beyond roughly 20 sets showed diminishing returns.',
+    title: 'Dose-response of resistance training volume',
+    url: 'https://europepmc.org/article/MED/12345',
+    licence: 'CC-BY',
+    author: 'Someone A',
+    design: 'meta-analysis',
+    peerReviewed: true
+  }
+
+  /* Returns the note it was told to, and records what it was shown. A real model is not needed
+   * to test what reaches it and what comes back beside it. */
+  const provider = seen => ({
+    name: 'fake', model: 'fake', available: true,
+    async complete(task) { seen.push(task); return { note: 'Cutting your top set back to five reps for a fortnight.' } }
+  })
+
+  const appWith = async (retrieve, seen) => build({
+    databaseUrl: URL,
+    rateLimit: false,
+    ai: createAI({ provider: provider(seen), retrieve })
+  })
+
+  const linkedOn = async app_ => {
+    const c = client(app_)
+    const r = await c.post('/api/register/password', { name: 'Coach Kim', email: 'kim@x.test', password: 'correct-horse-battery', asCoach: true })
+    const inv = await c.post('/api/coach/invites', { scopes: ['programmes', 'workouts'] })
+    const cc = client(app_)
+    const cr = await cc.post('/api/register/password', { name: 'Sam', email: 'sam@x.test', password: 'correct-horse-battery' })
+    await cc.post(`/api/invites/${inv.body.invite.code}/accept`)
+    return { coach: c, coachUser: r.body.user, client_: cc, clientUser: cr.body.user }
+  }
+
+  it('hands back the papers, with the links the store holds', async () => {
+    const seen = []
+    const app_ = await appWith(async () => [PASSAGE], seen)
+    try {
+      const { coach, client_, clientUser } = await linkedOn(app_)
+      await stalledHistory(client_)
+      const r = await coach.post(`/api/coach/clients/${clientUser.id}/ai-review`, {})
+
+      expect(r.status).toBe(200)
+      expect(r.body.sources).toHaveLength(1)
+      expect(r.body.sources[0]).toMatchObject({
+        title: PASSAGE.title, url: PASSAGE.url, licence: 'CC-BY', design: 'meta-analysis', peerReviewed: true
+      })
+    } finally { await app_.close() }
+  })
+
+  it('never shows the model a URL, so a citation it writes cannot be mistaken for one', async () => {
+    /* The reason the links travel beside the note rather than in it. A model that has seen a URL
+     * will eventually write one, and a reference a model typed is a reference nobody can check.
+     * The prompt gets the passage and the title; the resolvable link only ever comes from the
+     * store. */
+    const seen = []
+    const app_ = await appWith(async () => [PASSAGE], seen)
+    try {
+      const { coach, client_, clientUser } = await linkedOn(app_)
+      await stalledHistory(client_)
+      await coach.post(`/api/coach/clients/${clientUser.id}/ai-review`, {})
+
+      const explain = seen.find(t => t.kind === 'explain')
+      expect(explain).toBeTruthy()
+      expect(explain.input).toContain('diminishing returns')
+      expect(explain.input).not.toContain('europepmc.org')
+      expect(explain.input).not.toContain(PASSAGE.url)
+      // And it is told not to cite, since it cannot do so correctly.
+      expect(explain.system).toMatch(/do not cite/i)
+    } finally { await app_.close() }
+  })
+
+  it('writes the note anyway when the corpus is unreachable', async () => {
+    // A store that is down, slow or empty costs the note its citations and nothing else — the
+    // same bargain every other model call in this product makes.
+    const seen = []
+    const app_ = await appWith(async () => { throw new Error('corpus is on fire') }, seen)
+    try {
+      const { coach, client_, clientUser } = await linkedOn(app_)
+      await stalledHistory(client_)
+      const r = await coach.post(`/api/coach/clients/${clientUser.id}/ai-review`, {})
+
+      expect(r.status).toBe(200)
+      expect(r.body.note).toBeTruthy()
+      expect(r.body.sources).toEqual([])
+    } finally { await app_.close() }
+  })
+
+  it('says nothing about sources on an instance that has no corpus', async () => {
+    const seen = []
+    const app_ = await appWith(null, seen)
+    try {
+      const { coach, client_, clientUser } = await linkedOn(app_)
+      await stalledHistory(client_)
+      const r = await coach.post(`/api/coach/clients/${clientUser.id}/ai-review`, {})
+      expect(r.body.sources).toEqual([])
+      // …and the status route says so before a screen offers it.
+      expect((await coach.get('/api/ai/status')).body.retrieval).toBe(false)
+    } finally { await app_.close() }
+  })
+})

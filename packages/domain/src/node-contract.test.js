@@ -29,3 +29,35 @@ describe('domain package runs outside a bundler', () => {
     expect(r.english).toBe('2 exercises')
   })
 })
+
+/* The domain may not reach the retrieval corpus. See docs/AI_TIERS.md, constraint 3.
+ *
+ * The premium tier answers from published literature, and the one thing that must never follow
+ * from that is a paper influencing a number. `planner.js` computes sets, reps, loads and
+ * exercise selection; `progression.js` decides what happens after a missed AMRAP. If either
+ * could read the store, "the literature never touches a number" would be a promise maintained by
+ * everybody remembering it, and the review and the app could start disagreeing about the same
+ * lifter — which ARCHITECTURE.md says explicitly must never happen.
+ *
+ * Retrieval is what makes this checkable at all: a fine-tune would have put the same influence
+ * inside a model's weights, where no test could see it. Here it is an import, and an import can
+ * be asserted about.
+ */
+describe('what the domain is allowed to depend on', () => {
+  it('cannot reach the corpus, the database, or anything that could', async () => {
+    const { readdir, readFile } = await import('node:fs/promises')
+    const dir = path.dirname(fileURLToPath(import.meta.url))
+    const files = (await readdir(dir)).filter(f => f.endsWith('.js') && !f.endsWith('.test.js'))
+    expect(files.length).toBeGreaterThan(10)
+
+    const forbidden = /@gymyar\/(db|ai)|from ['"](postgres|pg)['"]|corpus/
+    const offenders = []
+    for (const f of files) {
+      const body = await readFile(path.join(dir, f), 'utf8')
+      for (const line of body.split(/\r?\n/)) {
+        if (/^\s*import\s/.test(line) && forbidden.test(line)) offenders.push(`${f}: ${line.trim()}`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+})

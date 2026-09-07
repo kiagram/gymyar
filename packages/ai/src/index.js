@@ -33,6 +33,7 @@ import { openAICompatProvider, deepseekProvider, ollamaProvider, openaiProvider 
 import { interpretBriefLocally, explainChangeLocally } from './fallback.js'
 
 export { anthropicProvider, openAICompatProvider, deepseekProvider, ollamaProvider, openaiProvider }
+export { openAICompatEmbedder, embedderFromEnv, nullEmbedder, EMBED_DIM } from './embed.js'
 
 /** No key, no network, no problem. Everything still works, in fewer words. */
 export const nullProvider = { name: 'none', available: false, async complete() { return null } }
@@ -158,7 +159,15 @@ const TIER = { brief: 'fast', 'parse-log': 'fast', explain: 'deep' }
  * single-model deployment want. `fast`/`deep` split it by task, and `local` is the failover.
  */
 export function createAI({
-  provider = null, fast = null, deep = null, local = null, vision = null, timeoutMs = 20000
+  provider = null, fast = null, deep = null, local = null, vision = null, timeoutMs = 20000,
+  /* Passages from the retrieval corpus, or nothing. `async (query, opts) => [{ text, title, url,
+   * licence, author, design, peerReviewed }]`.
+   *
+   * Injected rather than built here, and this package never learns what is behind it: the store
+   * is Postgres and pgvector, which is `packages/db`'s business, and an AI package that imported
+   * a database would stop being runnable in the places this one runs. Same reason it knows
+   * nothing about subscriptions. See docs/AI_TIERS.md §A3. */
+  retrieve = null
 } = {}) {
   const env = provider || fast || deep || local ? null : providersFromEnv()
   const tiers = {
@@ -202,6 +211,10 @@ export function createAI({
     /* Asked separately because it is a separate answer. Every other method works with no model
      * at all; this one does not exist without one, so a screen has to be able to ask. */
     vision: !!eyes?.available,
+    /* Whether this surface can cite anything. Asked separately from `available` for the reason
+     * `vision` is: it is a different promise, it can be absent while the prose model works
+     * perfectly, and a screen offering "with sources" needs to know before it offers it. */
+    retrieval: !!retrieve,
     // Named so an operator can see which model actually answers what, without reading the env.
     models: {
       fast: tiers.fast.available ? tiers.fast.model ?? tiers.fast.name : null,
@@ -234,9 +247,26 @@ export function createAI({
 
     /** A proposed change → the sentence explaining it. */
     async explainChange(change, { clientName = null, tone = 'coach', lang = 'en', context = [] } = {}) {
+      /* What the literature says about the thing this change is about, if this deployment has a
+       * corpus. The query is the domain's own words for the finding — it already describes the
+       * problem in the vocabulary the papers use ("stalled", "missed the rep target"), and
+       * building a question out of the raw numbers instead would be this file deciding what the
+       * numbers mean, which is the one thing it is not allowed to do.
+       *
+       * Failure here is not failure of the feature. A corpus that is unreachable, slow or empty
+       * costs the note its citations and nothing else, which is the same bargain every other
+       * model call in this file makes.
+       */
+      let sources = []
+      if (retrieve) {
+        try {
+          sources = await retrieve([say(change.headline), say(change.note)].filter(Boolean).join(' ')) ?? []
+        } catch { sources = [] }
+      }
+
       const result = await ask({
         kind: 'explain',
-        system: inLanguage(EXPLAIN_SYSTEM, lang),
+        system: inLanguage(sources.length ? EXPLAIN_SYSTEM + EXPLAIN_WITH_SOURCES : EXPLAIN_SYSTEM, lang),
         // Rendered to English for the model: it is being asked to rewrite these reasons in the
         // target language, and an unrendered `{ msg, args }` object would tell it nothing.
         input: JSON.stringify({
@@ -251,16 +281,35 @@ export function createAI({
            * be deciding what that means about somebody's training. Here it is rewriting a
            * conclusion, which is the same job it does for everything else in this input. */
           context: (context || []).slice(0, 2).map(f => say(f.title)),
+          /* The passages, as text only. No URL goes into the prompt, which is deliberate: a
+           * model that has seen a link will sooner or later write one, and a citation a model
+           * typed is a citation nobody can trust. The links travel back beside the note in
+           * `sources` below, straight from the store, never through the model. */
+          literature: sources.map(x => ({ says: x.text, from: x.title })),
           clientName, tone
         }),
         schema: EXPLAIN_SCHEMA
       }, async () => explainChangeLocally(change, { clientName, lang }))
+
+      /* Read off the store, not out of the answer, and attached to both paths below.
+       *
+       * A template-written note has the same right to its citations as a model-written one: the
+       * passages were retrieved before either was produced, they are what the note is about
+       * either way, and dropping them on the fallback path would make "the model was down" and
+       * "there is nothing published about this" look identical to the coach reading it. */
+      const cited = sources.map(x => ({
+        title: x.title, url: x.url, licence: x.licence, author: x.author ?? null,
+        design: x.design ?? null,
+        // Said plainly rather than left to the reader to infer from a journal name.
+        peerReviewed: x.peerReviewed ?? false
+      }))
 
       const note = String(result.note ?? '').trim().slice(0, 600)
       // An empty or absurd answer is not better than the template it replaced.
       if (!note || note.length < 12) {
         return {
           ...await explainChangeLocally(change, { clientName, lang }), source: 'local',
+          sources: cited,
           ...(result.modelError ? { modelError: result.modelError } : {})
         }
       }
@@ -268,7 +317,7 @@ export function createAI({
       // operator asking why the model never writes it is owed the reason on this path as much
       // as on the one where the answer was rejected outright.
       return {
-        note, source: result.source ?? 'model',
+        note, source: result.source ?? 'model', sources: cited,
         ...(result.modelError ? { modelError: result.modelError } : {})
       }
     },
@@ -374,7 +423,7 @@ export function createAI({
  * `visionFromEnv` either side of it — the shapes worth testing here are deployments this
  * machine is not.
  */
-export function createTiers(vars = process.env) {
+export function createTiers(vars = process.env, { retrieve = null } = {}) {
   const env = providersFromEnv(vars)
 
   /* What a free request runs on: the model this deployment can run without paying anybody.
@@ -388,8 +437,12 @@ export function createTiers(vars = process.env) {
   const own = env.local ?? env.fast
 
   return {
-    // Exactly what a single-tier instance has always had.
-    premium: createAI({ ...env }),
+    /* Exactly what a single-tier instance has always had, plus the corpus. Retrieval is on the
+     * premium side only — not to withhold it, but because it is the thing the subscription is
+     * actually for: A2 shipped a split whose only difference was prose quality, which is thin,
+     * and this is what makes the paid tier a different answer rather than a better-worded one.
+     * A free request costs the deployment an embedding it does not need to spend. */
+    premium: createAI({ ...env, retrieve }),
     /* One difference, and `vision` is not it. Looking at a photograph is Ollama-only by policy
      * rather than by cost (see `visionFromEnv`), so it is the same provider in both tiers: it
      * costs a deployment nothing per call, there is no cheaper version to fall back to, and a
@@ -462,6 +515,25 @@ worded. Mention at most one, and only where it explains the change — somebody 
 rep target was cut is helped by "your weight has been coming off" and not by a list of everything
 noticed this month. Where none of it bears on the change, leave all of it out. Do not turn it into
 advice about eating, sleeping or anything outside the training in front of you.`
+
+/* Appended only when passages were actually retrieved.
+ *
+ * Two instructions and both are prohibitions, which is the whole design. The model is allowed to
+ * let the literature inform a sentence it was already going to write; it is not allowed to cite,
+ * because the citations are attached to the response from the store afterwards and a model that
+ * writes "(Smith et al., 2019)" has invented a reference that the links beside it will not
+ * match. And it is not allowed to prescribe from a paper: every number in this product comes
+ * from the domain, and a note that says "research suggests ten sets" is the review and the app
+ * disagreeing about the same lifter, which is the failure the whole split exists to prevent.
+ */
+const EXPLAIN_WITH_SOURCES = `
+
+You may also be given "literature": passages from published papers about this kind of finding.
+Use them only to make the one paragraph you are already writing more accurate. Do not cite,
+name, number or refer to them — the reader is shown the sources separately, and anything that
+looks like a citation in your text will not match them. Do not take a prescription from them:
+the sets, reps and loads in this change are already decided and are not yours to revise. If the
+passages do not bear on this person's training, ignore them entirely.`
 
 const FORM_SYSTEM = `You are looking at a photograph of somebody performing a strength exercise,
 taken so that their coach can see the movement.

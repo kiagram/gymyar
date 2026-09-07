@@ -7,7 +7,11 @@ name: gymyar
 
 services:
   db:
-    image: postgres:16-alpine
+    # pgvector rather than plain postgres:16-alpine, for the retrieval corpus in migration 016.
+    # It is the same Postgres with one extension compiled in, so an existing volume keeps working
+    # and nothing else in this file changes. An instance that would rather not run it can: 016 is
+    # conditional and the feature reports itself off. See docs/AI_TIERS.md.
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-gymyar}
