@@ -168,6 +168,40 @@ describe('the gate', () => {
     expect((await coach.post(`/api/threads/${linkId}`, { body: 'your card expired' })).status).toBe(200)
   })
 
+  it('stops that same coach drafting the change they would not be allowed to send', async () => {
+    /* The AI drafting route returns exactly the payload `propose` takes, so gating one and not
+     * the other is a wizard whose last step is a 402 — and every attempt at it spends a
+     * `model.draft` request on a language model somebody pays for by the token. It had no
+     * entitlement check at all, which made it the one coach-side action a lapsed subscription
+     * did not reach. */
+    const { coach, coachUser, clientUser } = await linked()
+    await intoGrace(coachUser.id)
+
+    const r = await coach.post(`/api/coach/clients/${clientUser.id}/ai-review`, {})
+    expect(r.status).toBe(402)
+    expect(r.body.code).toBe('payment_required')
+  })
+
+  it('never gates the AI somebody uses on their own training', async () => {
+    /* The first constraint the whole entitlement design is built around: a client is not the
+     * customer, and `README.md` promises in as many words that they are never gated at all.
+     * These two routes read nobody else's rows, so no state of anybody's subscription may reach
+     * them. This is the test that fails if "AI for people who pay" is ever taken literally.
+     *
+     * Neither call touches a model: a brief supplied rather than typed skips `interpretBrief`,
+     * and the review is arithmetic in the domain. What is being tested is the gate, not the
+     * provider. */
+    const { cl, coach, coachUser } = await linked()
+    await expireTrial(coachUser.id)
+
+    expect((await cl.post('/api/ai/programme', { brief: { goal: 'strength', daysPerWeek: 3 } })).status).toBe(200)
+    expect((await cl.get('/api/ai/review')).status).toBe(200)
+    // And the lapsed coach keeps both, on their own account. What they lost is authorship over
+    // somebody else's training, not the tracker every account has.
+    expect((await coach.post('/api/ai/programme', { brief: { goal: 'muscle' } })).status).toBe(200)
+    expect((await coach.get('/api/ai/review')).status).toBe(200)
+  })
+
   it('stops a fully expired coach writing at all', async () => {
     const { coach, coachUser, linkId } = await linked()
     await expireTrial(coachUser.id)
