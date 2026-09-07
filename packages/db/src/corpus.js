@@ -168,12 +168,28 @@ export async function search({ embedding, model, limit = 6, overfetch = 4, minSi
      order by embedding <=> ${vec(embedding)}::vector
      limit ${Math.max(1, limit * overfetch)}`
 
-  return rows
+  const scored = rows
     .map(r => ({ ...r, similarity: Number(r.similarity), score: rank({ ...r, similarity: Number(r.similarity) }) }))
     // Below this the passage is not about the question and a citation would be decoration.
     .filter(r => r.similarity >= minSimilarity)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
+
+  /* One passage per paper, keeping its best.
+   *
+   * A long abstract is several chunks and they are all about the same thing, so a paper that
+   * answers the question well tends to answer it well twice — and the first real corpus proved
+   * it, returning "Bench-Press Performed With a Velocity- and Tempo-Based Approach" as two of
+   * four results for one query. The reader is being shown a short list of *sources*, not of
+   * passages: a citation list with the same paper on it twice reads as carelessness and spends
+   * one of only four slots saying nothing new. Deduplicated after scoring rather than in SQL, so
+   * the chunk that survives is the one that actually matched best.
+   */
+  const best = new Map()
+  for (const r of scored) {
+    const held = best.get(r.source_id)
+    if (!held || r.score > held.score) best.set(r.source_id, r)
+  }
+
+  return [...best.values()].sort((a, b) => b.score - a.score).slice(0, limit)
 }
 
 /**

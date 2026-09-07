@@ -15,6 +15,13 @@
  *
  * CI sets it, for the reason the storage tests give: skipping there would mean the only place
  * this is ever exercised is a laptop that happens to have the right container running.
+ *
+ * **This file empties `corpus_chunks` before every test.** Point `CORPUS_TEST_DATABASE_URL` at a
+ * throwaway and never at a database holding a corpus somebody spent an afternoon ingesting —
+ * which is advice from experience, since running these tests is exactly how the first real one
+ * was destroyed. It is not a `truncate` guard because a corpus is re-ingestible by definition and
+ * a test that refuses to run on a dirty database is a test people stop running; the fix is the
+ * URL, not the fixture.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import postgres from 'postgres'
@@ -111,6 +118,22 @@ describe.skipIf(!URL_)('the corpus, against a real pgvector', () => {
     ], sql)
     const hits = await corpus.search({ embedding: at(0), model: 'nomic-embed-text' }, sql)
     expect(hits.map(h => h.title)).toEqual(['Forty trials', 'One lifter'])
+  })
+
+  it('shows one passage per paper, keeping its best', async () => {
+    /* A long abstract is several chunks all about the same thing, so a paper that answers well
+     * answers well twice. The first real corpus returned one bench-press trial as two of four
+     * results for one query — a citation list is a list of sources, and a repeat spends a slot
+     * saying nothing new. */
+    await corpus.putChunks([
+      paper({ sourceId: 'one', chunkIndex: 0, title: 'One paper', embedding: at(0.02) }),
+      paper({ sourceId: 'one', chunkIndex: 1, title: 'One paper', embedding: at(0) }),
+      paper({ sourceId: 'two', chunkIndex: 0, title: 'Another paper', embedding: at(0.05) })
+    ], sql)
+    const hits = await corpus.search({ embedding: at(0), model: 'nomic-embed-text' }, sql)
+    expect(hits.map(h => h.source_id)).toEqual(['one', 'two'])
+    // …and the chunk kept is the one that actually matched, not whichever was stored first.
+    expect(hits[0].chunk_index).toBe(1)
   })
 
   it('does not let quality promote a passage that is not about the question', async () => {
