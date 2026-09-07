@@ -1,9 +1,10 @@
 # Two AI tiers, and the corpus underneath the paid one
 
-Part plan, part record. A1, A2 and A3 are built; A4 is not. Two parts of A3 have never met the
-real thing — no Ollama has embedded anything and no corpus has been ingested — and §A3 says
-exactly which, because a document that reads as finished work when it is verified logic is the
-more expensive kind of wrong.
+Part plan, part record. A1, A2 and A3 are built, and A4 turned out to have been delivered by A2
+before it was read again — §A4 says so rather than manufacturing work to match its own numbering.
+Two parts of A3 have never met the real thing: no Ollama has embedded anything and no corpus has
+been ingested. §A3 says exactly which, because a document that reads as finished work when it is
+verified logic is the more expensive kind of wrong.
 
 Laid out the way [WEARABLES.md](WEARABLES.md) was before any of that existed: the constraints
 first, then the shape that survives them, then milestones somebody can cost — with the built ones
@@ -346,6 +347,12 @@ Two things, and neither is a detail:
 The store itself is verified against a real pgvector: 15 tests, including the constraint that
 refuses an unlicensed passage and every ranking property above.
 
+A third, added when A4 put the citations on screen: **the `Sources` component has no test.** The
+client suite covers `lib/` and renders nothing — there is no jsdom and no testing-library in this
+project — so pulling one in for a twenty-line component would be a larger change than the
+component. It is checked by the build and by reading, like every other component here, and the
+browser end-to-end test cannot reach it without a corpus to retrieve from.
+
 Sizing, arithmetic from assumptions rather than measurement, for five thousand open-access
 papers at roughly eight thousand tokens each:
 
@@ -356,12 +363,51 @@ papers at roughly eight thousand tokens each:
 
 Comfortable on the single machine this product is designed to run on.
 
-### A4 — The hosted premium model · 2 days
+### A4 — The hosted premium model · **already delivered by A2, minus one thing**
 
-Last, smallest, and the most deletable. A second provider set for active subscriptions, chosen
-by the A2 resolver, with the retrieved context in the prompt either way. If constraint 2
-resolves badly this milestone is dropped and the paid tier keeps the corpus, which was always
-the part worth paying for.
+This milestone was written before A2 was built and describes something A2 then did. "A second
+provider set for active subscriptions, chosen by the A2 resolver" is `createTiers()` and
+`tierFor()`, shipped and tested. There was no second implementation to write, and inventing one
+to make a numbered milestone look earned would have been the wrong kind of tidy.
+
+Two things did come out of reading it again.
+
+**The client could not see any of it.** A3 returned `sources` from the drafting route and put
+`tier` and `retrieval` on `/api/ai/status`, and nothing rendered any of them — a coach drafting a
+note got citations in the JSON and a screen that looked exactly as it had before. The
+done-means below said "retrieved claims reach the reader", and they reached the response body.
+`CoachClient.jsx` now shows them beside the draft: each paper as a link, with its author, its
+design, and **not peer reviewed** spelled out on a preprint rather than left to be inferred from
+a journal-shaped URL. Underneath, one line saying it is background reading and that none of it
+changed the sets or reps, because a coach looking at citations under a prescription will
+otherwise reasonably assume the citations produced the prescription. They did not, and
+constraint 3 is the reason.
+
+**"With the retrieved context in the prompt either way" was wrong, and not for the reason it
+looks.** It reads like a decision to withhold retrieval from the free tier and A3 implemented
+the opposite of it. In fact there is nothing to withhold: retrieval hangs off `explainChange`,
+`explainChange` has exactly one caller in the whole codebase — the coach drafting route — and
+that route is premium by construction because A1 gates it on `propose`. The client-facing
+functions that a free user actually reaches, `interpretBrief` and `parseLog`, have no note for a
+citation to attach to. So "retrieval is premium-only" is a description of where the feature
+applies rather than a decision about who deserves it, and the free tier loses nothing it could
+have used.
+
+**What is actually left of A4 is a purchase, not a patch.** Pointing `OPENAI_API_KEY` (or
+DeepSeek, or Anthropic) at an instance already routes paying coaches to it and everybody else to
+the local model — that is A2, working now. The open question is constraint 2: whether an Iranian
+operator can hold and pay for such an account at all. If the answer is no, nothing here needs
+deleting. The paid tier keeps the corpus, which is what it was always going to be worth paying
+for, and the hosted branch simply stays unconfigured the way it is today.
+
+One thing this pass deliberately did not change. `rate-limit.js` says the model buckets are tight
+because "each one costs real money and nothing else in this codebase does", and that is now true
+of premium and not of free. The tempting change is a looser budget for the free tier since it
+runs on the operator's own hardware — but the `model.vision` bucket already argues the other
+side, that a local model costs GPU seconds on a shared box and a hundred queued calls make every
+other model call on it slow. Both are true, the right numbers depend on hardware nobody has
+deployed yet, and retuning them from here would be guessing. Noted in the open questions
+instead.
 
 ## What this touches
 
@@ -412,7 +458,7 @@ user text leaves the instance to query it. A local-only free tier is in fact a p
       deleted without rebuilding
 - [x] Nothing in the corpus lacks a licence somebody wrote down: a database constraint, plus `corpus:check`
 - [x] The domain cannot import the store at all, which is the stronger form of that
-- [x] Retrieved claims reach the reader as citations with links, and preprints say so
+- [x] Retrieved claims reach the reader as citations with links, and preprints say so — on screen, not only in the response body
 - [ ] Both privacy pages describe what a configured provider receives
 - [x] The instance still works with no model and no store, in template wording
 
@@ -430,14 +476,18 @@ In order, and none of it is code:
 3. **Is this what the paid tier should sell at all?** Tiers are client-count based today at
    five, twenty-five and one hundred (`packages/domain/src/entitlement.js`), and prices are
    placeholders (`apps/api/src/payments/pricing.js`). A `pro` coach running premium AI across a
-   hundred clients costs roughly twenty times a `solo` coach at about five times the price, and
-   the rate-limit buckets are tier-blind. More capacity may be a better thing to sell than
-   better prose.
-4. **One paying coach, first.** There are none. This is the "build phase 10 instead of touching
+   hundred clients costs roughly twenty times a `solo` coach at about five times the price. More
+   capacity may be a better thing to sell than better prose and a reading list.
+4. **What should the model budgets be, per tier?** They are tier-blind today and the comment in
+   `rate-limit.js` explaining why they are tight is now only true of the hosted side. A premium
+   call costs money by the token; a free one costs GPU seconds on a box shared with the vision
+   model. Those want different numbers, and the right ones depend on hardware nobody has
+   deployed. Answerable the week after the first instance is real, and a guess before then.
+5. **One paying coach, first.** There are none. This is the "build phase 10 instead of touching
    the blockers" risk in its exact shape, and every new AI surface is another screen wanting
    exercise artwork that is not yet licensed. A1 is done, because a lapsed subscription reaching
    a metered endpoint is a bug rather than a feature, and A2 because it is what stops a hosted key
    being spent on people who are not paying for it. A3 is built and switched off — it costs
    nothing until an operator configures an embedding model and ingests something, which is the
-   right place for it to wait. A4 is worth doing when somebody is paying for the thing it would
-   improve, if it turns out to be purchasable at all.
+   right place for it to wait. A4 turned out to be A2 plus a screen; what is left of it is a
+   purchase, and question 1 decides whether that purchase can be made.
