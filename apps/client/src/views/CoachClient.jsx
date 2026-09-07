@@ -70,6 +70,44 @@ function ReviewContext({ findings, title = null }) {
   )
 }
 
+/* The published papers the drafted note was informed by.
+ *
+ * Links rather than quotations, and that is the design rather than a shortcut. The passages went
+ * into the prompt and the URLs deliberately did not (see routes/ai.js), so everything on screen
+ * here comes from the store's own record of where each one came from — nothing a model wrote. A
+ * coach who wants to check a claim opens the paper; one who does not is not handed a
+ * bibliography to scroll past.
+ *
+ * A preprint says so. It is real work nobody has checked yet, the store already ranks it below
+ * reviewed work for exactly that reason, and a coach deciding whether to act on it is owed the
+ * same fact rather than a journal-shaped link that hides it.
+ *
+ * Absent on most instances, because retrieval needs a corpus and an embedding model that most
+ * deployments will not have. It renders nothing rather than an empty heading.
+ */
+function Sources({ sources }) {
+  if (!sources?.length) return null
+  return (
+    <div className="rvw">
+      <div className="ss dim">{t('What the note drew on')}</div>
+      {sources.map((s, i) => (
+        <div key={i} className="rvw-f">
+          <a href={s.url} target="_blank" rel="noopener noreferrer">{s.title}</a>
+          <div className="dim">
+            {[s.author, s.design, s.peerReviewed ? null : t('not peer reviewed')]
+              .filter(Boolean).join(' · ')}
+          </div>
+        </div>
+      ))}
+      {/* Said out loud because the alternative is a coach assuming otherwise. The domain decided
+          every number in this change before a paper was read — constraint 3 in docs/AI_TIERS.md. */}
+      <div className="ss dim" style={{ marginTop: 6 }}>
+        {t('Background reading. None of it changed the sets or reps.')}
+      </div>
+    </div>
+  )
+}
+
 /* The answer when the review has findings but no change to propose.
  *
  * A toast would have been the easy shape and the wrong one: "nothing to change" is a conclusion
@@ -137,6 +175,7 @@ function ProposeSheet({ clientId, routine, close, onDone, draft = null }) {
             ))}
           </div>
           <ReviewContext findings={draft.context} />
+          <Sources sources={draft.sources} />
           <div className="dim" style={{ marginTop: 6 }}>
             {draft.source === 'model'
               ? t('Drafted from their logged sets; wording from a language model. Edit anything before you send it.')
@@ -586,7 +625,7 @@ export default function CoachClient() {
         <ProposeSheet clientId={id} routine={target} close={close} onDone={load}
                       draft={{
                         ...draft.change, note: draft.note, headline: draft.headline,
-                        source: draft.source, context: draft.context
+                        source: draft.source, context: draft.context, sources: draft.sources
                       }} />
       ))
     } catch (e) { toast(e.message) }
