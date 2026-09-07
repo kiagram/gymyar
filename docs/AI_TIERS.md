@@ -1,10 +1,9 @@
 # Two AI tiers, and the corpus underneath the paid one
 
-Part plan, part record. A1, A2 and A3 are built, and A4 turned out to have been delivered by A2
-before it was read again — §A4 says so rather than manufacturing work to match its own numbering.
-Two parts of A3 have never met the real thing: no Ollama has embedded anything and no corpus has
-been ingested. §A3 says exactly which, because a document that reads as finished work when it is
-verified logic is the more expensive kind of wrong.
+Part plan, part record. All four milestones are built. A4 turned out to have been delivered by A2
+before it was read again, and §A4 says so rather than manufacturing work to match its own
+numbering. A3 has since been run for real — a live embedding model and a 332-paper corpus — which
+found three things that testing against fakes had not, all of them in §A3.
 
 Laid out the way [WEARABLES.md](WEARABLES.md) was before any of that existed: the constraints
 first, then the shape that survives them, then milestones somebody can cost — with the built ones
@@ -329,29 +328,52 @@ was checked against a deliberate violation. That is the constraint-3 promise mad
 retrieval is an import and an import can be asserted about, where a fine-tune would have put the
 same influence inside weights that no test could see.
 
-#### What has not been run
+#### What running it for real then found
 
-Two things, and neither is a detail:
+The two gaps this section used to list are closed. `nomic-embed-text` was pulled and a corpus was
+ingested, and doing it turned up three things that no amount of testing against fakes would have.
 
-- **No real embedding model has ever run against this.** Ollama is not installed on the machine
-  this was built on, so `openAICompatEmbedder` has been exercised only against a fake server.
-  Batching, ordering, short batches and the dimension check are all tested; the actual HTTP
-  conversation with a real Ollama is not. It is the same class of gap as the wearables work before
-  any hardware: the logic is verified and the device has not answered yet.
-- **No corpus has been ingested.** The adapter was run against live Europe PMC records up to the
-  point of embedding — 20 of 25 storable, 5 refused on licence — so the field names, the cursor
-  and the licence rule are confirmed against the real API. Nothing has been written to a store,
-  because writing one means choosing sources, and §"What needs a person first" says that decision
-  has a legal question attached to it.
+**The embedder works, and its first call is not free.** Real `nomic-embed-text` over the
+OpenAI-compatible route returns exactly 768 dimensions, which is what the column is declared at.
+Warm, a batch takes about 200ms whatever its size; cold, the first call after the model is
+unloaded took **12 to 20 seconds** while Ollama loaded it. That does not matter at ingestion,
+where it is amortised over hundreds of papers, and it matters a great deal to a coach pressing
+"draft a change" on an instance whose model has gone cold — the retrieval budget in
+`packages/ai/src/embed.js` is 60 seconds for exactly this reason, and it is nearly all of it.
 
-The store itself is verified against a real pgvector: 15 tests, including the constraint that
+**A topic query without an exercise anchor is a query about cardiology.** Europe PMC is a
+biomedical index. `range of motion hypertrophy` was in `TOPICS` unanchored and its *first* result
+was "Isolated posterior mitral leaflet elongation"; the first corpus came back with hypertrophic
+cardiomyopathy, aortic dilation and mitral leaflets in it. Not a failure of ranking or of depth —
+the anchored queries stay clean well past result 35 — but of a query that was never about
+training. Anchoring the three weak ones took clearly-off-topic sources from 19 to 3 out of 332.
+A corpus quietly full of echocardiography is every row correctly licensed, correctly attributed,
+and about the wrong organ.
+
+**A paper that answers well answers well twice.** The first real retrieval returned one
+bench-press trial as two of four results, because a long abstract is several chunks and they are
+all about the same thing. A citation list is a list of *sources*: `search` now keeps one passage
+per paper, the best-scoring one, and there is a test.
+
+What the corpus looks like, from Europe PMC across the fifteen anchored topics at 40 per query:
+
+| Papers stored | 334, as 744 chunks |
+| Refused on licence | 136 of 574 seen, about 24% |
+| Licences held | CC-BY throughout; `corpus:check` passes |
+| Retrieval, warm, end to end | 83 to 116ms, four unique papers |
+
+(Two runs of the same command a few minutes apart stored 332 and 334 papers. Europe PMC's
+relevance ordering is not frozen, so a corpus is reproducible in shape rather than row for row.)
+
+Two things are still true. **The `Sources` component has no test** — the client suite covers
+`lib/` and renders nothing, so pulling in jsdom for a twenty-line component would be a larger
+change than the component; it is checked by the build and by reading, like every other component
+here. And **nothing about this makes the corpus shippable**: it lives in one developer's
+throwaway database, and §"What needs a person first" question 2 is unchanged, because holding
+open-access abstracts locally and selling access to them are different acts.
+
+The store itself is verified against a real pgvector: 16 tests, including the constraint that
 refuses an unlicensed passage and every ranking property above.
-
-A third, added when A4 put the citations on screen: **the `Sources` component has no test.** The
-client suite covers `lib/` and renders nothing — there is no jsdom and no testing-library in this
-project — so pulling one in for a twenty-line component would be a larger change than the
-component. It is checked by the build and by reading, like every other component here, and the
-browser end-to-end test cannot reach it without a corpus to retrieve from.
 
 Sizing, arithmetic from assumptions rather than measurement, for five thousand open-access
 papers at roughly eight thousand tokens each:
@@ -459,6 +481,7 @@ user text leaves the instance to query it. A local-only free tier is in fact a p
 - [x] Nothing in the corpus lacks a licence somebody wrote down: a database constraint, plus `corpus:check`
 - [x] The domain cannot import the store at all, which is the stronger form of that
 - [x] Retrieved claims reach the reader as citations with links, and preprints say so — on screen, not only in the response body
+- [x] One citation per paper, so a four-item list is four papers
 - [ ] Both privacy pages describe what a configured provider receives
 - [x] The instance still works with no model and no store, in template wording
 

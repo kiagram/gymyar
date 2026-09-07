@@ -120,23 +120,34 @@ export function sampleSizeOf(text) {
 /* The questions this product actually has to answer, which is what a corpus for it should cover.
  * The planner prescribes thirteen movement patterns and the review reports on stalls, volume,
  * attendance and effort — so these are the topics a coaching note might be informed by, and a
- * corpus of everything else is storage somebody pays for and nothing ever retrieves. */
+ * corpus of everything else is storage somebody pays for and nothing ever retrieves.
+ *
+ * **Every one of these has to name the training context, and that is a rule rather than a
+ * style.** Europe PMC is a biomedical index: unqualified, "hypertrophy" means the heart, "range
+ * of motion" means a joint somebody is being treated for, and "rest interval" means something
+ * between clinical measurements. `range of motion hypertrophy` was in this list without an
+ * anchor and its *first* result was "Isolated posterior mitral leaflet elongation" — not a
+ * failure of depth or of relevance ranking, which hold up well past result 35 on the anchored
+ * queries, but a query that was about cardiology all along. A corpus quietly full of
+ * echocardiography is the confidently-wrong-citation problem arriving through a different door:
+ * every row correctly licensed, correctly attributed, and about the wrong organ.
+ */
 const TOPICS = [
   'resistance training volume hypertrophy',
   'resistance training frequency strength',
-  'progressive overload load progression',
+  'progressive overload resistance training load progression',
   'training to failure repetitions in reserve',
   'deload tapering strength training',
-  'rest interval duration hypertrophy',
+  'rest interval duration resistance training hypertrophy',
   'periodisation strength training',
-  'detraining retraining muscle',
+  'detraining retraining muscle strength',
   'sleep and athletic recovery',
   'protein intake resistance training',
   'body composition energy deficit resistance training',
   'delayed onset muscle soreness recovery',
   'rating of perceived exertion resistance training',
   'eccentric training adaptation',
-  'range of motion hypertrophy'
+  'resistance training range of motion hypertrophy'
 ]
 
 const SOURCES = {
