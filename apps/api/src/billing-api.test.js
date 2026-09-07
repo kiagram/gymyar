@@ -10,6 +10,7 @@ import { client } from './test-client.js'
 import { db, close } from '@gymyar/db'
 import { setPaidThrough, ensureTrial, subscriptionFor } from '@gymyar/db/billing.js'
 import { TRIAL_DAYS, GRACE_DAYS } from '@gymyar/domain/entitlement.js'
+import { createAI } from '@gymyar/ai'
 
 const URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
 const DAY = 86400000
@@ -200,6 +201,129 @@ describe('the gate', () => {
     // somebody else's training, not the tracker every account has.
     expect((await coach.post('/api/ai/programme', { brief: { goal: 'muscle' } })).status).toBe(200)
     expect((await coach.get('/api/ai/review')).status).toBe(200)
+  })
+})
+
+/* Which of the two model surfaces a request runs on. See docs/AI_TIERS.md.
+ *
+ * A separate app, because the whole point is that the two tiers are *distinguishable* — the one
+ * built above is handed no AI at all, so both of its tiers are whatever the environment has, and
+ * a test could not tell them apart. Here they are two fakes with different names, and no test
+ * below asks either of them to complete anything: `/api/ai/status` reports which one a person
+ * would reach, which is the question, and asking a model would only be testing the fakes.
+ */
+describe('which model answers', () => {
+  /* Each fake signs its answer, so a test can tell which one was reached. Signing it rather than
+   * returning null matters: `/api/ai/status` reports the tier from the entitlement directly, so
+   * a test that only read status would pass with the per-request selection removed entirely —
+   * it would be checking the label and not the routing. The last test in this block is the one
+   * that follows a real call through to a provider, and it was checked against a hardcoded
+   * resolver to be sure it could fail. */
+  const named = name => ({
+    name,
+    model: name,
+    available: true,
+    async complete() { return { summary: `answered by ${name}`, brief: { goal: 'strength' } } }
+  })
+  let tiered
+
+  beforeAll(async () => {
+    tiered = await build({
+      databaseUrl: URL,
+      rateLimit: false,
+      gateway: gatewayProxy,
+      ai: createAI({ provider: named('the-paid-one') }),
+      aiFree: createAI({ provider: named('the-local-one') })
+    })
+  })
+  afterAll(async () => { await tiered.close() })
+
+  /** The same fixture as `linked`, against the tiered app. */
+  const linkedOn = async () => {
+    const c = client(tiered)
+    const r = await c.post('/api/register/password', { name: 'Coach', email: 'coach@x.test', password: 'correct-horse-battery' })
+    expect(r.status).toBe(200)
+    const invite = await c.post('/api/coach/invites', { email: 'client@x.test' })
+
+    const cc = client(tiered)
+    const cr = await cc.post('/api/register/password', { name: 'Client', email: 'client@x.test', password: 'correct-horse-battery' })
+    await cc.post(`/api/invites/${invite.body.invite.code}/accept`, {})
+    return { coach: c, coachUser: r.body.user, cl: cc, clientUser: cr.body.user }
+  }
+
+  it('gives a coach on trial the model the subscription pays for', async () => {
+    const { coach } = await linkedOn()
+    const r = await coach.get('/api/ai/status')
+    expect(r.body.tier).toBe('premium')
+    expect(r.body.provider).toBe('the-paid-one')
+  })
+
+  it('gives a client the free one, without gating them out of anything', async () => {
+    // A client cannot buy a coaching subscription, so they are always on the free tier. That is
+    // a smaller model, never a refusal — the route still answers 200 and still builds a plan.
+    const { cl } = await linkedOn()
+    const r = await cl.get('/api/ai/status')
+    expect(r.body.tier).toBe('free')
+    expect(r.body.provider).toBe('the-local-one')
+    expect((await cl.post('/api/ai/programme', { brief: { goal: 'strength' } })).status).toBe(200)
+  })
+
+  it('drops a lapsed coach to the free one rather than cutting them off', async () => {
+    const { coach, coachUser } = await linkedOn()
+    await expireTrial(coachUser.id)
+
+    const r = await coach.get('/api/ai/status')
+    expect(r.body.tier).toBe('free')
+    expect(r.body.provider).toBe('the-local-one')
+    // Still their own tracker, still working.
+    expect((await coach.post('/api/ai/programme', { brief: { goal: 'strength' } })).status).toBe(200)
+  })
+
+  it('drops a coach in grace too — the model is part of what lapsed', async () => {
+    const { coach, coachUser } = await linkedOn()
+    await intoGrace(coachUser.id)
+    expect((await coach.get('/api/ai/status')).body.tier).toBe('free')
+  })
+
+  it('puts everybody on the paid one when nobody is being billed', async () => {
+    // Self-hosting: no gateway, so there is nothing to sell and no reason to hold anything back.
+    const { coach, cl } = await linkedOn()
+    delete process.env.ZARINPAL_MERCHANT_ID
+
+    expect((await cl.get('/api/ai/status')).body.tier).toBe('premium')
+    expect((await coach.get('/api/ai/status')).body.tier).toBe('premium')
+  })
+
+  it('sends a real call to the tier the caller is on, not just a label', async () => {
+    /* The one that proves the routing rather than the reporting. `text` rather than `brief` is
+     * what makes the route consult a model at all — a supplied brief skips it — and the summary
+     * comes back from whichever provider answered. */
+    const { coach, cl } = await linkedOn()
+    const ask = c => c.post('/api/ai/programme', { text: 'three days a week, dumbbells, get stronger' })
+
+    expect((await ask(coach)).body.summary).toBe('answered by the-paid-one')
+    expect((await ask(cl)).body.summary).toBe('answered by the-local-one')
+  })
+
+  it('keeps the programme identical across tiers, because the domain owns every number', async () => {
+    /* The claim the whole tier split rests on: a smaller model is a worse reader of prose, not a
+     * worse programme. Both providers here return the same brief, which is the point — whatever
+     * a model says, `normaliseBrief` validates it and `buildProgramme` computes from it, so the
+     * routines are a function of the brief and nothing else. */
+    const { coach, cl } = await linkedOn()
+    const ask = c => c.post('/api/ai/programme', { text: 'three days a week, dumbbells, get stronger' })
+
+    const paid = (await ask(coach)).body
+    const free = (await ask(cl)).body
+    /* Without the id. `buildProgramme` mints a fresh `uid()` for every routine it returns, so
+     * two generations from one brief differ there and nowhere else — the determinism the planner
+     * documents is of the *selection*, which is what a lifter would notice, not of a row id that
+     * exists to be written to a database. */
+    const shape = p => p.routines.map(({ id, ...rest }) => rest)
+    expect(shape(free)).toEqual(shape(paid))
+    expect(free.brief).toEqual(paid.brief)
+    // …and they still say which model wrote the words, which is the part that does differ.
+    expect(free.summary).not.toBe(paid.summary)
   })
 
   it('stops a fully expired coach writing at all', async () => {

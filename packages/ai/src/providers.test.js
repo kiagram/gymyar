@@ -7,7 +7,8 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import {
-  createAI, providersFromEnv, visionFromEnv, deepseekProvider, ollamaProvider, openaiProvider
+  createAI, createTiers, providersFromEnv, visionFromEnv, deepseekProvider, ollamaProvider,
+  openaiProvider
 } from './index.js'
 
 const CHANGE = {
@@ -365,5 +366,58 @@ describe('which model is allowed to see', () => {
     const ai = createAI(providersFromEnv({ OLLAMA_MODEL_VISION: 'qwen2.5-vl:7b' }))
     expect(ai.vision).toBe(true)
     expect(ai.models.vision).toBe('qwen2.5-vl:7b')
+  })
+})
+
+/* The two surfaces a deployment offers. See docs/AI_TIERS.md.
+ *
+ * The shapes worth checking are deployments this machine is not, which is why `createTiers`
+ * takes the variables: an instance with a hosted key *and* an Ollama, one with only an Ollama,
+ * and one with neither, are three different answers to "what does a free user get" and only the
+ * first of them is obvious.
+ */
+describe('free and premium', () => {
+  const HOSTED = {
+    OPENAI_API_KEY: 'k', GYMYAR_MODEL_FAST: 'gpt-fast', GYMYAR_MODEL_DEEP: 'gpt-deep',
+    OLLAMA_MODEL_FAST: 'qwen3:8b'
+  }
+
+  it('sends premium to the hosted model and free to the one on your own hardware', () => {
+    const { premium, free } = createTiers(HOSTED)
+    expect(premium.models.deep).toBe('gpt-deep')
+    expect(free.models.deep).toBe('qwen3:8b')
+    expect(free.models.fast).toBe('qwen3:8b')
+  })
+
+  it('gives both tiers the same thing when there is only a local model', () => {
+    // Nothing has been bought, so there is nothing to hold back. `providersFromEnv` has already
+    // promoted the local model into `fast` here, which is why the free tier reads it from there.
+    const { premium, free } = createTiers({ OLLAMA_MODEL_FAST: 'qwen3:8b' })
+    expect(premium.models.fast).toBe('qwen3:8b')
+    expect(free.models.fast).toBe('qwen3:8b')
+  })
+
+  it('leaves the free tier as the template tier when nothing is configured', () => {
+    const { premium, free } = createTiers({})
+    expect(premium.available).toBe(false)
+    expect(free.available).toBe(false)
+  })
+
+  it('does not tier vision — it is Ollama-only by policy, and a client uploads the photo', () => {
+    const { premium, free } = createTiers({ ...HOSTED, OLLAMA_MODEL_VISION: 'qwen2.5-vl:7b' })
+    expect(premium.vision).toBe(true)
+    expect(free.vision).toBe(true)
+    expect(free.models.vision).toBe('qwen2.5-vl:7b')
+  })
+
+  it('never puts a hosted model in the free tier by way of the failover', () => {
+    /* The failure this would have if `own` were read the other way round: `createAI` chains the
+     * local provider *after* the primary, so a free tier built from the hosted set would answer
+     * from the thing it was supposed to avoid, and only under load would anybody notice the
+     * bill. Named models rather than a spy, because the question is which one is wired in. */
+    const { free } = createTiers(HOSTED)
+    expect(free.models.fast).not.toBe('gpt-fast')
+    expect(free.models.deep).not.toBe('gpt-deep')
+    expect(free.provider).toBe('ollama')
   })
 })
