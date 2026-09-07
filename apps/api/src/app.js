@@ -20,6 +20,10 @@ import healthRoutes from './routes/health.js'
 
 export async function build({
   logger = false, databaseUrl = config.databaseUrl, runMigrations = true, ai = null,
+  // The free tier's surface. Only meaningful alongside `ai`, and only to a test that wants the
+  // two to be distinguishable — left null, one injected `ai` serves both, which is what every
+  // caller who has not thought about tiering should get. See routes/ai.js.
+  aiFree = null,
   // The payment gateway, injectable for the same reason `ai` is: the suite drives the whole
   // purchase flow, and it must never reach a real terminal to do it.
   gateway = null,
@@ -89,7 +93,7 @@ export async function build({
   await app.register(exerciseRoutes)
   await app.register(pushRoutes)
   await app.register(adminRoutes)
-  await app.register(aiRoutes, { ai })
+  await app.register(aiRoutes, { ai, aiFree })
   await app.register(billingRoutes, { gateway })
   await app.register(mediaRoutes)
   await app.register(publicRoutes, { enabled: publicStats })

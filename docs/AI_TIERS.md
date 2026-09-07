@@ -1,10 +1,10 @@
 # Two AI tiers, and the corpus underneath the paid one
 
-Mostly a plan. Everything here is unbuilt except A1, which turned out to be a bug rather than a
-feature and was fixed on the spot; `packages/ai` still has one provider set for the whole
-instance and no retrieval of any kind. It is written the way [WEARABLES.md](WEARABLES.md) was
-written before any of that existed: the constraints first, then the shape that survives them,
-then milestones somebody can cost.
+Part plan, part record. A1 and A2 are built; A3 and A4 are not, so there is no retrieval of any
+kind yet and the paid tier is currently "the hosted model, if this deployment has one". Laid out
+the way [WEARABLES.md](WEARABLES.md) was before any of that existed: the constraints first, then
+the shape that survives them, then milestones somebody can cost — with the built ones marked and
+what building them taught written into them.
 
 The ask it answers: a free tier that runs on the deployment's own Ollama, and a paid tier with
 several thousand articles and books of field knowledge behind it.
@@ -72,10 +72,11 @@ is unreachable, and with nothing hosted configured it stops being a failover and
 model. `vision` is Ollama-only by policy and always has been, because the pictures it reads are
 somebody's body in a gym.
 
-So the axis the request needs already runs through this file. What is missing is that the
-provider set is chosen once per *instance*, at boot, and injected into the app
-(`apps/api/src/app.js`, the `ai` parameter). Choosing per *request* is the one piece of
-genuinely new plumbing, and it is small.
+So the axis the request needs already ran through this file. What was missing was that the
+provider set was chosen once per *instance*, at boot, and injected into the app
+(`apps/api/src/app.js`, the `ai` parameter). Choosing per *request* was the one piece of
+genuinely new plumbing, and it was small — `createTiers()` and a one-line resolver, which is
+A2 below.
 
 ## The shape that survives the constraints
 
@@ -85,8 +86,8 @@ stay named:
 | State | Backing | Who gets it |
 |---|---|---|
 | **Template** | no model configured | any instance; already ships, `/api/ai/status` reports it |
-| **Free** | the deployment's own Ollama | every client, and every coach, always |
-| **Premium** | retrieval, plus a better model where one is reachable | coach-side drafting on an active subscription |
+| **Free** | the deployment's own Ollama | clients, and coaches whose subscription has lapsed. The floor nobody can fall through |
+| **Premium** | the hosted model today; retrieval on top of it after A3 | a coach who is paying or trialling |
 
 **Separate retrieval from model quality.** This is the load-bearing decision in this document.
 They are orthogonal, and treating them as one thing is what makes the plan depend on sanctions
@@ -191,18 +192,56 @@ checked against the unfixed route to be sure it could fail. The other asserts th
 for a lapsed coach alike, which is constraint 1 written down where a future edit will trip
 over it.
 
-### A2 — Per-request provider selection · 2 days
+### A2 — Per-request provider selection · **done**
 
-The AI instance is built once and injected. This makes the provider set a function of the
-requesting user's entitlement instead:
+`createTiers()` in `packages/ai` builds both surfaces from one read of the environment, and
+`routes/ai.js` picks between them per request. The AI package decides how to *build* a tier and
+knows nothing about subscriptions; the API decides who gets which.
 
-- A resolver that answers "which providers for this user", returning the local set for a client
-  or a free coach and the premium set for an active coach.
-- Client-facing routes always get the free set. This is constraint 1, in code, and it wants a
-  test that fails if a client-facing route ever consults entitlement.
-- `/api/ai/status` reports which tier answered, alongside the provider it already reports.
-  Users forgive a template and do not forgive being told a template was intelligence, and the
-  same is true of the free model.
+The resolver turned out to be one line, because the question already had a name:
+
+```js
+const tierFor = async user =>
+  (await entitlementFor(user.id)).can.propose ? 'premium' : 'free'
+```
+
+`propose` is true in exactly the states where somebody is paying or trialling, so **a client
+lands on the free tier by construction** rather than by a rule written next to every route —
+they have no subscription, so they answer no. A coach in grace or expired lands there too,
+because what lapsed is the paid thing and the paid thing includes the model that costs money by
+the token. Reusing the capability rather than adding one keeps "may author for a client" and "is
+paid up" from drifting apart, which they cannot do while they are the same predicate.
+
+What a free user actually loses is smaller than it sounds, and this is the part worth knowing
+before pricing anything: the model's job on the client-facing routes is turning prose into a
+brief, `normaliseBrief` validates whatever comes back, and `buildProgramme` computes every
+number from the result. So a smaller model is a worse reader of unusual phrasing and a plainer
+summary — **not a worse programme**. A test asserts the routines are identical across tiers.
+
+Three things that came out of building it:
+
+- **`/api/ai/status` reports `tier`, read from the entitlement rather than from which object
+  came back.** A deployment can legitimately back both tiers with the same model, and reporting
+  `premium` there because the two happen to be one object would describe the plumbing instead of
+  the account.
+- **Vision is not tiered.** It is Ollama-only by policy rather than by cost, there is no cheaper
+  version to fall back to, and a form check is something a client uploads about their own lift.
+  Tiering it would be gating a client.
+- **The coach drafting route uses the premium surface outright**, since the A1 gate above it has
+  already established `propose`. One question instead of two, and it is the note a client reads
+  verbatim, which is what the fast/deep split was always for.
+
+Five tests in `providers.test.js` for the construction — a deployment with a hosted key and an
+Ollama, one with only an Ollama, one with neither, and that a hosted model can never reach the
+free tier through the failover chain. `createTiers` takes the variables rather than reading the
+environment, like the two functions either side of it, because the shapes worth checking are
+deployments the test machine is not.
+
+Seven more in `billing-api.test.js` against an app with two distinguishable fakes. The first
+draft of them tested only `/api/ai/status` and **passed with the per-request selection removed
+entirely**, because status reads the entitlement directly — it was checking the label, not the
+routing. The two that follow a real call through to a provider were added after that, and both
+were checked against a hardcoded resolver to be sure they could fail.
 
 ### A3 — Retrieval, entirely local · 5 to 7 days
 
@@ -277,10 +316,11 @@ user text leaves the instance to query it. A local-only free tier is in fact a p
 
 ## Done means
 
-- [ ] A free coach drafts with the local model; an active coach drafts with retrieval behind it
-- [ ] A client's programme generation, review and typed logging are identical at every tier,
-      and a test fails if a client-facing route ever consults entitlement
-- [ ] `/api/ai/status` names the tier that answered as well as the provider
+- [x] A free coach drafts with the local model; an active coach drafts with the hosted one
+- [ ] …and with retrieval behind it
+- [x] A client's programme generation, review and typed logging are never refused at any tier,
+      and the programme itself is identical across them
+- [x] `/api/ai/status` names the tier that answered as well as the provider
 - [x] An expired coach cannot spend model budget on a proposal they cannot send
 - [ ] Every chunk in the store names its licence, its author and its URL, and one source can be
       deleted without rebuilding
@@ -298,14 +338,20 @@ In order, and none of it is code:
    [LEGAL_BRIEF.md](LEGAL_BRIEF.md) question 17.
 2. **Is a corpus of published literature ingestible and sellable?** A new question for the same
    review, and closer to question 6 on share-alike than to anything else already on that list.
-3. **Is this what the paid tier should sell at all?** Tiers are client-count based today at
+3. **Is a smaller model enough of a difference to sell?** A2 shipped the split, and it is worth
+   looking at what it actually buys before pricing it: the programme is identical across tiers
+   by construction, so what a subscription currently buys is better *prose* and a better reader
+   of unusual phrasing. That may be too thin to charge for on its own, which is the argument for
+   A3 being the real product rather than the polish.
+4. **Is this what the paid tier should sell at all?** Tiers are client-count based today at
    five, twenty-five and one hundred (`packages/domain/src/entitlement.js`), and prices are
    placeholders (`apps/api/src/payments/pricing.js`). A `pro` coach running premium AI across a
    hundred clients costs roughly twenty times a `solo` coach at about five times the price, and
    the rate-limit buckets are tier-blind. More capacity may be a better thing to sell than
    better prose.
-4. **One paying coach, first.** There are none. This is the "build phase 10 instead of touching
+5. **One paying coach, first.** There are none. This is the "build phase 10 instead of touching
    the blockers" risk in its exact shape, and every new AI surface is another screen wanting
    exercise artwork that is not yet licensed. A1 is done, because a lapsed subscription reaching
-   a metered endpoint is a bug rather than a feature. A2 onwards is worth doing when somebody is
-   paying for the thing it would improve.
+   a metered endpoint is a bug rather than a feature, and A2 because it is what stops a hosted
+   key being spent on people who are not paying for it. A3 onwards is worth doing when somebody
+   is paying for the thing it would improve.

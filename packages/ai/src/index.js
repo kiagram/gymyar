@@ -358,6 +358,49 @@ export function createAI({
 }
 
 /**
+ * The two surfaces a deployment offers, built once from one read of the environment.
+ *
+ * `createAI` answers "what can this instance do"; this answers "what does it offer to whom",
+ * which is a different question and the reason the pair exists. A hosted model costs real money
+ * per call and clients outnumber coaches by design, so an instance that has bought one wants to
+ * spend it on the people paying for it and serve everybody else from the hardware it already
+ * runs on. See docs/AI_TIERS.md for the whole argument.
+ *
+ * This package decides how to *build* the two. It deliberately knows nothing about
+ * subscriptions: who is entitled to which is the API's question, and answering it here would
+ * put billing in the language layer.
+ *
+ * Takes the variables rather than reading the environment, like `providersFromEnv` and
+ * `visionFromEnv` either side of it — the shapes worth testing here are deployments this
+ * machine is not.
+ */
+export function createTiers(vars = process.env) {
+  const env = providersFromEnv(vars)
+
+  /* What a free request runs on: the model this deployment can run without paying anybody.
+   *
+   * Read in that order because `providersFromEnv` puts it in one of two places. On a deployment
+   * with a hosted key, `local` is the failover slot and holds the Ollama model. On one with only
+   * Ollama, that model has already been promoted into `fast` and `local` is null. With nothing
+   * configured at all this is the null provider, so the free tier is the template tier — which
+   * is what every instance has shipped since before any of this existed, and still works.
+   */
+  const own = env.local ?? env.fast
+
+  return {
+    // Exactly what a single-tier instance has always had.
+    premium: createAI({ ...env }),
+    /* One difference, and `vision` is not it. Looking at a photograph is Ollama-only by policy
+     * rather than by cost (see `visionFromEnv`), so it is the same provider in both tiers: it
+     * costs a deployment nothing per call, there is no cheaper version to fall back to, and a
+     * form check is something a client uploads about their own lift. Tiering it would be gating
+     * a client, which is the one thing this product promises never to do.
+     */
+    free: createAI({ fast: own, deep: own, vision: env.vision })
+  }
+}
+
+/**
  * The same system prompt, told which language to answer in.
  *
  * Appended rather than baked into each prompt because only the output language changes — the
