@@ -1,9 +1,10 @@
 # Two AI tiers, and the corpus underneath the paid one
 
-A plan, not a build. Nothing in this document is implemented; `packages/ai` today has one
-provider set for the whole instance and no retrieval of any kind. It is written the way
-[WEARABLES.md](WEARABLES.md) was written before any of that existed: the constraints first,
-then the shape that survives them, then milestones somebody can cost.
+Mostly a plan. Everything here is unbuilt except A1, which turned out to be a bug rather than a
+feature and was fixed on the spot; `packages/ai` still has one provider set for the whole
+instance and no retrieval of any kind. It is written the way [WEARABLES.md](WEARABLES.md) was
+written before any of that existed: the constraints first, then the shape that survives them,
+then milestones somebody can cost.
 
 The ask it answers: a free tier that runs on the deployment's own Ollama, and a paid tier with
 several thousand articles and books of field knowledge behind it.
@@ -156,22 +157,39 @@ sources disagree, saying so is the correct output; picking one is not.
 Estimates, in the style of WEARABLES.md, and the same caveat applies: they are what the work
 looks like from here.
 
-### A1 — Gate the coach drafting route · half a day
+### A1 — Gate the coach drafting route · **done**
 
-Not a feature. A bug, found while writing this document.
+Not a feature. A bug, found while writing this document, and fixed before the rest of it was
+scheduled.
 
-`apps/api/src/routes/ai.js` consults the entitlement system **nowhere**. The coach drafting
-endpoint `POST /api/coach/clients/:id/ai-review` checks the `workouts` scope and an active link,
-and does not check `propose` — while the endpoint that actually sends the result does
-(`apps/api/src/routes/coaching.js:108`, `requireCoach(user.id, 'propose')`).
+`apps/api/src/routes/ai.js` consulted the entitlement system **nowhere**. The coach drafting
+endpoint `POST /api/coach/clients/:id/ai-review` checked the `workouts` scope and an active
+link, and did not check `propose` — while the endpoint that actually sends the result does
+(`apps/api/src/routes/coaching.js:108`). So a coach whose subscription had lapsed could spend
+model budget drafting proposals they would be refused at the moment they sent one: a cost leak
+and a dead end in the interface at once, at every tier.
 
-So a coach whose subscription lapsed can spend model budget drafting proposals they cannot send.
-That is a cost leak and a dead end in the UI at once, and it exists today at every tier.
+Two questions came up in the fixing and both are answered in the comment on the route.
 
-One subtlety, and it is the reason this is half a day rather than an hour: `requireCoach` starts
-the fourteen-day trial clock on first use. Starting somebody's trial because they clicked
-"draft" is a surprising side effect, so this wants the non-trial-starting variant of the check,
-or a deliberate decision that drafting is what begins a trial.
+**`propose` rather than a capability of its own.** Nothing separate is being bought. Drafting is
+the first half of proposing, and a tier that sold one without the other would be selling a
+button that does not work. Adding a capability would also mean touching `ALL` and all five rows
+of `CAN` in the domain to express something that already has a name.
+
+**The trial clock is not a problem here.** `requireCoach` starts the fourteen-day trial on first
+use, and starting somebody's trial because they clicked "draft" would be a surprising side
+effect. It cannot happen: the route is unreachable without an active link, a link exists only
+because an invite was created, and creating an invite already went through
+`requireCoach(…, 'takeClients')`. Anybody who can reach this route has had a clock running for a
+while, so the ordinary guard is correct and the non-trial-starting variant would only have been
+a second thing to explain.
+
+Two tests in `billing-api.test.js`, in the describe whose stated job is that the gate lands on
+the coach and never on the client. One asserts the 402 on drafting for a coach in grace, and was
+checked against the unfixed route to be sure it could fail. The other asserts that
+`/api/ai/programme` and `/api/ai/review` stay open at every subscription state, for a client and
+for a lapsed coach alike, which is constraint 1 written down where a future edit will trip
+over it.
 
 ### A2 — Per-request provider selection · 2 days
 
@@ -263,7 +281,7 @@ user text leaves the instance to query it. A local-only free tier is in fact a p
 - [ ] A client's programme generation, review and typed logging are identical at every tier,
       and a test fails if a client-facing route ever consults entitlement
 - [ ] `/api/ai/status` names the tier that answered as well as the provider
-- [ ] An expired coach cannot spend model budget on a proposal they cannot send
+- [x] An expired coach cannot spend model budget on a proposal they cannot send
 - [ ] Every chunk in the store names its licence, its author and its URL, and one source can be
       deleted without rebuilding
 - [ ] Nothing in the corpus lacks a licence somebody wrote down
@@ -288,5 +306,6 @@ In order, and none of it is code:
    better prose.
 4. **One paying coach, first.** There are none. This is the "build phase 10 instead of touching
    the blockers" risk in its exact shape, and every new AI surface is another screen wanting
-   exercise artwork that is not yet licensed. A1 is worth doing now because it is a bug. The
-   rest is worth doing when somebody is paying for the thing it improves.
+   exercise artwork that is not yet licensed. A1 is done, because a lapsed subscription reaching
+   a metered endpoint is a bug rather than a feature. A2 onwards is worth doing when somebody is
+   paying for the thing it would improve.

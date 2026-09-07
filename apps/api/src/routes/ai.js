@@ -18,6 +18,7 @@ import { formsFor, scheduleFor } from '@gymyar/db/checkins.js'
 import { byId } from '@gymyar/db/attachments.js'
 import { db } from '@gymyar/db'
 import { requireUser } from '../session.js'
+import { requireCoach } from '../entitlement.js'
 import { stateForUser } from '../state.js'
 import { limit } from '../rate-limit.js'
 import { config } from '../config.js'
@@ -113,6 +114,30 @@ export default async function aiRoutes(app, opts = {}) {
    */
   app.post('/api/coach/clients/:id/ai-review', { config: limit('model.draft') }, async req => {
     const user = await requireUser(req)
+    /* The capability the *send* needs, checked before the model runs.
+     *
+     * This route had no entitlement check at all, which made it the one coach-side action a
+     * lapsed subscription did not reach. Its output is by construction the payload
+     * `/api/coach/clients/:id/propose` takes, and that route requires `propose` — so a coach in
+     * grace or expired could draft as many changes as they liked and be refused at the moment
+     * they tried to send any of them. A dead end at the end of a wizard, and every attempt spent
+     * a `model.draft` request on a language model somebody is paying for by the token.
+     *
+     * `propose` rather than a capability of its own, because there is no separate thing being
+     * bought here: drafting is the first half of proposing, and a tier that sold one without the
+     * other would be selling a button that does not work.
+     *
+     * Before the scope check, matching the propose route exactly. It is the cheapest question
+     * — one row, about the caller's own subscription — and its answer tells the caller nothing
+     * about the client they named that they did not already know about themselves.
+     *
+     * `requireCoach` starts the trial clock on first use, and that is safe here rather than
+     * merely tolerable: this route is unreachable without an active link, a link exists only
+     * because an invite was created, and creating one already went through
+     * `requireCoach(…, 'takeClients')`. By the time anybody can draft, their fortnight has been
+     * running for a while.
+     */
+    await requireCoach(user.id, 'propose')
     const clientId = req.params.id
     // Reviewing training requires having been shown the training. Programmes alone are not
     // enough to say anything honest about whether something is working.
