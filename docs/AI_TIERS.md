@@ -1,10 +1,13 @@
 # Two AI tiers, and the corpus underneath the paid one
 
-Part plan, part record. A1 and A2 are built; A3 and A4 are not, so there is no retrieval of any
-kind yet and the paid tier is currently "the hosted model, if this deployment has one". Laid out
-the way [WEARABLES.md](WEARABLES.md) was before any of that existed: the constraints first, then
-the shape that survives them, then milestones somebody can cost — with the built ones marked and
-what building them taught written into them.
+Part plan, part record. A1, A2 and A3 are built; A4 is not. Two parts of A3 have never met the
+real thing — no Ollama has embedded anything and no corpus has been ingested — and §A3 says
+exactly which, because a document that reads as finished work when it is verified logic is the
+more expensive kind of wrong.
+
+Laid out the way [WEARABLES.md](WEARABLES.md) was before any of that existed: the constraints
+first, then the shape that survives them, then milestones somebody can cost — with the built ones
+marked, and what building them taught written into them.
 
 The ask it answers: a free tier that runs on the deployment's own Ollama, and a paid tier with
 several thousand articles and books of field knowledge behind it.
@@ -87,7 +90,7 @@ stay named:
 |---|---|---|
 | **Template** | no model configured | any instance; already ships, `/api/ai/status` reports it |
 | **Free** | the deployment's own Ollama | clients, and coaches whose subscription has lapsed. The floor nobody can fall through |
-| **Premium** | the hosted model today; retrieval on top of it after A3 | a coach who is paying or trialling |
+| **Premium** | the hosted model, plus retrieval where a corpus and an embedding model are configured | a coach who is paying or trialling |
 
 **Separate retrieval from model quality.** This is the load-bearing decision in this document.
 They are orthogonal, and treating them as one thing is what makes the plan depend on sanctions
@@ -243,22 +246,105 @@ entirely**, because status reads the entitlement directly — it was checking th
 routing. The two that follow a real call through to a provider were added after that, and both
 were checked against a hardcoded resolver to be sure they could fail.
 
-### A3 — Retrieval, entirely local · 5 to 7 days
+### A3 — Retrieval, entirely local · **built, and unexercised in two places**
 
-- **pgvector.** `docker-compose.yml` runs `postgres:16-alpine`, which does not have it. Either
-  `pgvector/pgvector:pg16` or a small image of our own. Changing the database image is normally
-  expensive for self-hosters; there are currently zero deployments, which makes this the
-  cheapest moment this change will ever be.
-- **Migration 016**, adding the chunk table: text, vector, source id, licence, author, URL,
-  study design, sample size, peer-review status. Not in `SYNC_TABLES` and never in
-  `log_change()`: this is instance-wide reference data, not anybody's rows.
-- **Ingestion** (`infra/scripts/ingest-corpus.mjs`) against the open-access sources, honouring
-  the corpus rules above, embedding locally through Ollama with `nomic-embed-text` or
-  `mxbai-embed-large`. Idempotent, resumable, and it records what it skipped and why.
-- **Ranking** on design and sample size as well as similarity, per the section above.
-- **The invariant, as a test:** `packages/domain` must not import the store, and a generated
-  programme must be byte-identical with the store populated and empty. `plannerReach()` and the
-  determinism test in `planner.test.js` are the existing hooks for this.
+Everything below is written and tested except the two things this machine cannot do, which are
+named at the end of the section. Read that part before believing the rest.
+
+**pgvector, and the feature is optional.** `docker-compose.yml` and CI now run
+`pgvector/pgvector:pg16` — the same Postgres with one extension compiled in, so an existing
+volume keeps working. But **migration 016 is conditional**: on a database without the extension
+it creates nothing, says so in a notice, and `corpus.js` reports the feature absent. A migration
+that hard-required pgvector would refuse to apply on every instance built before it, which is a
+broken upgrade for a feature nobody has asked for yet. Same shape the vision model already has:
+with nothing configured it is missing rather than degraded.
+
+That leaves one trap, and `ensureCorpus()` closes it. A migration recorded as applied never runs
+again, so an instance that later moved to a pgvector image would otherwise have the extension and
+no table forever, with nothing to say why. The ingestion script calls it before writing anything.
+
+**Migration 016** holds the chunk table, and the provenance columns are the point rather than
+decoration. `licence` and `url` are `not null` with non-empty checks, which makes "nothing in the
+corpus lacks a licence somebody wrote down" a constraint rather than a convention — the rules in
+this document are only worth something if an ingestion script written in a hurry cannot forget
+them. `source_id` is what makes withdrawing a paper one delete, which is the whole reason
+retrieval is a safer answer here than a fine-tune, and is worthless unless the column exists. Not
+in `TABLES` in `sync.js` and never through `log_change()`: instance-wide reference data has no
+owner to scope to and no reason to be on a phone.
+
+**Embedding is local, with no hosted variable at all** (`packages/ai/src/embed.js`). Two reasons,
+and the second decided it: a per-token price is the wrong shape of bill for the call made
+thousands of times at ingestion, and a paid tier that needed a hosted embedding API would inherit
+constraint 2 and take the corpus down with it. Spoken to over the OpenAI-compatible `/embeddings`
+route, so "your own hardware" does not mean "exactly the server we tested". The dimension is
+checked on the first vector rather than by the database an hour into a run.
+
+**Ingestion** (`infra/scripts/ingest-corpus.mjs`) is where the licence rule actually lands, and
+what it refuses is the interesting part:
+
+- **NC is refused**, and that is not hypothetical. The first result Europe PMC returned for
+  "resistance training volume hypertrophy" on the day this was written was an open-access
+  systematic review under `cc by-nc-nd`. Free to read is not free to sell alongside, and an
+  ingester that read `isOpenAccess: Y` and stopped there would have taken it. Across 25 live
+  records, 5 were refused on licence.
+- **ND is refused**, rather than arguing about whether a stored vector is a derivative.
+- **An unrecognised or absent licence is refused**, never defaulted. The same rule the media
+  adapters follow after Free Exercise DB's claim turned out to have nothing behind it.
+- Share-alike is read *as* share-alike. `cc by` is a substring of `cc by sa`, so the match list is
+  ordered longest-first and a test asserts that ordering; a shortest-first list would record every
+  share-alike paper as CC-BY and silently drop the obligation that makes it different.
+
+Abstracts rather than full text, per the corpus rules above. Europe PMC is the adapter because the
+licence arrives *with* the search result rather than in a second lookup per article. A run is
+idempotent (upsert on `(source_id, chunk_index)`), survives one paper failing to embed, and prints
+what it skipped and why — an ingestion that silently dropped half its input while reporting
+success is how a corpus ends up covering nothing.
+
+`npm run corpus:check` is the gate and the sibling of `media:check`: it fails if anything in the
+store is under a licence these rules would not accept today, which catches a corpus ingested by an
+older version of them and a row somebody put there by hand.
+
+**Ranking** is where the honest work is. Similarity picks the candidates, which is what the HNSW
+index can accelerate, and study quality orders them, which it cannot — so `search` over-fetches by
+a factor of four and re-ranks. Without the over-fetch, quality weighting could only reorder what
+similarity had already chosen, which is most of the point of having it. The weights themselves are
+a starting point and **are not validated against anything**; what the tests assert are the
+ordering properties they exist to produce, which would still have to hold if somebody retuned
+every number. The one that matters: identical text and identical vectors, and the forty-trial
+meta-analysis comes back ahead of the one-lifter case study. Relevance still dominates, so a close
+case study beats a distant meta-analysis, and it should.
+
+**The citations never come from the model.** The prompt is shown the passage and the title and
+*not the URL*, because a model that has seen a link will eventually write one, and a reference a
+model typed is a reference nobody can check. The resolvable links travel back beside the note in
+`sources`, straight from the store, on the template path as well as the model path — dropping them
+on the fallback would make "the model was down" and "there is nothing published about this" look
+identical to the coach reading it. The system prompt gains two prohibitions when passages are
+present: do not cite, and do not take a prescription from them.
+
+**The invariant is now a test.** `node-contract.test.js` scans every file in `packages/domain` and
+fails on an import of `@gymyar/db`, `@gymyar/ai`, `postgres`, `pg`, or anything named corpus. It
+was checked against a deliberate violation. That is the constraint-3 promise made mechanical:
+retrieval is an import and an import can be asserted about, where a fine-tune would have put the
+same influence inside weights that no test could see.
+
+#### What has not been run
+
+Two things, and neither is a detail:
+
+- **No real embedding model has ever run against this.** Ollama is not installed on the machine
+  this was built on, so `openAICompatEmbedder` has been exercised only against a fake server.
+  Batching, ordering, short batches and the dimension check are all tested; the actual HTTP
+  conversation with a real Ollama is not. It is the same class of gap as the wearables work before
+  any hardware: the logic is verified and the device has not answered yet.
+- **No corpus has been ingested.** The adapter was run against live Europe PMC records up to the
+  point of embedding — 20 of 25 storable, 5 refused on licence — so the field names, the cursor
+  and the licence rule are confirmed against the real API. Nothing has been written to a store,
+  because writing one means choosing sources, and §"What needs a person first" says that decision
+  has a legal question attached to it.
+
+The store itself is verified against a real pgvector: 15 tests, including the constraint that
+refuses an unlicensed passage and every ranking property above.
 
 Sizing, arithmetic from assumptions rather than measurement, for five thousand open-access
 papers at roughly eight thousand tokens each:
@@ -317,18 +403,18 @@ user text leaves the instance to query it. A local-only free tier is in fact a p
 ## Done means
 
 - [x] A free coach drafts with the local model; an active coach drafts with the hosted one
-- [ ] …and with retrieval behind it
+- [x] …and with retrieval behind it, where a corpus and an embedding model are configured
 - [x] A client's programme generation, review and typed logging are never refused at any tier,
       and the programme itself is identical across them
 - [x] `/api/ai/status` names the tier that answered as well as the provider
 - [x] An expired coach cannot spend model budget on a proposal they cannot send
-- [ ] Every chunk in the store names its licence, its author and its URL, and one source can be
+- [x] Every chunk in the store names its licence, its author and its URL, and one source can be
       deleted without rebuilding
-- [ ] Nothing in the corpus lacks a licence somebody wrote down
-- [ ] A generated programme is byte-identical with the store full and empty
-- [ ] Retrieved claims reach the reader as citations with links, and preprints say so
+- [x] Nothing in the corpus lacks a licence somebody wrote down: a database constraint, plus `corpus:check`
+- [x] The domain cannot import the store at all, which is the stronger form of that
+- [x] Retrieved claims reach the reader as citations with links, and preprints say so
 - [ ] Both privacy pages describe what a configured provider receives
-- [ ] The instance still works with no model and no store, in template wording
+- [x] The instance still works with no model and no store, in template wording
 
 ## What needs a person first
 
@@ -337,21 +423,21 @@ In order, and none of it is code:
 1. **Is hosted inference payable from Iran?** Constraint 2, and it decides whether A4 exists.
    [LEGAL_BRIEF.md](LEGAL_BRIEF.md) question 17.
 2. **Is a corpus of published literature ingestible and sellable?** A new question for the same
-   review, and closer to question 6 on share-alike than to anything else already on that list.
-3. **Is a smaller model enough of a difference to sell?** A2 shipped the split, and it is worth
-   looking at what it actually buys before pricing it: the programme is identical across tiers
-   by construction, so what a subscription currently buys is better *prose* and a better reader
-   of unusual phrasing. That may be too thin to charge for on its own, which is the argument for
-   A3 being the real product rather than the polish.
-4. **Is this what the paid tier should sell at all?** Tiers are client-count based today at
+   review, closer to question 6 on share-alike than to anything already on that list, and no
+   longer hypothetical: A3 built the machinery, enforced the licence rules in three places, and
+   **ingested nothing**, because choosing sources is the part with the legal question attached.
+   It stops there on purpose. Counsel decides whether anything is ever put in it.
+3. **Is this what the paid tier should sell at all?** Tiers are client-count based today at
    five, twenty-five and one hundred (`packages/domain/src/entitlement.js`), and prices are
    placeholders (`apps/api/src/payments/pricing.js`). A `pro` coach running premium AI across a
    hundred clients costs roughly twenty times a `solo` coach at about five times the price, and
    the rate-limit buckets are tier-blind. More capacity may be a better thing to sell than
    better prose.
-5. **One paying coach, first.** There are none. This is the "build phase 10 instead of touching
+4. **One paying coach, first.** There are none. This is the "build phase 10 instead of touching
    the blockers" risk in its exact shape, and every new AI surface is another screen wanting
    exercise artwork that is not yet licensed. A1 is done, because a lapsed subscription reaching
-   a metered endpoint is a bug rather than a feature, and A2 because it is what stops a hosted
-   key being spent on people who are not paying for it. A3 onwards is worth doing when somebody
-   is paying for the thing it would improve.
+   a metered endpoint is a bug rather than a feature, and A2 because it is what stops a hosted key
+   being spent on people who are not paying for it. A3 is built and switched off — it costs
+   nothing until an operator configures an embedding model and ingests something, which is the
+   right place for it to wait. A4 is worth doing when somebody is paying for the thing it would
+   improve, if it turns out to be purchasable at all.

@@ -24,6 +24,9 @@ export async function build({
   // two to be distinguishable — left null, one injected `ai` serves both, which is what every
   // caller who has not thought about tiering should get. See routes/ai.js.
   aiFree = null,
+  // The retrieval corpus, as a function. Injectable for the same reason `ai` is: the suite has
+  // to be able to drive a note that cites something without a pgvector or an embedding model.
+  retrieve = undefined,
   // The payment gateway, injectable for the same reason `ai` is: the suite drives the whole
   // purchase flow, and it must never reach a real terminal to do it.
   gateway = null,
@@ -93,7 +96,7 @@ export async function build({
   await app.register(exerciseRoutes)
   await app.register(pushRoutes)
   await app.register(adminRoutes)
-  await app.register(aiRoutes, { ai, aiFree })
+  await app.register(aiRoutes, { ai, aiFree, retrieve })
   await app.register(billingRoutes, { gateway })
   await app.register(mediaRoutes)
   await app.register(publicRoutes, { enabled: publicStats })

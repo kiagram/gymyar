@@ -6,7 +6,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        # Matches docker-compose.yml. The corpus tests need the extension, and skipping them here
+        # would mean the only place they ever run is a laptop with the right container up.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: gymyar
           POSTGRES_PASSWORD: gymyar
@@ -17,6 +19,9 @@ jobs:
           --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgres://gymyar:gymyar@localhost:5432/gymyar_test
+      # The same database: the service above has pgvector, so the corpus tests run rather than
+      # skip. Named separately because they skip on any Postgres that does not have it.
+      CORPUS_TEST_DATABASE_URL: postgres://gymyar:gymyar@localhost:5432/gymyar_test
       SESSION_SECRET: ci-secret-not-for-production
       STORAGE_S3_TEST_ENDPOINT: http://localhost:9000
       STORAGE_S3_ACCESS_KEY_ID: gymyar

@@ -30,7 +30,10 @@
     "version:stamp": "node infra/scripts/version.mjs",
     "version:check": "node infra/scripts/version.mjs --check",
     "media:check": "node infra/scripts/media-set.mjs check",
-    "media:coverage": "node infra/scripts/media-set.mjs coverage"
+    "media:coverage": "node infra/scripts/media-set.mjs coverage",
+    "corpus:status": "node infra/scripts/ingest-corpus.mjs status",
+    "corpus:check": "node infra/scripts/ingest-corpus.mjs check",
+    "corpus:ingest": "node infra/scripts/ingest-corpus.mjs ingest"
   },
   "devDependencies": {
     "playwright-core": "^1.49.0"
