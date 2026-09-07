@@ -251,6 +251,14 @@ about storage, the compose file or the two scripts, and once on the machine that
 hold the archives — a docker daemon inside a VM shares only the directories it has been told
 about, and that is the one thing a rehearsal on somebody else's machine cannot check.
 
+**The dump needs the same Postgres to go back into.** Since the retrieval corpus arrived
+(migration 016) the database image is `pgvector/pgvector:pg16`, and a dump taken from it carries
+`CREATE EXTENSION vector`. Plain `postgres:16-alpine` refuses that on the first statement, so a
+backup from this instance restores into an image that has pgvector and not into one that does
+not. `backup.sh --verify` works this out for itself — it stands the throwaway up on whatever
+image your `db` service is running, and `VERIFY_IMAGE` overrides it. Worth knowing before the
+day you need the archive on a machine you are setting up in a hurry.
+
 The rest of this section is what those two scripts do, because you should be able to do it by
 hand — on a machine that has the archive and not this repository, for one.
 
