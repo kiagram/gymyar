@@ -172,10 +172,26 @@ PARTIAL=()
 # Restores into a container that has never seen this instance, so nothing about the running
 # stack can make a broken dump look fine. Torn down whichever way this exits.
 if [ "$VERIFY" = "1" ]; then
-  step "verifying: restoring into a throwaway database"
+  # The throwaway runs whatever image the instance's own database runs, resolved rather than
+  # hardcoded. This said `postgres:16-alpine` until migration 016 added the retrieval corpus, and
+  # then quietly stopped being able to verify anything: a dump from an instance that has pgvector
+  # carries `CREATE EXTENSION vector`, plain Postgres refuses it on the first statement with
+  # "extension is not available", and ON_ERROR_STOP turns that into "the dump did not restore
+  # cleanly". The backup was perfect and the check called it broken, which is the worst direction
+  # for this check to be wrong in: it is the one thing that tells somebody their backups can be
+  # relied on, and a verification that cries wolf is one people learn to skip.
+  #
+  # Asked of compose, then of the running container, then a default. The same chain, and for the
+  # same reason, as PROJECT above.
+  VIMAGE="${VERIFY_IMAGE:-}"
+  [ -n "$VIMAGE" ] || VIMAGE="$(docker compose ps --format '{{.Image}}' db 2>/dev/null | head -n 1)"
+  [ -n "$VIMAGE" ] || VIMAGE="$(docker inspect --format '{{.Config.Image}}' "$(docker compose ps -q db 2>/dev/null | head -n 1)" 2>/dev/null)"
+  [ -n "$VIMAGE" ] || VIMAGE="pgvector/pgvector:pg16"
+
+  step "verifying: restoring into a throwaway $VIMAGE"
   VDB="gymyar-verify-$$"   # torn down by on_exit, whichever way this ends
   docker run -d --name "$VDB" -e POSTGRES_PASSWORD=verify -e POSTGRES_USER="$PGUSER" \
-    -e POSTGRES_DB="$PGDB" postgres:16-alpine >/dev/null
+    -e POSTGRES_DB="$PGDB" "$VIMAGE" >/dev/null
   for _ in $(seq 1 60); do
     docker exec "$VDB" pg_isready -U "$PGUSER" -d "$PGDB" >/dev/null 2>&1 && break
     sleep 1
