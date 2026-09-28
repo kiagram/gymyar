@@ -4,7 +4,7 @@ import { useStore } from '../store/useStore.js'
 import { effectiveRoutine, effectiveRoutineId, streakWeeks, lastBW, setsDoneActive } from '@gymyar/domain'
 import { fmtNum, fmtDate, todayISO, isoOf, weekKey, startOfWeek, DAYS, dayNum, monthLabel, fmtInt } from '@gymyar/domain'
 import { t, dateLocale } from '../lib/i18n.js'
-import { bwSheet, goalSheet, dayOverrideSheet, calendarSheet, checkinSheet, startFlow, loadStarterPlan, bwDeltaColor } from '../sheets.jsx'
+import { bwSheet, goalSheet, dayOverrideSheet, calendarSheet, checkinSheet, startFlow, loadStarterPlan, loadKiaSplit, bwDeltaColor } from '../sheets.jsx'
 import LineChart from '../components/LineChart.jsx'
 import Habits from '../components/Habits.jsx'
 import Icon from '../components/Icon.jsx'
@@ -89,7 +89,8 @@ export default function Home() {
           <div className="big" style={{ fontSize: 22 }}>{t('Welcome!')}</div>
         </div>
         <div className="muted small" style={{ marginBottom: 12 }}>{t('Set up your weekly routine to get going — or load a ready-made Push / Pull / Legs plan.')}</div>
-        <Button variant="primary" icon="sparkles" onClick={loadStarterPlan}>{t('Load starter plan (PPL)')}</Button>
+        <Button variant="primary" icon="sparkles" onClick={loadKiaSplit}>{t("Load Kia's 3-day split")}</Button>
+        <div style={{ height: 8 }} /><Button icon="sparkles" onClick={loadStarterPlan}>{t('Load starter plan (PPL)')}</Button>
         <div style={{ height: 8 }} /><Button onClick={() => nav('/plan')}>{t('Build my own plan')}</Button>
       </div>
     )}

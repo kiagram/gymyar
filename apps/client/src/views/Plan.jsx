@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { DAYN, uid, exCount } from '@gymyar/domain'
 import { t } from '../lib/i18n.js'
-import { dayAssignSheet, loadStarterPlan, planToolsSheet } from '../sheets.jsx'
+import { dayAssignSheet, loadStarterPlan, loadKiaSplit, planToolsSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
@@ -50,6 +50,8 @@ export default function Plan() {
         <Button variant="primary" icon="sparkles" onClick={() => nav('/plan/build')}>{t('Build me a plan')}</Button>
         <div style={{ height: 8 }} />
         <Button icon="clipboard" onClick={loadStarterPlan}>{t('Load starter plan (Push / Pull / Legs)')}</Button>
+        <div style={{ height: 8 }} />
+        <Button icon="clipboard" onClick={loadKiaSplit}>{t("Load Kia's 3-day split")}</Button>
       </>}
     </div></div>
   </>

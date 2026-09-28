@@ -12,7 +12,7 @@ import { wakeLockSupported } from '../lib/wakelock.js'
 import { t, LANGS } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, shareExport, syncReminder } from '../lib/mobile.js'
-import { loadStarterPlan, confirmSheet, importFromApp } from '../sheets.jsx'
+import { loadStarterPlan, loadKiaSplit, confirmSheet, importFromApp } from '../sheets.jsx'
 import CodeFlow from '../components/CodeFlow.jsx'
 import { phoneFirst, phoneComplaint } from './Login.jsx'
 import Icon from '../components/Icon.jsx'
@@ -241,6 +241,7 @@ export default function Settings() {
     {/* ---------- data: fill it, bring things over, back it up, wipe it ---------- */}
     <Section title={t('Data')}>
       <Row icon="sparkles" iconTint="var(--acc)" title={t('Load starter plan (PPL)')} accessory="chevron" onClick={loadStarterPlan} />
+      <Row icon="sparkles" iconTint="var(--acc)" title={t("Load Kia's 3-day split")} subtitle={t('Back + Triceps · Chest + Biceps · Shoulders + Legs')} accessory="chevron" onClick={loadKiaSplit} />
       <Row icon="shuffle" iconTint="var(--teal)" title={t('Import from another app')}
         subtitle={t('FitNotes, Strong, Hevy — or body weight from Apple Health')}
         accessory="chevron" onClick={() => importRef.current.click()} />

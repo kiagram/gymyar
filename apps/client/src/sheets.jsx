@@ -11,7 +11,7 @@ import { lastEntryFor, bestWeightFor, buildSets, effectiveRoutineId, workoutVolu
 import { beep, vibrate } from './lib/sound.js'
 import { t, instrFor, exName, exSearchText, getLang, listSeparator } from './lib/i18n.js'
 import { nav } from './lib/nav.js'
-import { starterRoutines } from '@gymyar/domain'
+import { starterRoutines, kiaSplitRoutines } from '@gymyar/domain'
 import Media, { Thumb } from './components/Media.jsx'
 import Stepper from './components/Stepper.jsx'
 import Icon from './components/Icon.jsx'
@@ -56,6 +56,15 @@ export function loadStarterPlan() {
     st.week[1] = push.id; st.week[3] = pull.id; st.week[5] = legs.id
   })
   toast(t('Starter plan loaded — Mon Push · Wed Pull · Fri Legs'))
+}
+// Kia's 3-day split, laid on the week the same way as the PPL starter.
+export function loadKiaSplit() {
+  const [back, chest, legs] = kiaSplitRoutines()
+  update(st => {
+    st.routines.push(back, chest, legs)
+    st.week[1] = back.id; st.week[3] = chest.id; st.week[5] = legs.id
+  })
+  toast(t('3-day split loaded — Mon Back · Wed Chest · Fri Shoulders & Legs'))
 }
 
 /* ============================ weight picker (shared: body weight + goal) ============================ */
